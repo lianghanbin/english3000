@@ -14,12 +14,9 @@ OutputDir=.
 OutputBaseFilename=English3000-OneClick-Setup
 Compression=none
 SolidCompression=no
-UninstallDisplayName={#AppName} 一键版
+UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\english3000.exe
 ShowLanguageDialog=no
-
-[Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Dirs]
 Name: "{userappdata}\liang\english3000"

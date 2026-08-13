@@ -113,10 +113,38 @@ jobs:
           $sum = (Get-ChildItem oneclick -Recurse -File | Measure-Object -Property Length -Sum).Sum
           Write-Host "package size: $([math]::Round($sum/1MB,1)) MB"
       - name: Build Inno installer
+        id: inno
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Qp tools\oneclick_installer.iss
+          $iscc = @("C:\Program Files (x86)\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*" -Recurse -Filter ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName }
+          if (-not $iscc) { Write-Error "ISCC.exe not found"; exit 1 }
+          Write-Host "ISCC: $iscc"
+          & $iscc /Qp tools\oneclick_installer.iss 2>&1 | Tee-Object -FilePath iscc.log
+          if ($LASTEXITCODE -ne 0) { Write-Host "ISCC failed with exit $LASTEXITCODE"; exit $LASTEXITCODE }
           Get-Item English3000-OneClick-Setup.exe | ForEach-Object { Write-Host "installer size: $([math]::Round($_.Length/1MB,1)) MB" }
+      - name: Upload build failure log
+        if: failure() && steps.inno.conclusion == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          if (-not (Test-Path iscc.log)) { exit 0 }
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+          $uri = "https://api.github.com/repos/${{ github.repository }}/releases"
+          $release = $null
+          try { $release = Invoke-RestMethod -Method Get -Uri "$uri/tags/win-oneclick" -Headers $headers } catch { }
+          if ($null -eq $release) {
+            $body = @{ tag_name = "win-oneclick"; name = "Windows One-Click"; body = "Build diagnostics"; draft = $false; prerelease = $false } | ConvertTo-Json
+            $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq "iscc-error.log") {
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/assets/$($asset.id)" -Headers $headers
+            }
+          }
+          $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=iscc-error.log"
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "text/plain" -InFile iscc.log
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
