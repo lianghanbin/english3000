@@ -100,8 +100,13 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     leftLayout->addWidget(title);
     m_listWidget = new QListWidget(left);
     m_listWidget->setAlternatingRowColors(true);
+    m_listWidget->setDragDropMode(QAbstractItemView::InternalMove);
+    m_listWidget->setDefaultDropAction(Qt::MoveAction);
+    m_listWidget->setDragDropOverwriteMode(false);
     connect(m_listWidget, &QListWidget::currentRowChanged, this,
             [this](int) { onListSelected(); });
+    connect(m_listWidget->model(), &QAbstractItemModel::rowsMoved, this,
+            &WordListPage::saveOrder);
     leftLayout->addWidget(m_listWidget, 1);
     left->setMinimumWidth(240);
 
@@ -149,7 +154,7 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     auto *listRow = new QHBoxLayout(m_listButtons);
     listRow->setContentsMargins(0, 0, 0, 0);
     m_currentButton = new QPushButton(QStringLiteral("设为当前词表"), right);
-    m_resetButton = new QPushButton(QStringLiteral("重置本书进度"), right);
+    m_resetButton = new QPushButton(QStringLiteral("重置词表进度"), right);
     m_moreButton = new QPushButton(QStringLiteral("AI 补充词表"), right);
     m_deleteButton = new QPushButton(QStringLiteral("删除词表"), right);
     m_currentButton->setObjectName(QStringLiteral("primaryButton"));
@@ -554,14 +559,25 @@ void WordListPage::resetCurrent()
         return;
     const qint64 id = item->data(Qt::UserRole).toLongLong();
     const auto answer = QMessageBox::question(
-        this, QStringLiteral("重置本书进度？"),
-        QStringLiteral("确定把这本书的“已掌握”全部清空，重新开始学？"),
+        this, QStringLiteral("重置词表进度？"),
+        QStringLiteral("确定把「%1」的已掌握状态全部清空，重新开始学？")
+            .arg(item->text()),
         QMessageBox::Ok | QMessageBox::Cancel);
     if (answer != QMessageBox::Ok)
         return;
     m_store->resetList(id);
     fillCurrentScope();
-    m_statusLabel->setText(QStringLiteral("本书进度已重置，从头开始"));
+    m_statusLabel->setText(QStringLiteral("词表进度已重置，从头开始"));
+}
+
+void WordListPage::saveOrder()
+{
+    for (int i = 0; i < m_listWidget->count(); ++i) {
+        QListWidgetItem *item = m_listWidget->item(i);
+        const qint64 id = item->data(Qt::UserRole).toLongLong();
+        if (id > 0)
+            m_store->setWordListOrder(id, i);
+    }
 }
 
 void WordListPage::deleteCurrent()

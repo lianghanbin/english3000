@@ -105,7 +105,8 @@ public:
     int importCsv(const QString &csvPath, bool reset);
     int countWords() const;
     Counts counts(const QDate &day = QDate::currentDate()) const; // 当前词表进度
-    QVector<Word> studyCards(int limit); // 当前词表未学单词
+    QVector<Word> learnCards(int limit);  // 当前词表：还没学过的
+    QVector<Word> reviewCards(int limit); // 当前词表：学过但没掌握的
     std::optional<Word> getWord(qint64 id) const;
     QVector<Word> search(const QString &query, int limit = 300) const;
     qint64 addWord(const QString &word, const QString &pos, const QString &meaning);
@@ -121,10 +122,13 @@ public:
     static QStringList tokenizeWords(const QString &text);
 
     // 翻译联动
-    QVector<Word> extractUnknownWords(const QString &text, int limit = 20) const;
+    QVector<Word> extractUnknownWords(const QString &text, int limit = 20);
     qint64 queueWordFromTranslation(const QString &word,
                                     const QString &meaning,
                                     const QString &sentence);
+    qint64 queueWordToReadingList(const QString &word,
+                                  const QString &meaning,
+                                  const QString &sentence);
     static QString sentenceContaining(const QString &text,
                                       const QString &word,
                                       int maxLen = 180);
@@ -132,8 +136,12 @@ public:
     // 领域词表
     qint64 createWordList(const QString &name, const QString &description,
                           const QString &source);
+    qint64 getOrCreateWordList(const QString &name,
+                               const QString &description,
+                               const QString &source);
     bool deleteWordList(qint64 listId);
     QVector<WordListInfo> listWordLists(const QString &search = {}) const;
+    bool setWordListOrder(qint64 listId, int order);
     bool addWordToList(qint64 listId, const QString &word,
                        const QString &pos, const QString &meaning,
                        int order);
@@ -179,13 +187,15 @@ public:
     QVector<CoveragePoint> coverageHistory(int days = 30) const;
     int coverageArticleCount() const;
 
-    // 词表学习（选一本书 → 学这本书）
+    // 词表学习（学习=没学过的，复习=学过但没掌握的）
     ReviewResult answerStudy(qint64 itemId, bool known,
                              const QDate &day = QDate::currentDate());
     void markItemKnown(qint64 itemId);
     void resetItem(qint64 itemId);
     void resetList(qint64 listId);
     void resetAllLists();
+    std::optional<Word> findInNamedList(const QString &listName,
+                                        const QString &word) const;
 
     // 设置与统计
     void setSetting(const QString &key, const QString &value);

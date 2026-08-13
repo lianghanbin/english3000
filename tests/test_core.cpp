@@ -87,7 +87,7 @@ void testReimportKeepsProgress()
     makeList(store, {QStringLiteral("the"), QStringLiteral("of"),
                      QStringLiteral("and"), QStringLiteral("to"),
                      QStringLiteral("a")});
-    const QVector<Word> words = store.studyCards(1);
+    const QVector<Word> words = store.learnCards(1);
     store.answerStudy(words.first().itemId, true);
     store.importCsv(csv, false);
     const auto w = store.findInCurrentList(words.first().word);
@@ -102,7 +102,7 @@ void testAnswerStudy()
                      QStringLiteral("folder")});
     const QDate day(2026, 1, 1);
 
-    QVector<Word> cards = store.studyCards(10);
+    QVector<Word> cards = store.learnCards(10);
     check(cards.size() == 2, "two unlearned cards");
     const ReviewResult r1 = store.answerStudy(cards[0].itemId, true, day);
     check(r1.box == 6 && r1.wasNew, "known -> mastered");
@@ -114,7 +114,11 @@ void testAnswerStudy()
     const auto w2 = store.findInCurrentList(cards[1].word);
     check(w2 && w2->box == 0 && w2->reviewCount == 1,
           "unknown keeps review count");
-    check(store.studyCards(10).size() == 1, "only unlearned card remains");
+    check(store.learnCards(10).isEmpty(), "learned card leaves learn queue");
+    check(store.reviewCards(10).size() == 1
+              && store.reviewCards(10).first().word
+                  == QStringLiteral("folder"),
+          "unknown card goes to review queue");
 }
 
 void testMarkAndReset()
@@ -123,7 +127,7 @@ void testMarkAndReset()
     WordStore store(dir.filePath(QStringLiteral("test.db")));
     const qint64 listId = makeList(store, {QStringLiteral("kernel"),
                                            QStringLiteral("folder")});
-    const QVector<Word> cards = store.studyCards(10);
+    const QVector<Word> cards = store.learnCards(10);
     store.markItemKnown(cards[0].itemId);
     check(store.findInCurrentList(cards[0].word)->box == 6,
           "mark known -> box6");
@@ -154,7 +158,7 @@ void testDailyLogAndStreak()
     WordStore store(dir.filePath(QStringLiteral("test.db")));
     makeList(store, {QStringLiteral("kernel"),
                      QStringLiteral("folder")});
-    const QVector<Word> words = store.studyCards(2);
+    const QVector<Word> words = store.learnCards(2);
     store.answerStudy(words[0].itemId, true, QDate(2026, 1, 1));
     store.answerStudy(words[1].itemId, false, QDate(2026, 1, 1));
     store.answerStudy(words[0].itemId, true, QDate(2026, 1, 2));
@@ -184,7 +188,7 @@ void testArticleSaveAndStats()
     QTemporaryDir dir;
     WordStore store(dir.filePath(QStringLiteral("test.db")));
     makeList(store, {QStringLiteral("the")});
-    const QVector<Word> cards = store.studyCards(10);
+    const QVector<Word> cards = store.learnCards(10);
     store.answerStudy(cards.first().itemId, true); // "the" 变为已掌握
 
     const qint64 articleId = store.saveArticle(
@@ -307,6 +311,14 @@ void testMigration()
     }
     check(hasBox && hasReviewCount,
           "word list items migration adds progress columns");
+    QSqlQuery listPragma = store.rawQuery(QStringLiteral(
+        "PRAGMA table_info(word_lists)"));
+    bool hasSortOrder = false;
+    while (listPragma.next()) {
+        if (listPragma.value(1).toString() == QStringLiteral("sort_order"))
+            hasSortOrder = true;
+    }
+    check(hasSortOrder, "word lists migration adds sort_order column");
     const qint64 articleId = store.saveArticle(
         QStringLiteral("Migrated"), QStringLiteral("hello world"),
         QStringLiteral("test"), 1);
@@ -470,12 +482,16 @@ void testTranslationLinkage()
               text, QStringLiteral("folders"))
               == QStringLiteral("Folders keep files safe."),
           "sentence containing word");
-    const auto kernelItem = store.findInCurrentList(QStringLiteral("kernel"));
-    check(kernelItem.has_value(), "translated word added to current list");
+    const auto kernelItem =
+        store.findInNamedList(QStringLiteral("翻译生词"),
+                              QStringLiteral("kernel"));
+    check(kernelItem.has_value(), "translated word added to translation list");
     store.answerStudy(kernelItem->itemId, true);
-    const qint64 listId = store.currentWordListId();
-    check(store.knownInWordList(listId) == 1,
-          "known in word list counts mastered word");
+    const auto transList = store.listWordLists(
+        QStringLiteral("翻译生词"));
+    check(transList.size() == 1
+              && store.knownInWordList(transList.first().id) == 1,
+          "known in translation list counts mastered word");
 }
 
 void testWordLists()
@@ -507,6 +523,22 @@ void testWordLists()
               && store.currentWordListName() == QStringLiteral("Linux 运维"),
           "current word list");
 
+    const qint64 secondId = store.createWordList(
+        QStringLiteral("第二个"), {}, QStringLiteral("manual"));
+    store.setWordListOrder(secondId, 0);
+    store.setWordListOrder(listId, 1);
+    check(store.listWordLists().first().id == secondId,
+          "word lists order by drag order");
+    check(store.queueWordToReadingList(
+              QStringLiteral("kernel"), QStringLiteral("内核"),
+              QStringLiteral("The kernel runs."))
+              > 0,
+          "queue word to reading list");
+    check(store.findInNamedList(QStringLiteral("阅读生词"),
+                                QStringLiteral("kernel"))
+              .has_value(),
+          "reading list lookup works");
+
     const QString articleText =
         QStringLiteral("The kernel manages memory. The kernel schedules "
                        "processes. Directories hold files. the and of");
@@ -516,7 +548,7 @@ void testWordLists()
               == QStringLiteral("kernel"),
           "extract domain words by frequency");
 
-    const QVector<Word> cards = store.studyCards(10);
+    const QVector<Word> cards = store.learnCards(10);
     check(cards.size() == 2, "study cards from current list");
     store.answerStudy(cards.first().itemId, true);
     check(store.knownInWordList(listId) == 1,
@@ -526,7 +558,12 @@ void testWordLists()
           "reset list progress");
 
     check(store.deleteWordList(listId), "delete word list");
-    check(store.listWordLists().isEmpty(), "word lists empty after delete");
+    bool deletedGone = true;
+    for (const WordListInfo &info : store.listWordLists()) {
+        if (info.id == listId)
+            deletedGone = false;
+    }
+    check(deletedGone, "deleted list removed");
     check(store.currentWordListId() == -1, "current list reset on delete");
 }
 

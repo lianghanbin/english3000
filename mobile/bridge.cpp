@@ -27,6 +27,11 @@ int MobileBridge::newCount() const
     return m_store->counts().newTotal;
 }
 
+int MobileBridge::dueCount() const
+{
+    return m_store->counts().learning;
+}
+
 int MobileBridge::masteredCount() const
 {
     return m_store->counts().mastered;
@@ -45,7 +50,23 @@ QString MobileBridge::currentListName() const
 QVariantList MobileBridge::newCards(int limit)
 {
     QVariantList cards;
-    const QVector<Word> words = m_store->studyCards(limit);
+    const QVector<Word> words = m_store->learnCards(limit);
+    for (const Word &w : words) {
+        QVariantMap card;
+        card.insert(QStringLiteral("id"), w.itemId);
+        card.insert(QStringLiteral("word"), w.word);
+        card.insert(QStringLiteral("pos"), w.pos);
+        card.insert(QStringLiteral("meaning"), w.meaning);
+        card.insert(QStringLiteral("example"), w.exampleSentence);
+        cards.append(card);
+    }
+    return cards;
+}
+
+QVariantList MobileBridge::reviewCards(int limit)
+{
+    QVariantList cards;
+    const QVector<Word> words = m_store->reviewCards(limit);
     for (const Word &w : words) {
         QVariantMap card;
         card.insert(QStringLiteral("id"), w.itemId);
@@ -90,7 +111,7 @@ void MobileBridge::translate(const QString &text, const QString &model)
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty())
         return;
-    // 翻译前先收生词（自动加入今日新词，原句当例句）
+    // 翻译前先收生词（自动加入「翻译生词」词表，原句当例句）
     const QVector<Word> unknown = m_store->extractUnknownWords(trimmed, 20);
     for (const Word &w : unknown) {
         const QString sentence =

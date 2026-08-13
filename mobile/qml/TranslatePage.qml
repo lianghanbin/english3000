@@ -9,7 +9,7 @@ Page {
         spacing: 12
 
         Label {
-            text: "翻译（生词自动加入今日新词）"
+            text: "翻译（生词自动加入「翻译生词」词表）"
             font.bold: true
         }
 

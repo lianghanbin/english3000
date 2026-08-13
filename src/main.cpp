@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     if (store.countWords() > 0)
         store.seedBuiltinWordList();
     store.seedWordPhonetics();
-    // 首次使用默认选「核心 3000」这本书
+    // 首次使用默认选中「核心 3000」词表
     if (store.currentWordListId() <= 0) {
         const QVector<WordListInfo> lists = store.listWordLists();
         for (const WordListInfo &info : lists) {

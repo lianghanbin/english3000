@@ -85,6 +85,7 @@ const QStringList kSchema = {
         "name TEXT NOT NULL UNIQUE,"
         "description TEXT NOT NULL DEFAULT '',"
         "source TEXT NOT NULL DEFAULT 'manual',"
+        "sort_order INTEGER NOT NULL DEFAULT 0,"
         "created_at TEXT NOT NULL)"),
     QStringLiteral(
         "CREATE TABLE IF NOT EXISTS word_list_items ("
@@ -177,6 +178,8 @@ WordStore::WordStore(const QString &dbPath)
     ensureColumn(QStringLiteral("word_list_items"),
                  QStringLiteral("review_count"),
                  QStringLiteral("INTEGER NOT NULL DEFAULT 0"));
+    ensureColumn(QStringLiteral("word_lists"), QStringLiteral("sort_order"),
+                 QStringLiteral("INTEGER NOT NULL DEFAULT 0"));
     // 一次性迁移：旧主库已掌握的词，带入词表条目
     if (getSetting(QStringLiteral("list_box_migrated"),
                    QStringLiteral("0"))
@@ -186,6 +189,20 @@ WordStore::WordStore(const QString &dbPath)
             "UPDATE word_list_items SET box=6 WHERE word IN "
             "(SELECT word FROM words WHERE box=6)"));
         setSetting(QStringLiteral("list_box_migrated"),
+                   QStringLiteral("1"));
+    }
+    // 词表排序：默认按 id，核心 3000 置顶
+    if (getSetting(QStringLiteral("list_order_migrated"),
+                   QStringLiteral("0"))
+        != QLatin1String("1")) {
+        QSqlQuery order(m_db);
+        order.exec(QStringLiteral(
+            "UPDATE word_lists SET sort_order=id"));
+        QSqlQuery top(m_db);
+        top.exec(QStringLiteral(
+            "UPDATE word_lists SET sort_order=0 "
+            "WHERE name='核心 3000'"));
+        setSetting(QStringLiteral("list_order_migrated"),
                    QStringLiteral("1"));
     }
     if (m_dict.isOpen()) {
@@ -339,20 +356,24 @@ Counts WordStore::counts(const QDate &day) const
         QStringLiteral(
             "SELECT COUNT(*),"
             "SUM(CASE WHEN box=0 THEN 1 ELSE 0 END),"
+            "SUM(CASE WHEN box=0 AND review_count>0 THEN 1 ELSE 0 END),"
             "SUM(CASE WHEN box=6 THEN 1 ELSE 0 END),"
-            "SUM(CASE WHEN box>0 THEN 1 ELSE 0 END) "
+            "SUM(CASE WHEN box>0 THEN 1 ELSE 0 END),"
+            "SUM(CASE WHEN box=0 AND review_count=0 THEN 1 ELSE 0 END) "
             "FROM word_list_items WHERE list_id=?"),
         {listId});
     if (q.next()) {
         c.total = q.value(0).toInt();
         c.newTotal = q.value(1).toInt();
-        c.mastered = q.value(2).toInt();
-        c.known = q.value(3).toInt();
+        c.learning = q.value(2).toInt(); // 待复习
+        c.mastered = q.value(3).toInt();
+        c.known = q.value(4).toInt();
+        c.newTotal = q.value(5).toInt(); // 未学（没学过的）
     }
     return c;
 }
 
-QVector<Word> WordStore::studyCards(int limit)
+QVector<Word> WordStore::learnCards(int limit)
 {
     const qint64 listId = currentWordListId();
     if (listId <= 0)
@@ -363,7 +384,7 @@ QVector<Word> WordStore::studyCards(int limit)
             "i.review_count, w.id, w.phonetic, w.example_sentence "
             "FROM word_list_items i "
             "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
-            "WHERE i.list_id=? AND i.box=0 "
+            "WHERE i.list_id=? AND i.box=0 AND i.review_count=0 "
             "ORDER BY i.sort_order, i.id LIMIT ?"),
         {listId, limit});
     QVector<Word> words;
@@ -380,6 +401,39 @@ QVector<Word> WordStore::studyCards(int limit)
         w.exampleSentence = q.value(8).toString();
         if (w.id <= 0)
             w.id = addWord(w.word, w.pos, w.meaning); // 词表单词补进词典
+        words.append(w);
+    }
+    return words;
+}
+
+QVector<Word> WordStore::reviewCards(int limit)
+{
+    const qint64 listId = currentWordListId();
+    if (listId <= 0)
+        return {};
+    QSqlQuery q = rawQuery(
+        QStringLiteral(
+            "SELECT i.id, i.word, i.pos, i.meaning, i.box, "
+            "i.review_count, w.id, w.phonetic, w.example_sentence "
+            "FROM word_list_items i "
+            "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
+            "WHERE i.list_id=? AND i.box=0 AND i.review_count>0 "
+            "ORDER BY i.review_count DESC, i.sort_order, i.id LIMIT ?"),
+        {listId, limit});
+    QVector<Word> words;
+    while (q.next()) {
+        Word w;
+        w.itemId = q.value(0).toLongLong();
+        w.word = q.value(1).toString();
+        w.pos = q.value(2).toString();
+        w.meaning = q.value(3).toString();
+        w.box = q.value(4).toInt();
+        w.reviewCount = q.value(5).toInt();
+        w.id = q.value(6).toLongLong();
+        w.phonetic = q.value(7).toString();
+        w.exampleSentence = q.value(8).toString();
+        if (w.id <= 0)
+            w.id = addWord(w.word, w.pos, w.meaning);
         words.append(w);
     }
     return words;
@@ -662,14 +716,25 @@ QString WordStore::lookupLemma(const QString &form) const
 // ---------- 翻译联动 ----------
 
 QVector<Word> WordStore::extractUnknownWords(const QString &text,
-                                             int limit) const
+                                             int limit)
 {
     const qint64 listId = currentWordListId();
+    const qint64 transList = getOrCreateWordList(
+        QStringLiteral("翻译生词"),
+        QStringLiteral("翻译时自动收集的生词"),
+        QStringLiteral("translation"));
     QSet<QString> inList;
     if (listId > 0) {
         QSqlQuery q = rawQuery(QStringLiteral(
             "SELECT word FROM word_list_items WHERE list_id=?"),
             {listId});
+        while (q.next())
+            inList.insert(q.value(0).toString().toLower());
+    }
+    if (transList > 0) {
+        QSqlQuery q = rawQuery(QStringLiteral(
+            "SELECT word FROM word_list_items WHERE list_id=?"),
+            {transList});
         while (q.next())
             inList.insert(q.value(0).toString().toLower());
     }
@@ -724,20 +789,23 @@ qint64 WordStore::queueWordFromTranslation(const QString &word,
         q.addBindValue(wordId);
         q.exec();
     }
-    // 翻译生词自动加入当前词表（无词表时只进词典）
-    const qint64 listId = currentWordListId();
-    if (listId <= 0)
+    // 翻译生词自动加入「翻译生词」词表
+    const qint64 transList = getOrCreateWordList(
+        QStringLiteral("翻译生词"),
+        QStringLiteral("翻译时自动收集的生词"),
+        QStringLiteral("translation"));
+    if (transList <= 0)
         return wordId;
     QSqlQuery item = rawQuery(QStringLiteral(
         "SELECT id FROM word_list_items "
         "WHERE list_id=? AND word=? COLLATE NOCASE"),
-        {listId, w});
+        {transList, w});
     if (item.next())
         return wordId;
     QSqlQuery mx = rawQuery(QStringLiteral(
         "SELECT COALESCE(MAX(sort_order), 0) + 1 "
         "FROM word_list_items WHERE list_id=?"),
-        {listId});
+        {transList});
     const int order = mx.next() ? mx.value(0).toInt() : 0;
     QString pos;
     QString meaning2 = meaning;
@@ -746,7 +814,61 @@ qint64 WordStore::queueWordFromTranslation(const QString &word,
         if (meaning2.isEmpty())
             meaning2 = existing->meaning;
     }
-    addWordToList(listId, w, pos, meaning2, order);
+    addWordToList(transList, w, pos, meaning2, order);
+    return wordId;
+}
+
+qint64 WordStore::queueWordToReadingList(const QString &word,
+                                         const QString &meaning,
+                                         const QString &sentence)
+{
+    const QString w = word.trimmed().toLower();
+    if (w.isEmpty())
+        return -1;
+    std::optional<Word> existing = findWordByText(w);
+    qint64 wordId = 0;
+    if (existing) {
+        wordId = existing->id;
+    } else {
+        wordId = addWord(w, QString(), meaning);
+        if (wordId < 0)
+            return -1;
+    }
+    if (!sentence.trimmed().isEmpty()) {
+        QSqlQuery q(m_db);
+        q.prepare(QStringLiteral(
+            "UPDATE words SET "
+            "example_sentence=COALESCE(NULLIF(?, ''), example_sentence) "
+            "WHERE id=?"));
+        q.addBindValue(sentence.trimmed());
+        q.addBindValue(wordId);
+        q.exec();
+    }
+    const qint64 readList = getOrCreateWordList(
+        QStringLiteral("阅读生词"),
+        QStringLiteral("阅读时收集的生词"),
+        QStringLiteral("reading"));
+    if (readList <= 0)
+        return wordId;
+    QSqlQuery item = rawQuery(QStringLiteral(
+        "SELECT id FROM word_list_items "
+        "WHERE list_id=? AND word=? COLLATE NOCASE"),
+        {readList, w});
+    if (item.next())
+        return wordId;
+    QSqlQuery mx = rawQuery(QStringLiteral(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 "
+        "FROM word_list_items WHERE list_id=?"),
+        {readList});
+    const int order = mx.next() ? mx.value(0).toInt() : 0;
+    QString pos;
+    QString meaning2 = meaning;
+    if (existing) {
+        pos = existing->pos;
+        if (meaning2.isEmpty())
+            meaning2 = existing->meaning;
+    }
+    addWordToList(readList, w, pos, meaning2, order);
     return wordId;
 }
 
@@ -789,18 +911,35 @@ qint64 WordStore::createWordList(const QString &name,
     const QString trimmed = name.trimmed();
     if (trimmed.isEmpty())
         return -1;
+    QSqlQuery mx = rawQuery(QStringLiteral(
+        "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM word_lists"));
+    const int order = mx.next() ? mx.value(0).toInt() : 0;
     QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
-        "INSERT INTO word_lists(name, description, source, created_at) "
-        "VALUES(?, ?, ?, ?)"));
+        "INSERT INTO word_lists"
+        "(name, description, source, sort_order, created_at) "
+        "VALUES(?, ?, ?, ?, ?)"));
     q.addBindValue(trimmed);
     const QString desc = description.trimmed();
     q.addBindValue(desc.isEmpty() ? QStringLiteral("") : desc);
     q.addBindValue(source.isEmpty() ? QStringLiteral("manual") : source);
+    q.addBindValue(order);
     q.addBindValue(QDate::currentDate().toString(Qt::ISODate));
     if (!q.exec())
         return -1;
     return q.lastInsertId().toLongLong();
+}
+
+qint64 WordStore::getOrCreateWordList(const QString &name,
+                                      const QString &description,
+                                      const QString &source)
+{
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT id FROM word_lists WHERE name=?"),
+        {name.trimmed()});
+    if (q.next())
+        return q.value(0).toLongLong();
+    return createWordList(name, description, source);
 }
 
 bool WordStore::deleteWordList(qint64 listId)
@@ -818,6 +957,16 @@ bool WordStore::deleteWordList(qint64 listId)
     return true;
 }
 
+bool WordStore::setWordListOrder(qint64 listId, int order)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE word_lists SET sort_order=? WHERE id=?"));
+    q.addBindValue(order);
+    q.addBindValue(listId);
+    return q.exec();
+}
+
 QVector<WordListInfo> WordStore::listWordLists(const QString &search) const
 {
     QSqlQuery q;
@@ -825,7 +974,7 @@ QVector<WordListInfo> WordStore::listWordLists(const QString &search) const
         q = rawQuery(QStringLiteral(
             "SELECT wl.id, wl.name, wl.description, wl.source, "
             "(SELECT COUNT(*) FROM word_list_items i WHERE i.list_id=wl.id) "
-            "FROM word_lists wl ORDER BY wl.id DESC"));
+            "FROM word_lists wl ORDER BY wl.sort_order, wl.id"));
     } else {
         const QString like =
             QStringLiteral("%%1%").arg(search.trimmed());
@@ -835,7 +984,7 @@ QVector<WordListInfo> WordStore::listWordLists(const QString &search) const
                          "WHERE i.list_id=wl.id) "
                          "FROM word_lists wl "
                          "WHERE wl.name LIKE ? OR wl.description LIKE ? "
-                         "ORDER BY wl.id DESC"),
+                         "ORDER BY wl.sort_order, wl.id"),
                      {like, like});
     }
     QVector<WordListInfo> lists;
@@ -905,6 +1054,23 @@ int WordStore::knownInWordList(qint64 listId) const
 std::optional<Word> WordStore::findInCurrentList(const QString &word) const
 {
     const qint64 listId = currentWordListId();
+    if (listId <= 0)
+        return std::nullopt;
+    return findInNamedList(QString(), word);
+}
+
+std::optional<Word> WordStore::findInNamedList(const QString &listName,
+                                               const QString &word) const
+{
+    qint64 listId = currentWordListId();
+    if (!listName.trimmed().isEmpty()) {
+        QSqlQuery ql = rawQuery(QStringLiteral(
+            "SELECT id FROM word_lists WHERE name=?"),
+            {listName.trimmed()});
+        if (!ql.next())
+            return std::nullopt;
+        listId = ql.value(0).toLongLong();
+    }
     if (listId <= 0)
         return std::nullopt;
     QSqlQuery q = rawQuery(QStringLiteral(
@@ -1399,8 +1565,11 @@ bool WordStore::promoteFromPool(qint64 poolId, const QDate &day)
         update.addBindValue(wordId);
         update.exec();
     }
-    // 生词池转出后加入当前词表，方便直接学习
-    const qint64 listId = currentWordListId();
+    // 生词池转出后加入「阅读生词」词表
+    const qint64 listId = getOrCreateWordList(
+        QStringLiteral("阅读生词"),
+        QStringLiteral("阅读时收集的生词"),
+        QStringLiteral("reading"));
     if (listId > 0) {
         QSqlQuery item = rawQuery(QStringLiteral(
             "SELECT id FROM word_list_items "

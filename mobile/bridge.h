@@ -9,6 +9,7 @@ class WordStore;
 class MobileBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(int newCount READ newCount NOTIFY countsChanged)
+    Q_PROPERTY(int dueCount READ dueCount NOTIFY countsChanged)
     Q_PROPERTY(int masteredCount READ masteredCount NOTIFY countsChanged)
     Q_PROPERTY(int streak READ streak NOTIFY countsChanged)
     Q_PROPERTY(QString currentListName READ currentListName NOTIFY countsChanged)
@@ -17,11 +18,13 @@ public:
     MobileBridge(WordStore *store, AiClient *ai, QObject *parent = nullptr);
 
     int newCount() const;
+    int dueCount() const;
     int masteredCount() const;
     int streak() const;
     QString currentListName() const;
 
     Q_INVOKABLE QVariantList newCards(int limit);
+    Q_INVOKABLE QVariantList reviewCards(int limit);
     Q_INVOKABLE QVariantList wordLists();
     Q_INVOKABLE void setCurrentList(qint64 listId);
     Q_INVOKABLE void answer(qint64 wordId, bool known);

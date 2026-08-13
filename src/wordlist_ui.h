@@ -31,6 +31,7 @@ private slots:
     void supplementAiList();
     void setCurrent();
     void resetCurrent();
+    void saveOrder();
     void deleteCurrent();
     void markSelected();
     void resetSelected();

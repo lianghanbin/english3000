@@ -8,6 +8,7 @@ Page {
     property int cardIndex: -1
     property bool revealed: false
     property string currentExample: ""
+    property string mode: "learn"
 
     ColumnLayout {
         anchors.fill: parent
@@ -31,7 +32,8 @@ Page {
             Label {
                 text: bridge.currentListName === "" ? "未选词表"
                     : "未学 " + bridge.newCount + " · 已掌握 "
-                      + bridge.masteredCount
+                      + bridge.masteredCount + " · 待复习 "
+                      + bridge.dueCount
             }
             Item { Layout.fillWidth: true }
             Label {
@@ -103,10 +105,17 @@ Page {
             }
         }
 
-        Button {
-            text: cards.length === 0 ? "开始学习" : "继续学习"
-            Layout.fillWidth: true
-            onClicked: load()
+        RowLayout {
+            Button {
+                text: "学习未学的"
+                Layout.fillWidth: true
+                onClicked: load("learn")
+            }
+            Button {
+                text: "复习不认识的"
+                Layout.fillWidth: true
+                onClicked: load("review")
+            }
         }
     }
 
@@ -120,7 +129,9 @@ Page {
         }
     }
 
-    function load() {
+    function load(modeArg) {
+        if (modeArg !== undefined)
+            mode = modeArg
         lists = bridge.wordLists()
         listCombo.model = lists
         var current = -1
@@ -131,7 +142,8 @@ Page {
             }
         }
         listCombo.currentIndex = current >= 0 ? current : -1
-        cards = bridge.newCards(10)
+        cards = mode === "review" ? bridge.reviewCards(10)
+                                  : bridge.newCards(10)
         cardIndex = cards.length > 0 ? 0 : -1
         revealed = false
         currentExample = ""
@@ -153,7 +165,7 @@ Page {
                 bridge.requestExample(cards[cardIndex].id,
                                       cards[cardIndex].word)
         } else {
-            load()
+            load(mode)
         }
     }
 

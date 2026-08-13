@@ -44,7 +44,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
-    void startSession();
+    void startSession(const QString &kind);
     void reveal();
     void answer(bool known);
     void backToToday();
@@ -109,12 +109,14 @@ private:
 
     // 今日
     QLabel *m_newCountLabel = nullptr;
+    QLabel *m_dueCountLabel = nullptr;
     QLabel *m_masteredLabel = nullptr;
     QLabel *m_streakLabel = nullptr;
     QLabel *m_dailyLabel = nullptr;
-    QLabel *m_bookLabel = nullptr;
+    QLabel *m_currentListLabel = nullptr;
     QProgressBar *m_progress = nullptr;
     QPushButton *m_startNewButton = nullptr;
+    QPushButton *m_startReviewButton = nullptr;
 
     // 学习
     QLabel *m_rankLabel = nullptr;
@@ -196,8 +198,8 @@ private:
 
     enum Tab {
         TabStudy = 0,
-        TabReading = 1,
-        TabWordLists = 2,
+        TabWordLists = 1,
+        TabReading = 2,
         TabStats = 3,
         TabSettings = 4,
     };
@@ -214,5 +216,6 @@ private:
     QVector<SessionCard> m_session;
     int m_sessionIndex = 0;
     int m_sessionCorrect = 0;
+    QString m_sessionKind;
     bool m_revealed = false;
 };

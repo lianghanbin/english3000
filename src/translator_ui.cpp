@@ -458,6 +458,7 @@ void TranslatorWindow::translate()
         return;
     }
     const bool toChinese = !isMostlyChinese(text);
+    m_lastSource = text;
     m_translateButton->setEnabled(false);
     m_resultView->setPlainText(QStringLiteral("翻译中…"));
     m_statusLabel->setText(QStringLiteral("翻译中（本地模型需要几秒）"));
@@ -489,6 +490,15 @@ void TranslatorWindow::onTranslationFinished(const QString &translation)
     m_copyButton->setEnabled(true);
     m_translateButton->setEnabled(true);
     m_statusLabel->setText(QStringLiteral("翻译完成"));
+    if (!m_lastSource.trimmed().isEmpty()) {
+        const QVector<Word> unknown =
+            m_store->extractUnknownWords(m_lastSource, 20);
+        for (const Word &w : unknown) {
+            m_store->queueWordFromTranslation(
+                w.word, w.meaning,
+                WordStore::sentenceContaining(m_lastSource, w.word));
+        }
+    }
 }
 
 void TranslatorWindow::onTranslationFailed(const QString &message)
@@ -706,6 +716,15 @@ void ScreenshotResultWindow::onTranslationFinished(const QString &translation)
 {
     m_resultView->setPlainText(translation);
     m_copyButton->setEnabled(true);
+    if (!m_ocrText.trimmed().isEmpty()) {
+        const QVector<Word> unknown =
+            m_store->extractUnknownWords(m_ocrText, 20);
+        for (const Word &w : unknown) {
+            m_store->queueWordFromTranslation(
+                w.word, w.meaning,
+                WordStore::sentenceContaining(m_ocrText, w.word));
+        }
+    }
 }
 
 void ScreenshotResultWindow::onTranslationFailed(const QString &message)
