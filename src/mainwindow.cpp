@@ -548,7 +548,7 @@ void MainWindow::buildReading()
     layout->addLayout(translateRow);
 
     auto *hint = new QLabel(
-        QStringLiteral("左键点词发音 · 红=未入词表(可加入阅读) · 蓝=其他词表 · 绿=当前词表 · 黑=已掌握 · 右键菜单 · 拖选后翻译"),
+        QStringLiteral("左键点词发音 · 选中后右键朗读 · 红=未入词表(可加入阅读) · 蓝=其他词表 · 绿=当前词表 · 黑=已掌握 · 拖选后翻译"),
         page);
     hint->setObjectName(QStringLiteral("hintLabel"));
     layout->addWidget(hint);
@@ -1406,6 +1406,12 @@ void MainWindow::deleteCurrentArticle()
 
 void MainWindow::onWordContextMenu(const QPoint &pos)
 {
+    const QString selected =
+        m_reader->textCursor().selectedText().trimmed();
+    if (!selected.isEmpty()) {
+        speakText(selected); // 选中整段后右键：直接朗读
+        return;
+    }
     QTextCursor cursor = m_reader->cursorForPosition(pos);
     cursor.select(QTextCursor::WordUnderCursor);
     showWordMenu(cursor.selectedText().trimmed());
