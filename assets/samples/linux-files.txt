@@ -1,0 +1,9 @@
+The Linux file system is how Linux organizes data. Everything in Linux is a file. This includes programs, documents, and even devices.
+
+Files are stored in folders. In Linux, folders are called directories. The main directory is called the root directory. It is shown with a slash: /.
+
+Your personal files live in your home directory. On this computer, the home directory is /home/liang. Programs are usually stored in /usr, and system settings live in /etc.
+
+You can work with files using commands in a terminal. The command ls shows the files in the current directory. The command cd changes the directory. The command cp copies a file, and mv moves or renames it.
+
+Understanding the file system helps you manage your computer better. It also helps you read technical documents and follow guides online.

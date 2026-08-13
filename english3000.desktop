@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=English 3000
+Name[zh_CN]=英语三千
+Comment=3000 高频词学习助手
+Exec=/home/liang/Projects/english3000/build/english3000
+Icon=/home/liang/Projects/english3000/assets/icon.svg
+Terminal=false
+Categories=Education;Languages;
+Keywords=english;word;vocabulary;学习;单词;英语;
