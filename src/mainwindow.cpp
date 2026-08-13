@@ -325,10 +325,10 @@ void MainWindow::buildStudy()
     m_wordLabel->setFocusPolicy(Qt::StrongFocus);
     cardLayout->addWidget(m_wordLabel);
 
-    m_inflectionLabel = new QLabel(card);
-    m_inflectionLabel->setObjectName(QStringLiteral("posLabel"));
-    m_inflectionLabel->setAlignment(Qt::AlignCenter);
-    cardLayout->addWidget(m_inflectionLabel);
+    m_posLabel = new QLabel(card);
+    m_posLabel->setObjectName(QStringLiteral("posLabel"));
+    m_posLabel->setAlignment(Qt::AlignCenter);
+    cardLayout->addWidget(m_posLabel);
 
     m_pronounceButton = new QPushButton(QStringLiteral("🔊 发音"), card);
     m_pronounceButton->setFocusPolicy(Qt::NoFocus);
@@ -980,8 +980,7 @@ void MainWindow::startSession(const QString &kind)
     m_session.reserve(words.size());
     for (const Word &w : words) {
         m_session.push_back(
-            {w.id, w.rank, w.word, m_store->inflectionSummary(w.word),
-             w.pos, w.meaning,
+            {w.id, w.rank, w.word, w.pos, w.meaning,
              w.exampleSentence});
     }
     m_sessionIndex = 0;
@@ -1005,7 +1004,7 @@ void MainWindow::showCard()
             .arg(m_sessionIndex + 1)
             .arg(m_session.size()));
     m_wordLabel->setText(card.word);
-    m_inflectionLabel->setText(card.inflections);
+    m_posLabel->setText(card.pos);
     m_meaningLabel->setText(card.meaning);
     const bool exampleRequested = m_exampleRequested.contains(card.id);
     m_exampleLabel->setText(
@@ -1021,10 +1020,6 @@ void MainWindow::showCard()
     m_wordLabel->setFocus(Qt::OtherFocusReason);
     if (card.exampleSentence.isEmpty() && !exampleRequested)
         requestExample(card.id, card.word);
-    if (card.inflections.isEmpty()
-        && !m_inflectionRequested.contains(card.id)) {
-        requestInflections(card.id, card.word, card.pos);
-    }
     if (m_sessionIndex + 1 < m_session.size()
         && m_session[m_sessionIndex + 1].exampleSentence.isEmpty()
         && !m_exampleRequested.contains(m_session[m_sessionIndex + 1].id)) {
@@ -1870,38 +1865,6 @@ void MainWindow::requestExample(qint64 wordId, const QString &word)
     m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
 }
 
-void MainWindow::requestInflections(qint64 wordId, const QString &word,
-                                    const QString &pos)
-{
-    if (m_inflectionRequested.contains(wordId))
-        return;
-    const QStringList functionPos = {
-        QStringLiteral("conj"), QStringLiteral("prep"),
-        QStringLiteral("adv"), QStringLiteral("art"),
-        QStringLiteral("pron"), QStringLiteral("int"),
-        QStringLiteral("num"), QStringLiteral("det"),
-        QStringLiteral("aux"),
-    };
-    for (const QString &prefix : functionPos) {
-        if (pos.trimmed().startsWith(prefix, Qt::CaseInsensitive)) {
-            m_inflectionRequested.insert(wordId); // 虚词无词形，标记跳过
-            return;
-        }
-    }
-    m_inflectionRequested.insert(wordId);
-    m_pendingAiKind = QStringLiteral("inflection");
-    m_pendingAiId = wordId;
-    m_pendingAiWord = word;
-    const QString prompt =
-        QStringLiteral(
-            "List the inflected forms of the English word \"%1\" "
-            "(plural, past tense, past participle, -ing, third person "
-            "singular, comparative, superlative as applicable). "
-            "Output only the forms separated by commas, no explanations.")
-            .arg(word);
-    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
-}
-
 void MainWindow::onAiChatFinished(const QString &text)
 {
     const QString kind = m_pendingAiKind;
@@ -1919,17 +1882,6 @@ void MainWindow::onAiChatFinished(const QString &text)
             && m_session[m_sessionIndex].id == id) {
             m_session[m_sessionIndex].exampleSentence = result;
             m_exampleLabel->setText(result);
-        }
-    } else if (kind == QLatin1String("inflection")) {
-        if (id <= 0 || word.isEmpty() || result.isEmpty())
-            return;
-        const QStringList forms = result.split(QRegularExpression(QStringLiteral("[,，]")));
-        m_store->addInflections(word, forms);
-        if (m_sessionIndex < m_session.size()
-            && m_session[m_sessionIndex].id == id) {
-            m_session[m_sessionIndex].inflections =
-                m_store->inflectionSummary(word);
-            m_inflectionLabel->setText(m_session[m_sessionIndex].inflections);
         }
     }
 }

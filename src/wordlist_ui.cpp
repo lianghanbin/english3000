@@ -105,12 +105,12 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     auto *right = new QWidget(splitter);
     auto *rightLayout = new QVBoxLayout(right);
     rightLayout->setContentsMargins(0, 0, 0, 0);
-    m_table = new QTableWidget(0, 4, right);
+    m_table = new QTableWidget(0, 3, right);
     m_table->setHorizontalHeaderLabels(
-        {QStringLiteral("单词"), QStringLiteral("词形"),
-         QStringLiteral("释义"), QStringLiteral("状态")});
+        {QStringLiteral("单词"), QStringLiteral("释义"),
+         QStringLiteral("状态")});
     m_table->horizontalHeader()->setSectionResizeMode(
-        2, QHeaderView::Stretch);
+        1, QHeaderView::Stretch);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     connect(m_table, &QTableWidget::cellClicked, this,
             [this](int row, int column) {
@@ -257,9 +257,7 @@ void WordListPage::fillCurrentScope()
         for (int i = 0; i < words.size(); ++i) {
             const Word &w = words[i];
             m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-            m_table->setItem(i, 1, new QTableWidgetItem(
-                m_store->inflectionSummary(w.word)));
-            m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
+            m_table->setItem(i, 1, new QTableWidgetItem(w.meaning));
             QString state;
             if (w.box == 0)
                 state = QStringLiteral("新词");
@@ -267,7 +265,7 @@ void WordListPage::fillCurrentScope()
                 state = QStringLiteral("已掌握");
             else
                 state = QStringLiteral("学习中");
-            m_table->setItem(i, 3, new QTableWidgetItem(state));
+            m_table->setItem(i, 2, new QTableWidgetItem(state));
         }
         m_statusLabel->setText(
             QStringLiteral("全部单词（当前词表：%1）")
@@ -302,9 +300,7 @@ void WordListPage::fillCurrentScope()
     for (int i = 0; i < words.size(); ++i) {
         const Word &w = words[i];
         m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-        m_table->setItem(i, 1, new QTableWidgetItem(
-            m_store->inflectionSummary(w.word)));
-        m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
+        m_table->setItem(i, 1, new QTableWidgetItem(w.meaning));
         const std::optional<Word> found = m_store->findWordByText(w.word);
         QString state;
         if (found) {
@@ -315,7 +311,7 @@ void WordListPage::fillCurrentScope()
             else
                 state = QStringLiteral("学习中");
         }
-        m_table->setItem(i, 3, new QTableWidgetItem(state));
+        m_table->setItem(i, 2, new QTableWidgetItem(state));
     }
     QString name;
     const QVector<WordListInfo> lists = m_store->listWordLists();

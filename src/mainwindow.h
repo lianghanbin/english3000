@@ -78,8 +78,6 @@ private slots:
     void applyHotkeys();
     bool autoPronounceEnabled() const;
     void requestExample(qint64 wordId, const QString &word);
-    void requestInflections(qint64 wordId, const QString &word,
-                            const QString &pos);
 
 private:
     void buildDashboard();
@@ -122,7 +120,7 @@ private:
     // 学习
     QLabel *m_rankLabel = nullptr;
     QLabel *m_wordLabel = nullptr;
-    QLabel *m_inflectionLabel = nullptr;
+    QLabel *m_posLabel = nullptr;
     QLabel *m_meaningLabel = nullptr;
     QLabel *m_exampleLabel = nullptr;
     QLabel *m_summaryLabel = nullptr;
@@ -148,7 +146,6 @@ private:
     QString m_currentArticleContent;
     bool m_translating = false;
     QSet<qint64> m_exampleRequested;
-    QSet<qint64> m_inflectionRequested;
     QString m_pendingAiKind;
     qint64 m_pendingAiId = -1;
     QString m_pendingAiWord;
@@ -210,7 +207,6 @@ private:
         qint64 id = 0;
         int rank = 0;
         QString word;
-        QString inflections;
         QString pos;
         QString meaning;
         QString exampleSentence;
