@@ -49,6 +49,13 @@ def parse_sentences(resp: str):
 def main() -> int:
     con = sqlite3.connect(DB)
     con.execute("PRAGMA journal_mode=WAL")
+    form_to_lemma = {}
+    try:
+        for form, lemma in con.execute(
+                "SELECT form, lemma FROM word_forms"):
+            form_to_lemma[form.lower()] = lemma.lower()
+    except sqlite3.OperationalError:
+        pass
     words = con.execute(
         "SELECT id, word FROM words WHERE example_sentence='' "
         "ORDER BY rank, id").fetchall()
@@ -63,6 +70,15 @@ def main() -> int:
     pending = []
     i = 0
     start = time.time()
+
+    def matches(word: str, sentence: str) -> bool:
+        low = sentence.lower()
+        if word.lower() in low:
+            return True
+        for token in re.findall(r"[a-z']+", low):
+            if form_to_lemma.get(token) == word.lower():
+                return True
+        return False
     while i < len(words):
         batch = words[i:i + BATCH]
         prompt = (
@@ -79,7 +95,7 @@ def main() -> int:
 
         for k, (wid, w) in enumerate(batch):
             s = sentences[k].strip() if k < len(sentences) else ""
-            if s and w.lower() in s.lower():
+            if s and matches(w, s):
                 con.execute(
                     "UPDATE words SET example_sentence=? WHERE id=?",
                     (s, wid))
@@ -113,7 +129,7 @@ def main() -> int:
             except Exception:
                 continue
             s = sentences[0].strip() if sentences else ""
-            if s and w.lower() in s.lower():
+            if s and matches(w, s):
                 con.execute(
                     "UPDATE words SET example_sentence=? WHERE id=?",
                     (s, wid))
