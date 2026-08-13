@@ -20,6 +20,7 @@ public:
 
 public slots:
     void refresh();
+    void jumpToList(qint64 listId);
 
 signals:
     void wordSpeakRequested(const QString &word);

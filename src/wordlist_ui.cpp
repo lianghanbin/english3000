@@ -308,6 +308,11 @@ void WordListPage::selectList(qint64 listId)
     refresh();
 }
 
+void WordListPage::jumpToList(qint64 listId)
+{
+    selectList(listId);
+}
+
 void WordListPage::createAiDialog()
 {
     QDialog dialog(this);

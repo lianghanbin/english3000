@@ -538,6 +538,28 @@ void testWordLists()
                                 QStringLiteral("kernel"))
               .has_value(),
           "reading list lookup works");
+    const auto kernelLists =
+        store.listsContainingWord(QStringLiteral("kernel"));
+    bool hasReading = false;
+    bool hasLinux = false;
+    for (const WordListInfo &info : kernelLists) {
+        if (info.name == QStringLiteral("阅读生词"))
+            hasReading = true;
+        if (info.name == QStringLiteral("Linux 运维"))
+            hasLinux = true;
+    }
+    check(kernelLists.size() == 2 && hasReading && hasLinux,
+          "lists containing word");
+    const auto readItem =
+        store.findInNamedList(QStringLiteral("阅读生词"),
+                              QStringLiteral("kernel"));
+    store.markItemKnown(readItem->itemId);
+    check(store.masteredListWords().contains(QStringLiteral("kernel")),
+          "mastered list words set");
+    store.resetWordInAllLists(QStringLiteral("kernel"));
+    check(!store.masteredListWords().contains(QStringLiteral("kernel"))
+              && store.allListWords().contains(QStringLiteral("kernel")),
+          "reset word in all lists");
 
     const QString articleText =
         QStringLiteral("The kernel manages memory. The kernel schedules "

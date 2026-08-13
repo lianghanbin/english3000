@@ -2,6 +2,7 @@
 
 #include <QDate>
 #include <QList>
+#include <QSet>
 #include <QSqlQuery>
 #include <QString>
 #include <QStringList>
@@ -146,6 +147,10 @@ public:
                        const QString &pos, const QString &meaning,
                        int order);
     QVector<Word> wordsInWordList(qint64 listId) const;
+    QVector<WordListInfo> listsContainingWord(const QString &word) const;
+    QSet<QString> allListWords() const;
+    QSet<QString> masteredListWords() const;
+    void resetWordInAllLists(const QString &word);
     void setCurrentWordList(qint64 listId);
     qint64 currentWordListId() const;
     QString currentWordListName() const;

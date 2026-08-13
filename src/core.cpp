@@ -1042,6 +1042,62 @@ QVector<Word> WordStore::wordsInWordList(qint64 listId) const
     return words;
 }
 
+QVector<WordListInfo> WordStore::listsContainingWord(
+    const QString &word) const
+{
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT wl.id, wl.name, wl.description, wl.source, "
+        "COUNT(i2.id) "
+        "FROM word_list_items i "
+        "JOIN word_lists wl ON wl.id=i.list_id "
+        "LEFT JOIN word_list_items i2 ON i2.list_id=wl.id "
+        "WHERE i.word=? COLLATE NOCASE "
+        "GROUP BY wl.id "
+        "ORDER BY wl.sort_order, wl.id"),
+        {word.trimmed().toLower()});
+    QVector<WordListInfo> lists;
+    while (q.next()) {
+        WordListInfo info;
+        info.id = q.value(0).toLongLong();
+        info.name = q.value(1).toString();
+        info.description = q.value(2).toString();
+        info.source = q.value(3).toString();
+        info.wordCount = q.value(4).toInt();
+        lists.append(info);
+    }
+    return lists;
+}
+
+QSet<QString> WordStore::allListWords() const
+{
+    QSet<QString> words;
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT DISTINCT word FROM word_list_items"));
+    while (q.next())
+        words.insert(q.value(0).toString().toLower());
+    return words;
+}
+
+QSet<QString> WordStore::masteredListWords() const
+{
+    QSet<QString> words;
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT DISTINCT word FROM word_list_items WHERE box=6"));
+    while (q.next())
+        words.insert(q.value(0).toString().toLower());
+    return words;
+}
+
+void WordStore::resetWordInAllLists(const QString &word)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE word_list_items SET box=0, review_count=0 "
+        "WHERE word=? COLLATE NOCASE"));
+    q.addBindValue(word.trimmed().toLower());
+    q.exec();
+}
+
 int WordStore::knownInWordList(qint64 listId) const
 {
     QSqlQuery q = rawQuery(QStringLiteral(

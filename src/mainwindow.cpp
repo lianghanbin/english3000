@@ -486,7 +486,7 @@ void MainWindow::buildReading()
             &MainWindow::onWordContextMenu);
     connect(m_reader, &QTextBrowser::anchorClicked, this,
             [this](const QUrl &url) {
-                showWordMenu(
+                speakText(
                     url.toString().remove(QStringLiteral("word://")));
             });
 
@@ -548,7 +548,7 @@ void MainWindow::buildReading()
     layout->addLayout(translateRow);
 
     auto *hint = new QLabel(
-        QStringLiteral("高亮：红色=词表外 · 蓝色=未掌握 · 黑色=已掌握 · 右键单词查释义/发音/加入阅读词表 · 左键拖选后可翻译"),
+        QStringLiteral("左键点词发音 · 右键菜单：红=翻译/加入阅读词表 · 蓝=翻译/所在词表 · 黑=翻译/重置 · 拖选后翻译"),
         page);
     hint->setObjectName(QStringLiteral("hintLabel"));
     layout->addWidget(hint);
@@ -1200,21 +1200,20 @@ void MainWindow::loadArticle(qint64 articleId)
 
 QString MainWindow::renderArticleHtml(const QString &content) const
 {
-    auto wordHtml = [this](const QString &w) {
+    const QSet<QString> inAnyList = m_store->allListWords();
+    const QSet<QString> mastered = m_store->masteredListWords();
+    auto wordHtml = [this, &inAnyList, &mastered](const QString &w) {
         QString lookup = w.toLower();
-        std::optional<Word> inList = m_store->findInCurrentList(lookup);
-        if (!inList) {
-            lookup = m_store->lookupLemma(lookup);
-            inList = m_store->findInCurrentList(lookup);
-        }
-        QString color = QStringLiteral("#000000");
-        if (!inList) {
-            color = QStringLiteral("#c62828");
-        } else if (inList->box == 0) {
-            color = QStringLiteral("#1565c0");
-        } else {
-            color = QStringLiteral("#000000");
-        }
+        const bool known =
+            inAnyList.contains(lookup)
+            || inAnyList.contains(m_store->lookupLemma(lookup));
+        const bool masteredWord =
+            mastered.contains(lookup)
+            || mastered.contains(m_store->lookupLemma(lookup));
+        const QString color =
+            !known ? QStringLiteral("#c62828")
+                   : (masteredWord ? QStringLiteral("#000000")
+                                   : QStringLiteral("#1565c0"));
         return QStringLiteral(
                    "<a href=\"word://%1\" style=\"color:%2; "
                    "text-decoration:none;\">%3</a>")
@@ -1416,6 +1415,10 @@ void MainWindow::showWordMenu(const QString &rawWord)
     }
     m_clickedWord = word;
     m_clickedDictMeaning.clear();
+    const QVector<WordListInfo> lists =
+        m_store->listsContainingWord(word);
+    const QSet<QString> masteredWords = m_store->masteredListWords();
+    const bool mastered = masteredWords.contains(word);
 
     auto *menu = new QMenu(this);
     if (found) {
@@ -1442,19 +1445,34 @@ void MainWindow::showWordMenu(const QString &rawWord)
             meaningAction->setEnabled(false);
         } else {
             auto *outAction = menu->addAction(
-                QStringLiteral("词表外（可加入阅读词表）"));
+                QStringLiteral("词表外（未加入任何词表）"));
             outAction->setEnabled(false);
         }
     }
     menu->addSeparator();
-    menu->addAction(QStringLiteral("发音"), this,
-                    [this] { speakText(m_clickedWord); });
-    menu->addAction(QStringLiteral("加入阅读词表"), this,
-                    &MainWindow::queueClickedWord);
-    const std::optional<Word> inList = m_store->findInCurrentList(word);
-    if (inList && inList->box == 0) {
-        menu->addAction(QStringLiteral("标记已会"), this,
-                        &MainWindow::markClickedWordKnown);
+    menu->addAction(QStringLiteral("翻译"), this,
+                    [this] { startTranslate(m_clickedWord); });
+    if (lists.isEmpty()) {
+        // 红色：不在任何词表，只能加入阅读词表
+        menu->addAction(QStringLiteral("加入阅读词表"), this,
+                        &MainWindow::queueClickedWord);
+    } else if (mastered) {
+        // 黑色：已掌握，只能翻译或重置
+        menu->addAction(QStringLiteral("重置为未学"), this,
+                        &MainWindow::resetClickedWord);
+    } else {
+        // 蓝色：在词表中未掌握，显示所在的词表
+        QStringList names;
+        for (const WordListInfo &info : lists)
+            names << info.name;
+        const qint64 firstId = lists.first().id;
+        menu->addAction(
+            QStringLiteral("所在词表：%1")
+                .arg(names.join(QStringLiteral("、"))),
+            this, [this, firstId] {
+                m_wordListPage->jumpToList(firstId);
+                m_tabs->setCurrentIndex(TabWordLists);
+            });
     }
     menu->popup(QCursor::pos());
 }
@@ -1474,15 +1492,16 @@ void MainWindow::queueClickedWord()
     }
 }
 
-void MainWindow::markClickedWordKnown()
+void MainWindow::resetClickedWord()
 {
-    const std::optional<Word> found = m_store->findInCurrentList(m_clickedWord);
-    if (!found)
+    if (m_clickedWord.isEmpty())
         return;
-    m_store->markItemKnown(found->itemId);
+    m_store->resetWordInAllLists(m_clickedWord);
     refreshDashboard();
     if (m_currentArticleId >= 0)
         m_reader->setHtml(renderArticleHtml(m_currentArticleContent));
+    statusBar()->showMessage(
+        QStringLiteral("已重置为未学：%1").arg(m_clickedWord), 3000);
 }
 
 // ---------- 朗读（本地 TTS） ----------

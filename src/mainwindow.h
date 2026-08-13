@@ -63,7 +63,7 @@ private slots:
     void onTtsFinished(int exitCode);
     void onPlayFinished(int exitCode);
     void queueClickedWord();
-    void markClickedWordKnown();
+    void resetClickedWord();
     void onGenerateClicked();
     void onCancelClicked();
     void onAiFinished(const QString &articleText);
