@@ -2,6 +2,8 @@
 """批量给词库生成例句（只填空缺，可断点续跑）。
 
 用法：python3 tools/generate_examples.py [数据库路径] [每批词数]
+      python3 tools/generate_examples.py <数据库> <批数> --clear-article-examples
+      （先清掉从文章里提取的例句，再全部用 AI 重新生成）
 """
 
 import json
@@ -10,17 +12,20 @@ import sqlite3
 import sys
 import time
 import urllib.request
+import os
 
 DB = sys.argv[1] if len(sys.argv) > 1 else (
     "/home/liang/.local/share/liang/english3000/english3000.db")
 BATCH = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+CLEAR_ARTICLE = "--clear-article-examples" in sys.argv
 URL = "http://127.0.0.1:11434/api/generate"
 MODEL = "qwen2.5:3b"
+SECOND_MODEL = os.environ.get("EX_SECOND_MODEL", "qwen3:14b")
 
 
-def generate(prompt: str) -> str:
+def generate(prompt: str, model: str = MODEL) -> str:
     body = {
-        "model": MODEL,
+        "model": model,
         "prompt": prompt,
         "stream": False,
         "think": False,
@@ -46,6 +51,19 @@ def parse_sentences(resp: str):
     return out
 
 
+def is_valid(word: str, sentence: str) -> bool:
+    del word
+    s = sentence.strip()
+    if len(s) < 12:
+        return False
+    tokens = s.split()
+    if len(tokens) < 4:
+        return False
+    if not any(len(t) >= 5 for t in tokens):
+        return False
+    return True
+
+
 def main() -> int:
     con = sqlite3.connect(DB)
     con.execute("PRAGMA journal_mode=WAL")
@@ -56,6 +74,22 @@ def main() -> int:
             form_to_lemma[form.lower()] = lemma.lower()
     except sqlite3.OperationalError:
         pass
+
+    if CLEAR_ARTICLE:
+        articles = [r[0] for r in con.execute(
+            "SELECT content FROM articles")]
+        cleared = 0
+        for wid, sentence in con.execute(
+                "SELECT id, example_sentence FROM words "
+                "WHERE example_sentence != ''"):
+            low = sentence.lower()
+            if any(low in content.lower() for content in articles):
+                con.execute(
+                    "UPDATE words SET example_sentence='' WHERE id=?",
+                    (wid,))
+                cleared += 1
+        con.commit()
+        print(f"已清掉文章例句 {cleared} 个，等待 AI 重新生成", flush=True)
     words = con.execute(
         "SELECT id, word FROM words WHERE example_sentence='' "
         "ORDER BY rank, id").fetchall()
@@ -84,7 +118,8 @@ def main() -> int:
         prompt = (
             "Write one short, simple English sentence for each word below, "
             "using the exact word. Output ONLY one sentence per line, "
-            "in the same order.\n"
+            "in the same order. Each sentence must be a complete sentence "
+            "with at least 6 words.\n"
             + "".join(f"{j + 1}. {w}\n" for j, (_, w) in enumerate(batch)))
         try:
             sentences = parse_sentences(generate(prompt))
@@ -95,7 +130,7 @@ def main() -> int:
 
         for k, (wid, w) in enumerate(batch):
             s = sentences[k].strip() if k < len(sentences) else ""
-            if s and matches(w, s):
+            if s and matches(w, s) and is_valid(w, s):
                 con.execute(
                     "UPDATE words SET example_sentence=? WHERE id=?",
                     (s, wid))
@@ -123,13 +158,14 @@ def main() -> int:
         for wid, w in pending:
             prompt = (
                 f'Write one short, simple English sentence using the word '
-                f'"{w}". Use the exact word. Output only the sentence.')
+                f'"{w}". Use the exact word. The sentence must be complete '
+                f'with at least 6 words. Output only the sentence.')
             try:
-                sentences = parse_sentences(generate(prompt))
+                sentences = parse_sentences(generate(prompt, SECOND_MODEL))
             except Exception:
                 continue
             s = sentences[0].strip() if sentences else ""
-            if s and matches(w, s):
+            if s and matches(w, s) and is_valid(w, s):
                 con.execute(
                     "UPDATE words SET example_sentence=? WHERE id=?",
                     (s, wid))
