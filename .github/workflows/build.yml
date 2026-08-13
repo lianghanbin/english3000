@@ -67,6 +67,73 @@ jobs:
           $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=english3000-windows.zip"
           Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/zip" -InFile "english3000-windows.zip"
 
+  windows-oneclick:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.*"
+          cache: true
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+      - name: Deploy Qt runtime
+        run: windeployqt --release --no-translations build/Release/english3000.exe
+      - name: Bundle assets
+        run: Copy-Item -Recurse assets build/Release/assets
+      - name: Download llama.cpp
+        run: |
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10419/llama-b10419-bin-win-cpu-x64.zip"
+          Expand-Archive llama.zip -DestinationPath llama
+      - name: Download small model
+        run: |
+          New-Item -ItemType Directory -Force -Path llama | Out-Null
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama\qwen2.5-1.5b-instruct-q4_k_m.gguf "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+      - name: Download tools
+        run: |
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o sqlite.zip "https://www.sqlite.org/2026/sqlite-tools-win-x64-3530400.zip"
+          Expand-Archive sqlite.zip -DestinationPath sqlite
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o nsis.zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.10/nsis-3.10.zip"
+          Expand-Archive nsis.zip -DestinationPath nsis
+      - name: Assemble package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path oneclick\llama | Out-Null
+          Copy-Item build/Release/* oneclick/ -Recurse -Force
+          Copy-Item llama\llama-server.exe oneclick\llama\ -Force
+          Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\llama\ -Force }
+          Copy-Item llama\qwen2.5-1.5b-instruct-q4_k_m.gguf oneclick\llama\ -Force
+          Get-ChildItem sqlite -Recurse -Filter sqlite3.exe | ForEach-Object { Copy-Item $_.FullName oneclick\ -Force }
+          $sum = (Get-ChildItem oneclick -Recurse -File | Measure-Object -Property Length -Sum).Sum
+          Write-Host "package size: $([math]::Round($sum/1MB,1)) MB"
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $mk = Get-ChildItem nsis -Recurse -Filter makensis.exe | Select-Object -First 1 -ExpandProperty FullName
+          & $mk /V2 tools\oneclick_installer.nsi
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: english3000-windows-oneclick
+          path: English3000-OneClick-Setup.exe
+      - name: Publish one-click release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+          $uri = "https://api.github.com/repos/${{ github.repository }}/releases"
+          $release = $null
+          try { $release = Invoke-RestMethod -Method Get -Uri "$uri/tags/win-oneclick" -Headers $headers } catch { }
+          if ($null -eq $release) {
+            $body = @{ tag_name = "win-oneclick"; name = "Windows 一键版（含本地小模型）"; body = "应用 + 本地 AI + Qwen2.5 1.5B 模型，安装即用"; draft = $false; prerelease = $false } | ConvertTo-Json
+            $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          }
+          $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=English3000-OneClick-Setup.exe"
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/octet-stream" -InFile "English3000-OneClick-Setup.exe"
+
   android:
     runs-on: ubuntu-24.04
     steps:
