@@ -164,7 +164,7 @@ jobs:
             $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
           }
           foreach ($asset in $release.assets) {
-            if ($asset.name -eq "English3000-OneClick-Setup.exe") {
+            if ($asset.name -eq "English3000-OneClick-Setup.exe" -or $asset.name -eq "iscc-error.log") {
               Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/assets/$($asset.id)" -Headers $headers
             }
           }
