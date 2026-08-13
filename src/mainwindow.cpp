@@ -894,6 +894,14 @@ void MainWindow::buildSettings()
     aiKeyRow->addStretch();
     layout->addLayout(aiKeyRow);
 
+    auto *aiHint = new QLabel(
+        QStringLiteral("OpenAI 兼容示例：https://api.deepseek.com 或 "
+                       "https://api.openai.com/v1；模型填 deepseek-chat / gpt-4o-mini 等"),
+        page);
+    aiHint->setObjectName(QStringLiteral("hintLabel"));
+    aiHint->setAlignment(Qt::AlignCenter);
+    layout->addWidget(aiHint);
+
     auto *dataRow = new QHBoxLayout;
     dataRow->addStretch();
     dataRow->addWidget(new QLabel(QStringLiteral("数据目录"), page));

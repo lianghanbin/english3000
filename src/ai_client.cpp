@@ -214,8 +214,14 @@ void AiClient::start(const QString &prompt)
         body.insert(QStringLiteral("messages"), messages);
         body.insert(QStringLiteral("temperature"), 0.7);
         body.insert(QStringLiteral("max_tokens"), predict);
-        request = QNetworkRequest(
-            QUrl(m_baseUrl + QStringLiteral("v1/chat/completions")));
+        QString chatUrl = m_baseUrl;
+        if (chatUrl.endsWith(QLatin1String("/v1"))
+            || chatUrl.endsWith(QLatin1String("/v1/"))) {
+            chatUrl += QStringLiteral("chat/completions");
+        } else {
+            chatUrl += QStringLiteral("v1/chat/completions");
+        }
+        request = QNetworkRequest(QUrl(chatUrl));
         if (!m_apiKey.isEmpty()) {
             request.setRawHeader(
                 "Authorization",
