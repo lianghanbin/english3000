@@ -48,6 +48,12 @@ jobs:
         with:
           name: english3000-windows
           path: english3000-windows.zip
+      - name: Publish Windows release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create win-latest english3000-windows.zip --repo ${{ github.repository }} --title "Windows 最新版" --notes "自动构建 ${{ github.sha }}" || true
+          gh release upload win-latest english3000-windows.zip --clobber --repo ${{ github.repository }} || true
 
   android:
     runs-on: ubuntu-24.04
