@@ -100,24 +100,23 @@ jobs:
         run: |
           curl.exe -L --fail --retry 3 --connect-timeout 30 -o sqlite.zip "https://www.sqlite.org/2026/sqlite-tools-win-x64-3530400.zip"
           Expand-Archive sqlite.zip -DestinationPath sqlite
-          curl.exe -L --fail --retry 3 --connect-timeout 30 -o nsis.zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.10/nsis-3.10.zip"
-          Expand-Archive nsis.zip -DestinationPath nsis
+          choco install innosetup -y --no-progress
       - name: Assemble package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path oneclick\llama | Out-Null
-          Copy-Item build/Release/* oneclick/ -Recurse -Force
-          Copy-Item llama\llama-server.exe oneclick\llama\ -Force
-          Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\llama\ -Force }
-          Copy-Item llama\qwen2.5-1.5b-instruct-q4_k_m.gguf oneclick\llama\ -Force
-          Get-ChildItem sqlite -Recurse -Filter sqlite3.exe | ForEach-Object { Copy-Item $_.FullName oneclick\ -Force }
+          New-Item -ItemType Directory -Force -Path oneclick\English3000\llama | Out-Null
+          Copy-Item build/Release/* oneclick\English3000\ -Recurse -Force
+          Copy-Item llama\llama-server.exe oneclick\English3000\llama\ -Force
+          Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\llama\ -Force }
+          Copy-Item llama\qwen2.5-1.5b-instruct-q4_k_m.gguf oneclick\English3000\llama\ -Force
+          Get-ChildItem sqlite -Recurse -Filter sqlite3.exe | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\ -Force }
           $sum = (Get-ChildItem oneclick -Recurse -File | Measure-Object -Property Length -Sum).Sum
           Write-Host "package size: $([math]::Round($sum/1MB,1)) MB"
-      - name: Build installer
+      - name: Build Inno installer
         shell: pwsh
         run: |
-          $mk = Get-ChildItem nsis -Recurse -Filter makensis.exe | Select-Object -First 1 -ExpandProperty FullName
-          & $mk /V2 tools\oneclick_installer.nsi
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Qp tools\oneclick_installer.iss
+          Get-Item English3000-OneClick-Setup.exe | ForEach-Object { Write-Host "installer size: $([math]::Round($_.Length/1MB,1)) MB" }
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
