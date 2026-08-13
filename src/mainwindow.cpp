@@ -352,11 +352,6 @@ void MainWindow::buildStudy()
     });
     cardLayout->addWidget(m_translateExampleButton, 0, Qt::AlignHCenter);
 
-    m_posLabel = new QLabel(card);
-    m_posLabel->setObjectName(QStringLiteral("posLabel"));
-    m_posLabel->setAlignment(Qt::AlignCenter);
-    cardLayout->addWidget(m_posLabel);
-
     m_meaningLabel = new QLabel(card);
     m_meaningLabel->setObjectName(QStringLiteral("meaningLabel"));
     m_meaningLabel->setAlignment(Qt::AlignCenter);
@@ -1011,7 +1006,6 @@ void MainWindow::showCard()
             .arg(m_session.size()));
     m_wordLabel->setText(card.word);
     m_inflectionLabel->setText(card.inflections);
-    m_posLabel->setText(card.pos);
     m_meaningLabel->setText(card.meaning);
     const bool exampleRequested = m_exampleRequested.contains(card.id);
     m_exampleLabel->setText(

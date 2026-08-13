@@ -123,7 +123,6 @@ private:
     QLabel *m_rankLabel = nullptr;
     QLabel *m_wordLabel = nullptr;
     QLabel *m_inflectionLabel = nullptr;
-    QLabel *m_posLabel = nullptr;
     QLabel *m_meaningLabel = nullptr;
     QLabel *m_exampleLabel = nullptr;
     QLabel *m_summaryLabel = nullptr;
