@@ -1449,6 +1449,34 @@ void MainWindow::speakText(const QString &text)
     if (m_speakButton)
         m_speakButton->setText(QStringLiteral("停止朗读"));
 
+#if defined(Q_OS_WIN)
+    // Windows：使用系统 SAPI 离线朗读（优先英文语音）
+    m_tts = new QProcess(this);
+    connect(m_tts,
+            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+                m_speaking = false;
+                if (m_speakButton)
+                    m_speakButton->setText(QStringLiteral("朗读文章"));
+                m_tts->deleteLater();
+                m_tts = nullptr;
+            });
+    QString escaped = trimmed;
+    escaped.replace(QLatin1Char('\''), QStringLiteral("''"));
+    const QString command =
+        QStringLiteral(
+            "Add-Type -AssemblyName System.Speech;"
+            "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+            "$v=$s.GetInstalledVoices()|Where-Object"
+            "{$_.VoiceInfo.Culture -like 'en*'}|Select-Object -First 1;"
+            "if($v){$s.SelectVoice($v.VoiceInfo.Name)};"
+            "$s.Speak('%1')")
+            .arg(escaped);
+    m_tts->start(QStringLiteral("powershell"),
+                 {QStringLiteral("-NoProfile"),
+                  QStringLiteral("-Command"), command});
+    return;
+#else
     const QString wavPath =
         QDir::tempPath() + QStringLiteral("/english3000_tts.wav");
     m_tts = new QProcess(this);
@@ -1504,6 +1532,7 @@ void MainWindow::speakText(const QString &text)
                  {QStringLiteral("-v"), QStringLiteral("en-us"),
                   QStringLiteral("-s"), QStringLiteral("155"),
                   QStringLiteral("-w"), wavPath, trimmed});
+#endif
 }
 
 void MainWindow::stopSpeaking()

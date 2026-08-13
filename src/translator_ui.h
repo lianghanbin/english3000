@@ -44,6 +44,10 @@ private:
     void *m_conn = nullptr;    // xcb_connection_t*
     QHash<quint32, QString> m_keyToToken;   // keycode -> token
     QHash<quint32, quint32> m_keyToMods;    // keycode -> modifier mask
+#if defined(Q_OS_WIN)
+    QHash<int, QString> m_idToToken;
+    int m_nextId = 1;
+#endif
 };
 
 // ---------- 截图遮罩 ----------

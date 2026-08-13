@@ -171,6 +171,40 @@ void ConversationWindow::speak(const QString &text)
 {
     if (text.isEmpty())
         return;
+#if defined(Q_OS_WIN)
+    if (m_tts) {
+        m_tts->kill();
+        m_tts->deleteLater();
+        m_tts = nullptr;
+    }
+    if (m_player) {
+        m_player->kill();
+        m_player->deleteLater();
+        m_player = nullptr;
+    }
+    m_tts = new QProcess(this);
+    connect(m_tts,
+            QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+                m_tts->deleteLater();
+                m_tts = nullptr;
+            });
+    QString escaped = text;
+    escaped.replace(QLatin1Char('\''), QStringLiteral("''"));
+    const QString command =
+        QStringLiteral(
+            "Add-Type -AssemblyName System.Speech;"
+            "$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;"
+            "$v=$s.GetInstalledVoices()|Where-Object"
+            "{$_.VoiceInfo.Culture -like 'en*'}|Select-Object -First 1;"
+            "if($v){$s.SelectVoice($v.VoiceInfo.Name)};"
+            "$s.Speak('%1')")
+            .arg(escaped);
+    m_tts->start(QStringLiteral("powershell"),
+                 {QStringLiteral("-NoProfile"),
+                  QStringLiteral("-Command"), command});
+    return;
+#else
     if (m_tts) {
         m_tts->kill();
         m_tts->deleteLater();
@@ -228,6 +262,7 @@ void ConversationWindow::speak(const QString &text)
                           m_player = new QProcess(this);
                           m_player->start(QStringLiteral("paplay"), {wavPath});
                       });
+#endif
 }
 
 void ConversationWindow::keyPressEvent(QKeyEvent *event)

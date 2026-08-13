@@ -42,6 +42,10 @@
 #undef None
 #endif
 
+#if defined(Q_OS_WIN)
+#include <windows.h>
+#endif
+
 namespace {
 
 bool isMostlyChinese(const QString &text)
@@ -132,11 +136,45 @@ GlobalHotkey::~GlobalHotkey()
 bool GlobalHotkey::registerKey(const QKeySequence &sequence,
                                const QString &token)
 {
-#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
-    Q_UNUSED(sequence);
-    Q_UNUSED(token);
-    return false;
-#else
+#if defined(Q_OS_WIN)
+    if (sequence.isEmpty() || token.isEmpty())
+        return false;
+    const QKeyCombination combo = sequence[0];
+    const Qt::KeyboardModifiers mods = combo.keyboardModifiers();
+    const int base = int(combo.key());
+    UINT mod = 0;
+    if (mods & Qt::ControlModifier)
+        mod |= MOD_CONTROL;
+    if (mods & Qt::AltModifier)
+        mod |= MOD_ALT;
+    if (mods & Qt::ShiftModifier)
+        mod |= MOD_SHIFT;
+    if (mods & Qt::MetaModifier)
+        mod |= MOD_WIN;
+    UINT vk = 0;
+    if (base >= Qt::Key_A && base <= Qt::Key_Z) {
+        vk = 'A' + (base - Qt::Key_A);
+    } else if (base >= Qt::Key_0 && base <= Qt::Key_9) {
+        vk = '0' + (base - Qt::Key_0);
+    } else if (base >= Qt::Key_F1 && base <= Qt::Key_F24) {
+        vk = VK_F1 + (base - Qt::Key_F1);
+    } else if (base == Qt::Key_Space) {
+        vk = VK_SPACE;
+    } else if (base == Qt::Key_Return || base == Qt::Key_Enter) {
+        vk = VK_RETURN;
+    } else if (base == Qt::Key_Tab) {
+        vk = VK_TAB;
+    } else if (base == Qt::Key_Escape) {
+        vk = VK_ESCAPE;
+    } else {
+        return false;
+    }
+    const int id = m_nextId++;
+    if (!RegisterHotKey(nullptr, id, mod, vk))
+        return false;
+    m_idToToken.insert(id, token);
+    return true;
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     if (!m_display || sequence.isEmpty() || token.isEmpty())
         return false;
     const QKeyCombination combo = sequence[0];
@@ -176,7 +214,11 @@ bool GlobalHotkey::registerKey(const QKeySequence &sequence,
 
 void GlobalHotkey::unregisterAll()
 {
-#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+#if defined(Q_OS_WIN)
+    for (int id : m_idToToken.keys())
+        UnregisterHotKey(nullptr, id);
+    m_idToToken.clear();
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     auto *conn = static_cast<xcb_connection_t *>(m_conn);
     if (!conn)
         return;
@@ -197,12 +239,20 @@ void GlobalHotkey::unregisterAll()
 bool GlobalHotkey::nativeEventFilter(const QByteArray &eventType,
                                      void *message, qintptr *result)
 {
-#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
-    Q_UNUSED(eventType);
-    Q_UNUSED(message);
+#if defined(Q_OS_WIN)
     Q_UNUSED(result);
+    if (eventType == QByteArrayLiteral("windows_generic_MSG") && message) {
+        auto *msg = static_cast<MSG *>(message);
+        if (msg->message == WM_HOTKEY) {
+            const int id = static_cast<int>(msg->wParam);
+            if (m_idToToken.contains(id)) {
+                emit activated(m_idToToken.value(id));
+                return true;
+            }
+        }
+    }
     return false;
-#else
+#elif defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     Q_UNUSED(result);
     if (eventType != QByteArrayLiteral("xcb_generic_event_t") || !message)
         return false;

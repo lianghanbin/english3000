@@ -37,8 +37,14 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release
+      - name: Deploy Qt runtime
+        run: windeployqt --release --no-translations build/Release/english3000.exe
+      - name: Bundle assets
+        run: Copy-Item -Recurse assets build/Release/assets
+      - name: Package zip
+        run: Compress-Archive -Path build/Release/* -DestinationPath english3000-windows.zip
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
           name: english3000-windows
-          path: build/Release/english3000.exe
+          path: english3000-windows.zip
