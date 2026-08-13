@@ -1,5 +1,6 @@
 #include "ai_client.h"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -39,6 +40,16 @@ void AiClient::setEndpoint(const QString &baseUrl, const QString &model)
     if (!m_baseUrl.endsWith(QLatin1Char('/')))
         m_baseUrl += QLatin1Char('/');
     m_model = model;
+}
+
+void AiClient::setProvider(Provider provider)
+{
+    m_provider = provider;
+}
+
+void AiClient::setApiKey(const QString &apiKey)
+{
+    m_apiKey = apiKey.trimmed();
 }
 
 QString AiClient::levelLabel(int level)
@@ -190,16 +201,37 @@ void AiClient::start(const QString &prompt)
     QJsonObject body;
     body.insert(QStringLiteral("model"),
                 m_requestModel.isEmpty() ? m_model : m_requestModel);
-    body.insert(QStringLiteral("prompt"), prompt);
     body.insert(QStringLiteral("stream"), false);
-    body.insert(QStringLiteral("think"), false); // qwen3 关闭思考，直接输出正文
-    QJsonObject options;
-    options.insert(QStringLiteral("num_predict"),
-                   m_requestPredict > 0 ? m_requestPredict : 1500);
-    options.insert(QStringLiteral("temperature"), 0.7);
-    body.insert(QStringLiteral("options"), options);
+    const int predict = m_requestPredict > 0 ? m_requestPredict : 1500;
 
-    QNetworkRequest request(QUrl(m_baseUrl + QStringLiteral("api/generate")));
+    QNetworkRequest request;
+    if (m_provider == Provider::OpenAI) {
+        QJsonArray messages;
+        QJsonObject message;
+        message.insert(QStringLiteral("role"), QStringLiteral("user"));
+        message.insert(QStringLiteral("content"), prompt);
+        messages.append(message);
+        body.insert(QStringLiteral("messages"), messages);
+        body.insert(QStringLiteral("temperature"), 0.7);
+        body.insert(QStringLiteral("max_tokens"), predict);
+        request = QNetworkRequest(
+            QUrl(m_baseUrl + QStringLiteral("v1/chat/completions")));
+        if (!m_apiKey.isEmpty()) {
+            request.setRawHeader(
+                "Authorization",
+                "Bearer " + m_apiKey.toUtf8());
+        }
+    } else {
+        body.insert(QStringLiteral("prompt"), prompt);
+        body.insert(QStringLiteral("think"),
+                    false); // qwen3 关闭思考，直接输出正文
+        QJsonObject options;
+        options.insert(QStringLiteral("num_predict"), predict);
+        options.insert(QStringLiteral("temperature"), 0.7);
+        body.insert(QStringLiteral("options"), options);
+        request = QNetworkRequest(
+            QUrl(m_baseUrl + QStringLiteral("api/generate")));
+    }
     request.setHeader(QNetworkRequest::ContentTypeHeader,
                       QStringLiteral("application/json"));
     m_reply = m_manager->post(request, QJsonDocument(body).toJson());
@@ -237,8 +269,25 @@ void AiClient::onReplyFinished()
     const QJsonDocument doc =
         QJsonDocument::fromJson(reply->readAll());
     reply->deleteLater();
-    const QString text =
-        doc.object().value(QStringLiteral("response")).toString().trimmed();
+    QString text;
+    if (m_provider == Provider::OpenAI) {
+        const QJsonArray choices =
+            doc.object().value(QStringLiteral("choices")).toArray();
+        if (!choices.isEmpty()) {
+            text = choices.at(0)
+                       .toObject()
+                       .value(QStringLiteral("message"))
+                       .toObject()
+                       .value(QStringLiteral("content"))
+                       .toString()
+                       .trimmed();
+        }
+    } else {
+        text = doc.object()
+                   .value(QStringLiteral("response"))
+                   .toString()
+                   .trimmed();
+    }
     if (text.isEmpty()) {
         emit failed(QStringLiteral("AI 返回为空，请检查模型是否可用。"));
         return;

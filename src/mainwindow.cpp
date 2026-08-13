@@ -191,6 +191,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
                             QStringLiteral("http://127.0.0.1:11434")),
         m_store->getSetting(QStringLiteral("ai_model"),
                             QStringLiteral("qwen3:14b")));
+    applyAiSettings();
     connect(m_ai, &AiClient::finished, this, &MainWindow::onAiFinished);
     connect(m_ai, &AiClient::translationFinished, this,
             &MainWindow::onTranslationFinished);
@@ -826,11 +827,7 @@ void MainWindow::buildSettings()
     connect(m_aiUrlEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_base_url"),
                             m_aiUrlEdit->text().trimmed());
-        if (m_ai) {
-            m_ai->setEndpoint(
-                m_aiUrlEdit->text().trimmed(),
-                m_aiModelEdit->text().trimmed());
-        }
+        applyAiSettings();
     });
     aiUrlRow->addWidget(m_aiUrlEdit);
     aiUrlRow->addStretch();
@@ -847,15 +844,55 @@ void MainWindow::buildSettings()
     connect(m_aiModelEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_model"),
                             m_aiModelEdit->text().trimmed());
-        if (m_ai) {
-            m_ai->setEndpoint(
-                m_aiUrlEdit->text().trimmed(),
-                m_aiModelEdit->text().trimmed());
-        }
+        applyAiSettings();
     });
     aiModelRow->addWidget(m_aiModelEdit);
     aiModelRow->addStretch();
     layout->addLayout(aiModelRow);
+
+    auto *aiProviderRow = new QHBoxLayout;
+    aiProviderRow->addStretch();
+    aiProviderRow->addWidget(new QLabel(QStringLiteral("AI 供应商"), page));
+    m_aiProviderCombo = new QComboBox(page);
+    m_aiProviderCombo->addItem(
+        QStringLiteral("本地 Ollama"),
+        QStringLiteral("ollama"));
+    m_aiProviderCombo->addItem(
+        QStringLiteral("OpenAI 兼容（DeepSeek/通义/GLM/Kimi 等）"),
+        QStringLiteral("openai"));
+    const QString provider = m_store->getSetting(
+        QStringLiteral("ai_provider"), QStringLiteral("ollama"));
+    const int providerIdx = m_aiProviderCombo->findData(provider);
+    m_aiProviderCombo->setCurrentIndex(providerIdx >= 0 ? providerIdx : 0);
+    connect(m_aiProviderCombo, &QComboBox::currentIndexChanged, this,
+            [this](int index) {
+                m_store->setSetting(
+                    QStringLiteral("ai_provider"),
+                    m_aiProviderCombo->itemData(index).toString());
+                applyAiSettings();
+            });
+    aiProviderRow->addWidget(m_aiProviderCombo);
+    aiProviderRow->addStretch();
+    layout->addLayout(aiProviderRow);
+
+    auto *aiKeyRow = new QHBoxLayout;
+    aiKeyRow->addStretch();
+    aiKeyRow->addWidget(new QLabel(QStringLiteral("API Key"), page));
+    m_aiKeyEdit = new QLineEdit(page);
+    m_aiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiKeyEdit->setText(
+        m_store->getSetting(QStringLiteral("ai_api_key")));
+    m_aiKeyEdit->setPlaceholderText(
+        QStringLiteral("云端 API 的密钥（本地 Ollama 可留空）"));
+    m_aiKeyEdit->setMinimumWidth(260);
+    connect(m_aiKeyEdit, &QLineEdit::editingFinished, this, [this] {
+        m_store->setSetting(QStringLiteral("ai_api_key"),
+                            m_aiKeyEdit->text().trimmed());
+        applyAiSettings();
+    });
+    aiKeyRow->addWidget(m_aiKeyEdit);
+    aiKeyRow->addStretch();
+    layout->addLayout(aiKeyRow);
 
     auto *dataRow = new QHBoxLayout;
     dataRow->addStretch();
@@ -1898,6 +1935,25 @@ void MainWindow::applyHotkeys()
             QStringLiteral("translate_screenshot_hotkey"),
             QStringLiteral("Ctrl+Alt+O"))),
         QStringLiteral("screenshot"));
+}
+
+void MainWindow::applyAiSettings()
+{
+    if (!m_ai)
+        return;
+    m_ai->setEndpoint(
+        m_store->getSetting(QStringLiteral("ai_base_url"),
+                            QStringLiteral("http://127.0.0.1:11434")),
+        m_store->getSetting(QStringLiteral("ai_model"),
+                            QStringLiteral("qwen3:14b")));
+    const bool openAi =
+        m_store->getSetting(QStringLiteral("ai_provider"),
+                            QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        m_store->getSetting(QStringLiteral("ai_api_key")));
 }
 
 bool MainWindow::autoPronounceEnabled() const

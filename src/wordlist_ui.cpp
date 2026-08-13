@@ -62,6 +62,14 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
         store->getSetting(QStringLiteral("ai_base_url"),
                           QStringLiteral("http://127.0.0.1:11434")),
         QStringLiteral("qwen2.5:3b")); // 词表生成用快模型
+    const bool openAi =
+        store->getSetting(QStringLiteral("ai_provider"),
+                          QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        store->getSetting(QStringLiteral("ai_api_key")));
     connect(m_ai, &AiClient::wordListFinished, this,
             &WordListPage::onWordListFinished);
     connect(m_ai, &AiClient::failed, this, &WordListPage::onAiFailed);

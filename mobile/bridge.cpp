@@ -47,6 +47,17 @@ QString MobileBridge::currentListName() const
     return m_store->currentWordListName();
 }
 
+QString MobileBridge::aiProvider() const
+{
+    return m_store->getSetting(QStringLiteral("ai_provider"),
+                               QStringLiteral("ollama"));
+}
+
+QString MobileBridge::aiApiKey() const
+{
+    return m_store->getSetting(QStringLiteral("ai_api_key"));
+}
+
 QVariantList MobileBridge::newCards(int limit)
 {
     QVariantList cards;
@@ -177,4 +188,21 @@ void MobileBridge::setAiModel(const QString &model)
 {
     m_store->setSetting(QStringLiteral("ai_model"), model.trimmed());
     m_ai->setEndpoint(m_ai->baseUrl(), model.trimmed());
+}
+
+void MobileBridge::setAiProvider(const QString &provider)
+{
+    m_store->setSetting(QStringLiteral("ai_provider"), provider.trimmed());
+    m_ai->setProvider(
+        provider.trimmed() == QLatin1String("openai")
+            ? AiClient::Provider::OpenAI
+            : AiClient::Provider::Ollama);
+    emit countsChanged();
+}
+
+void MobileBridge::setAiApiKey(const QString &key)
+{
+    m_store->setSetting(QStringLiteral("ai_api_key"), key.trimmed());
+    m_ai->setApiKey(key.trimmed());
+    emit countsChanged();
 }

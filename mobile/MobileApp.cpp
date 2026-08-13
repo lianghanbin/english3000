@@ -32,6 +32,13 @@ int main(int argc, char *argv[])
                          QStringLiteral("http://127.0.0.1:11434")),
         store.getSetting(QStringLiteral("ai_model"),
                          QStringLiteral("qwen3:14b")));
+    const bool openAi =
+        store.getSetting(QStringLiteral("ai_provider"),
+                         QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    ai.setProvider(openAi ? AiClient::Provider::OpenAI
+                          : AiClient::Provider::Ollama);
+    ai.setApiKey(store.getSetting(QStringLiteral("ai_api_key")));
 
     MobileBridge bridge(&store, &ai);
 

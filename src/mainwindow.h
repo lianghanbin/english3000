@@ -77,6 +77,7 @@ private slots:
     void refreshStats();
     void applyHotkeys();
     bool autoPronounceEnabled() const;
+    void applyAiSettings();
     void requestExample(qint64 wordId, const QString &word);
 
 private:
@@ -135,6 +136,8 @@ private:
     QLabel *m_dataDirLabel = nullptr;
     QLineEdit *m_aiUrlEdit = nullptr;
     QLineEdit *m_aiModelEdit = nullptr;
+    QComboBox *m_aiProviderCombo = nullptr;
+    QLineEdit *m_aiKeyEdit = nullptr;
 
     // 阅读
     QListWidget *m_articleList = nullptr;

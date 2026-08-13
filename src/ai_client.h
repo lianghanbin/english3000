@@ -11,6 +11,11 @@ class AiClient : public QObject {
     Q_OBJECT
 
 public:
+    enum class Provider {
+        Ollama,
+        OpenAI, // OpenAI 兼容：DeepSeek/通义/GLM/Kimi 等
+    };
+
     enum class RequestType {
         None, Generate, Rewrite, Translate, WordList, Chat
     };
@@ -22,8 +27,12 @@ public:
     AiClient &operator=(const AiClient &) = delete;
 
     void setEndpoint(const QString &baseUrl, const QString &model);
+    void setProvider(Provider provider);
+    void setApiKey(const QString &apiKey);
     QString baseUrl() const { return m_baseUrl; }
     QString model() const { return m_model; }
+    Provider provider() const { return m_provider; }
+    QString apiKey() const { return m_apiKey; }
 
     // 异步生成/改写；完成或失败通过信号通知，cancel() 可随时中止
     void generateArticle(const QString &topic, int level, int wordCount);
@@ -68,4 +77,6 @@ private:
     int m_requestTimeoutMs = 10 * 60 * 1000;
     QString m_baseUrl = QStringLiteral("http://127.0.0.1:11434");
     QString m_model = QStringLiteral("qwen3:14b");
+    Provider m_provider = Provider::Ollama;
+    QString m_apiKey;
 };

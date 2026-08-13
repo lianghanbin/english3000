@@ -13,6 +13,8 @@ class MobileBridge : public QObject {
     Q_PROPERTY(int masteredCount READ masteredCount NOTIFY countsChanged)
     Q_PROPERTY(int streak READ streak NOTIFY countsChanged)
     Q_PROPERTY(QString currentListName READ currentListName NOTIFY countsChanged)
+    Q_PROPERTY(QString aiProvider READ aiProvider NOTIFY countsChanged)
+    Q_PROPERTY(QString aiApiKey READ aiApiKey NOTIFY countsChanged)
 
 public:
     MobileBridge(WordStore *store, AiClient *ai, QObject *parent = nullptr);
@@ -22,6 +24,8 @@ public:
     int masteredCount() const;
     int streak() const;
     QString currentListName() const;
+    QString aiProvider() const;
+    QString aiApiKey() const;
 
     Q_INVOKABLE QVariantList newCards(int limit);
     Q_INVOKABLE QVariantList reviewCards(int limit);
@@ -36,6 +40,8 @@ public:
     Q_INVOKABLE void setAiUrl(const QString &url);
     Q_INVOKABLE QString aiModel() const;
     Q_INVOKABLE void setAiModel(const QString &model);
+    Q_INVOKABLE void setAiProvider(const QString &provider);
+    Q_INVOKABLE void setAiApiKey(const QString &key);
 
 signals:
     void countsChanged();

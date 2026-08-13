@@ -340,6 +340,14 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
                           QStringLiteral("http://127.0.0.1:11434")),
         store->getSetting(QStringLiteral("ai_model"),
                           QStringLiteral("qwen3:14b")));
+    const bool openAi =
+        store->getSetting(QStringLiteral("ai_provider"),
+                          QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        store->getSetting(QStringLiteral("ai_api_key")));
     connect(m_ai, &AiClient::translationFinished, this,
             &TranslatorWindow::onTranslationFinished);
     connect(m_ai, &AiClient::failed, this,
@@ -652,6 +660,14 @@ ScreenshotResultWindow::ScreenshotResultWindow(WordStore *store,
                           QStringLiteral("http://127.0.0.1:11434")),
         store->getSetting(QStringLiteral("ai_model"),
                           QStringLiteral("qwen3:14b")));
+    const bool openAi =
+        store->getSetting(QStringLiteral("ai_provider"),
+                          QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        store->getSetting(QStringLiteral("ai_api_key")));
     connect(m_ai, &AiClient::translationFinished, this,
             &ScreenshotResultWindow::onTranslationFinished);
     connect(m_ai, &AiClient::failed, this,
