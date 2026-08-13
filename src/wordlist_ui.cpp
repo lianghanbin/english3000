@@ -207,16 +207,9 @@ void WordListPage::refresh()
 
     const QVector<WordListInfo> lists = m_store->listWordLists();
     for (const WordListInfo &info : lists) {
-        const QString source =
-            info.source == QLatin1String("ai")
-                ? QStringLiteral("AI")
-                : (info.source == QLatin1String("article")
-                       ? QStringLiteral("文章")
-                       : QStringLiteral("手动"));
-        QString label = QStringLiteral("%1（%2 词 · %3）")
+        QString label = QStringLiteral("%1（%2 词）")
                             .arg(info.name)
-                            .arg(info.wordCount)
-                            .arg(source);
+                            .arg(info.wordCount);
         if (info.id == current)
             label += QStringLiteral(" [当前]");
         auto *item = new QListWidgetItem(label);
