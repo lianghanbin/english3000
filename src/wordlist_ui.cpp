@@ -107,7 +107,7 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     rightLayout->setContentsMargins(0, 0, 0, 0);
     m_table = new QTableWidget(0, 4, right);
     m_table->setHorizontalHeaderLabels(
-        {QStringLiteral("单词"), QStringLiteral("音标"),
+        {QStringLiteral("单词"), QStringLiteral("词形"),
          QStringLiteral("释义"), QStringLiteral("状态")});
     m_table->horizontalHeader()->setSectionResizeMode(
         2, QHeaderView::Stretch);
@@ -257,7 +257,8 @@ void WordListPage::fillCurrentScope()
         for (int i = 0; i < words.size(); ++i) {
             const Word &w = words[i];
             m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-            m_table->setItem(i, 1, new QTableWidgetItem(w.phonetic));
+            m_table->setItem(i, 1, new QTableWidgetItem(
+                m_store->inflectionSummary(w.word)));
             m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
             QString state;
             if (w.box == 0)
@@ -301,7 +302,8 @@ void WordListPage::fillCurrentScope()
     for (int i = 0; i < words.size(); ++i) {
         const Word &w = words[i];
         m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-        m_table->setItem(i, 1, new QTableWidgetItem(w.phonetic));
+        m_table->setItem(i, 1, new QTableWidgetItem(
+            m_store->inflectionSummary(w.word)));
         m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
         const std::optional<Word> found = m_store->findWordByText(w.word);
         QString state;

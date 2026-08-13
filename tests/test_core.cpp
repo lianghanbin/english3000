@@ -400,6 +400,18 @@ void testLemmaNormalization()
     check(store.lookupLemma(QStringLiteral("unknownxyz"))
               == QStringLiteral("unknownxyz"),
           "lemma identity fallback");
+    const QString inflections = store.inflectionSummary(QStringLiteral("file"));
+    const QStringList formList = inflections.split(QStringLiteral(", "));
+    check(formList.contains(QStringLiteral("files"))
+              && !formList.contains(QStringLiteral("file")),
+          "inflection summary lists forms, excludes base");
+    check(store.addInflections(QStringLiteral("file"),
+                               {QStringLiteral("files2"),
+                                QStringLiteral("filed")}),
+          "add generated inflections");
+    check(store.inflectionSummary(QStringLiteral("file"))
+              .contains(QStringLiteral("filed")),
+          "generated inflections cached and shown");
 
     store.addWord(QStringLiteral("file"), QStringLiteral("n."),
                   QStringLiteral("文件"));

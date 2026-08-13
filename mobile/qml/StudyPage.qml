@@ -48,7 +48,7 @@ Page {
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Label {
-                    text: cardIndex >= 0 ? cards[cardIndex].phonetic : ""
+                    text: cardIndex >= 0 ? cards[cardIndex].inflections : ""
                     color: "#888888"
                     Layout.alignment: Qt.AlignHCenter
                 }

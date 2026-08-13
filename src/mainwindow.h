@@ -68,7 +68,7 @@ private slots:
     void onCancelClicked();
     void onAiFinished(const QString &articleText);
     void onTranslationFinished(const QString &translation);
-    void onExampleFinished(const QString &sentence);
+    void onAiChatFinished(const QString &text);
     void onAiFailed(const QString &message);
     void onTranslateSelection();
     void onTranslateFull();
@@ -78,6 +78,8 @@ private slots:
     void applyHotkeys();
     bool autoPronounceEnabled() const;
     void requestExample(qint64 wordId, const QString &word);
+    void requestInflections(qint64 wordId, const QString &word,
+                            const QString &pos);
 
 private:
     void buildDashboard();
@@ -120,7 +122,7 @@ private:
     // 学习
     QLabel *m_rankLabel = nullptr;
     QLabel *m_wordLabel = nullptr;
-    QLabel *m_phoneticLabel = nullptr;
+    QLabel *m_inflectionLabel = nullptr;
     QLabel *m_posLabel = nullptr;
     QLabel *m_meaningLabel = nullptr;
     QLabel *m_exampleLabel = nullptr;
@@ -147,7 +149,10 @@ private:
     QString m_currentArticleContent;
     bool m_translating = false;
     QSet<qint64> m_exampleRequested;
-    qint64 m_pendingExampleId = -1;
+    QSet<qint64> m_inflectionRequested;
+    QString m_pendingAiKind;
+    qint64 m_pendingAiId = -1;
+    QString m_pendingAiWord;
 
     // 全局翻译
     TranslatorWindow *m_translator = nullptr;
@@ -206,7 +211,7 @@ private:
         qint64 id = 0;
         int rank = 0;
         QString word;
-        QString phonetic;
+        QString inflections;
         QString pos;
         QString meaning;
         QString exampleSentence;

@@ -151,6 +151,8 @@ public:
     void setExampleSentence(qint64 wordId, const QString &sentence);
     void seedWordPhonetics();
     int knownInWordList(qint64 listId) const;
+    QString inflectionSummary(const QString &word) const;
+    bool addInflections(const QString &lemma, const QStringList &forms);
 
     // 词形归一化（file→file, files→file）
     int importWordForms(const QString &path);

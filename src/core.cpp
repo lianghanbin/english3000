@@ -1020,6 +1020,50 @@ void WordStore::seedWordPhonetics()
     }
 }
 
+QString WordStore::inflectionSummary(const QString &word) const
+{
+    const QString lower = word.trimmed().toLower();
+    QSqlQuery q = rawQuery(
+        QStringLiteral(
+            "SELECT form FROM word_forms WHERE lemma=? AND form<>? "
+            "ORDER BY form LIMIT 8"),
+        {lower, lower});
+    QStringList forms;
+    while (q.next())
+        forms << q.value(0).toString();
+    return forms.join(QStringLiteral(", "));
+}
+
+bool WordStore::addInflections(const QString &lemma,
+                               const QStringList &forms)
+{
+    bool ok = true;
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "INSERT OR IGNORE INTO word_forms(form, lemma) VALUES(?, ?)"));
+    const QString lowerLemma = lemma.trimmed().toLower();
+    for (const QString &raw : forms) {
+        const QString form = raw.trimmed().toLower();
+        if (form.isEmpty() || form == lowerLemma)
+            continue;
+        bool alpha = true;
+        for (const QChar c : form) {
+            if (!c.isLetter() && c != QLatin1Char('-')
+                && c != QLatin1Char('\'')) {
+                alpha = false;
+                break;
+            }
+        }
+        if (!alpha)
+            continue;
+        q.bindValue(0, form);
+        q.bindValue(1, lowerLemma);
+        if (!q.exec())
+            ok = false;
+    }
+    return ok;
+}
+
 // ---------- 离线词典（ECDICT） ----------
 
 bool WordStore::dictReady() const
