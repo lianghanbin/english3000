@@ -75,6 +75,8 @@ jobs:
       - name: Configure
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+      - name: Remove broken android-36 platform
+        run: rm -rf $ANDROID_SDK_ROOT/platforms/android-36-ext19
       - name: Configure
         run: |
           cmake -B build-android -DCMAKE_BUILD_TYPE=Release \
