@@ -10,7 +10,7 @@ DefaultDirName={localappdata}\English3000
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-OutputDir=.
+OutputDir=..
 OutputBaseFilename=English3000-OneClick-Setup
 Compression=none
 SolidCompression=no
@@ -22,7 +22,7 @@ ShowLanguageDialog=no
 Name: "{userappdata}\liang\english3000"
 
 [Files]
-Source: "oneclick\English3000\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+Source: "..\oneclick\English3000\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "English3000AI"; ValueData: """{app}\llama\llama-server.exe"" -m ""{app}\llama\{#ModelFile}"" --host 127.0.0.1 --port 8080 -c 4096"; Flags: uninsdeletevalue
