@@ -74,8 +74,11 @@ jobs:
           cache: true
       - name: Configure
         run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+      - name: Configure
+        run: |
           cmake -B build-android -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE=${{ steps.installqt.outputs.qt-path }}/lib/cmake/Qt6/qt.toolchain.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=$QT_ROOT_DIR/lib/cmake/Qt6/qt.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a
       - name: Build APK
         run: cmake --build build-android --target english3000-mobile
