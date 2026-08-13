@@ -8,7 +8,6 @@
 #include <QCursor>
 #include <QDir>
 #include <QGuiApplication>
-#include <QtGui/qguiapplication_platform.h>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -33,12 +32,15 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
+#include <QtGui/qguiapplication_platform.h>
 #include <X11/Xlib.h>
 #include <xcb/xcb.h>
 
 #undef KeyPress
 #undef KeyRelease
 #undef None
+#endif
 
 namespace {
 
@@ -60,6 +62,7 @@ bool isMostlyChinese(const QString &text)
     return total > 0 && double(cjk) / total >= 0.3;
 }
 
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
 QString qtKeyToKeysymName(int qtKey)
 {
     if (qtKey >= Qt::Key_A && qtKey <= Qt::Key_Z)
@@ -101,6 +104,7 @@ quint32 qtModsToXMask(Qt::KeyboardModifiers mods)
         mask |= Mod4Mask;
     return mask;
 }
+#endif
 
 } // namespace
 
@@ -109,7 +113,9 @@ quint32 qtModsToXMask(Qt::KeyboardModifiers mods)
 GlobalHotkey::GlobalHotkey(QObject *parent)
     : QObject(parent)
 {
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     m_display = XOpenDisplay(nullptr);
+#endif
     qApp->installNativeEventFilter(this);
 }
 
@@ -117,13 +123,20 @@ GlobalHotkey::~GlobalHotkey()
 {
     qApp->removeNativeEventFilter(this);
     unregisterAll();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     if (m_display)
         XCloseDisplay(static_cast<Display *>(m_display));
+#endif
 }
 
 bool GlobalHotkey::registerKey(const QKeySequence &sequence,
                                const QString &token)
 {
+#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
+    Q_UNUSED(sequence);
+    Q_UNUSED(token);
+    return false;
+#else
     if (!m_display || sequence.isEmpty() || token.isEmpty())
         return false;
     const QKeyCombination combo = sequence[0];
@@ -158,10 +171,12 @@ bool GlobalHotkey::registerKey(const QKeySequence &sequence,
     m_keyToToken.insert(kc, token);
     m_keyToMods.insert(kc, mask);
     return true;
+#endif
 }
 
 void GlobalHotkey::unregisterAll()
 {
+#if defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID)
     auto *conn = static_cast<xcb_connection_t *>(m_conn);
     if (!conn)
         return;
@@ -173,11 +188,21 @@ void GlobalHotkey::unregisterAll()
     xcb_flush(conn);
     m_keyToToken.clear();
     m_keyToMods.clear();
+#else
+    m_keyToToken.clear();
+    m_keyToMods.clear();
+#endif
 }
 
 bool GlobalHotkey::nativeEventFilter(const QByteArray &eventType,
                                      void *message, qintptr *result)
 {
+#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
+    Q_UNUSED(eventType);
+    Q_UNUSED(message);
+    Q_UNUSED(result);
+    return false;
+#else
     Q_UNUSED(result);
     if (eventType != QByteArrayLiteral("xcb_generic_event_t") || !message)
         return false;
@@ -195,6 +220,7 @@ bool GlobalHotkey::nativeEventFilter(const QByteArray &eventType,
         return false;
     emit activated(m_keyToToken.value(kc));
     return true;
+#endif
 }
 
 // ---------- ScreenshotOverlay ----------
@@ -428,6 +454,11 @@ void TranslatorWindow::onTranslationFailed(const QString &message)
 
 void TranslatorWindow::startScreenshot()
 {
+#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
+    m_statusLabel->setText(QStringLiteral("截图翻译暂仅支持 Linux"));
+    show();
+    return;
+#else
     hide();
     QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
     if (!screen)
@@ -450,6 +481,7 @@ void TranslatorWindow::startScreenshot()
     overlay->showFullScreen();
     overlay->raise();
     overlay->activateWindow();
+#endif
 }
 
 void TranslatorWindow::runOcr(const QPixmap &pixmap, const QRect &screenRect)

@@ -32,7 +32,10 @@ add_executable(english3000
     src/wordlist_ui.cpp
     src/wordlist_ui.h
 )
-target_link_libraries(english3000 PRIVATE core ai Qt6::Widgets X11 xcb)
+target_link_libraries(english3000 PRIVATE core ai Qt6::Widgets)
+if(NOT ANDROID AND UNIX)
+    target_link_libraries(english3000 PRIVATE X11 xcb)
+endif()
 target_compile_definitions(english3000 PRIVATE
     ENGLISH3000_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
 )
