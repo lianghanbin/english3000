@@ -77,7 +77,7 @@ jobs:
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
       - name: Keep only android-34 platform
         run: |
-          find $ANDROID_SDK_ROOT/platforms -maxdepth 1 -type d \
+          find $ANDROID_SDK_ROOT/platforms -mindepth 1 -maxdepth 1 -type d \
             ! -name 'android-34' -exec rm -rf {} +
       - name: Configure
         run: |
