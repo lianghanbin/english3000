@@ -64,6 +64,11 @@ jobs:
             $body = @{ tag_name = "win-latest"; name = "Windows 最新版"; body = "自动构建 ${{ github.sha }}"; draft = $false; prerelease = $false } | ConvertTo-Json
             $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
           }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq "english3000-windows.zip") {
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/assets/$($asset.id)" -Headers $headers
+            }
+          }
           $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=english3000-windows.zip"
           Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/zip" -InFile "english3000-windows.zip"
 
@@ -130,6 +135,11 @@ jobs:
           if ($null -eq $release) {
             $body = @{ tag_name = "win-oneclick"; name = "Windows 一键版（含本地小模型）"; body = "应用 + 本地 AI + Qwen2.5 1.5B 模型，安装即用"; draft = $false; prerelease = $false } | ConvertTo-Json
             $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq "English3000-OneClick-Setup.exe") {
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/assets/$($asset.id)" -Headers $headers
+            }
           }
           $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=English3000-OneClick-Setup.exe"
           Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/octet-stream" -InFile "English3000-OneClick-Setup.exe"

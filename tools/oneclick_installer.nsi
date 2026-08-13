@@ -28,13 +28,16 @@ Section "Install"
 
     ; 写入应用默认 AI 设置（OpenAI 兼容 → 本地 llama-server）
     CreateDirectory "$APPDATA\liang\english3000"
-    ExecWait '"$INSTDIR\sqlite3.exe" "$APPDATA\liang\english3000\english3000.db" "CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT OR REPLACE INTO settings(key,value) VALUES(''ai_provider'',''openai''); INSERT OR REPLACE INTO settings(key,value) VALUES(''ai_base_url'',''http://127.0.0.1:8080''); INSERT OR REPLACE INTO settings(key,value) VALUES(''ai_model'',''qwen2.5:1.5b'');"'
+    ExecWait "$\"$INSTDIR\sqlite3.exe$\" $\"$APPDATA\liang\english3000\english3000.db$\" $\"CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)$\""
+    ExecWait "$\"$INSTDIR\sqlite3.exe$\" $\"$APPDATA\liang\english3000\english3000.db$\" $\"INSERT OR REPLACE INTO settings(key,value) VALUES('ai_provider','openai')$\""
+    ExecWait "$\"$INSTDIR\sqlite3.exe$\" $\"$APPDATA\liang\english3000\english3000.db$\" $\"INSERT OR REPLACE INTO settings(key,value) VALUES('ai_base_url','http://127.0.0.1:8080')$\""
+    ExecWait "$\"$INSTDIR\sqlite3.exe$\" $\"$APPDATA\liang\english3000\english3000.db$\" $\"INSERT OR REPLACE INTO settings(key,value) VALUES('ai_model','qwen2.5:1.5b')$\""
 
     ; 立即启动本地 AI 服务
-    Exec '"$INSTDIR\llama\llama-server.exe" -m "$INSTDIR\llama\qwen2.5-1.5b-instruct-q4_k_m.gguf" --host 127.0.0.1 --port 8080 -c 4096'
+    Exec "$\"$INSTDIR\llama\llama-server.exe$\" -m $\"$INSTDIR\llama\qwen2.5-1.5b-instruct-q4_k_m.gguf$\" --host 127.0.0.1 --port 8080 -c 4096"
 
     ; 启动应用
-    Exec '"$INSTDIR\english3000.exe"'
+    Exec "$\"$INSTDIR\english3000.exe$\""
 SectionEnd
 
 Section "Uninstall"
