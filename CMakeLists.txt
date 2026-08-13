@@ -5,7 +5,36 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql Network)
+find_package(Qt6 REQUIRED COMPONENTS Sql Network)
+find_package(Qt6 QUIET COMPONENTS Widgets)
+
+find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
+if(Qt6Quick_FOUND)
+    qt_add_executable(english3000-mobile MANUAL_FINALIZATION
+        mobile/MobileApp.cpp
+        mobile/bridge.cpp
+        mobile/bridge.h
+    )
+    target_include_directories(english3000-mobile PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(english3000-mobile PRIVATE
+        core ai Qt6::Quick Qt6::QuickControls2)
+    qt_add_resources(english3000-mobile "mobile_resources"
+        PREFIX "/"
+        FILES
+            mobile/qml/main.qml
+            mobile/qml/StudyPage.qml
+            mobile/qml/TranslatePage.qml
+            mobile/qml/SettingsPage.qml
+            assets/oxford3000.csv
+            assets/lemma.en.txt)
+    if(ANDROID)
+        set_target_properties(english3000-mobile PROPERTIES
+            QT_ANDROID_PACKAGE_SOURCE_DIR
+            ${CMAKE_CURRENT_SOURCE_DIR}/mobile/android)
+    endif()
+    qt_finalize_executable(english3000-mobile)
+endif()
 
 add_library(core STATIC
     src/core.cpp
@@ -21,27 +50,29 @@ add_library(ai STATIC
 target_include_directories(ai PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(ai PUBLIC Qt6::Core Qt6::Network)
 
-add_executable(english3000
-    src/main.cpp
-    src/mainwindow.cpp
-    src/mainwindow.h
-    src/translator_ui.cpp
-    src/translator_ui.h
-    src/conversation_ui.cpp
-    src/conversation_ui.h
-    src/wordlist_ui.cpp
-    src/wordlist_ui.h
-)
-target_link_libraries(english3000 PRIVATE core ai Qt6::Widgets)
-if(NOT ANDROID AND UNIX)
-    target_link_libraries(english3000 PRIVATE X11 xcb)
+if(Qt6Widgets_FOUND)
+    add_executable(english3000
+        src/main.cpp
+        src/mainwindow.cpp
+        src/mainwindow.h
+        src/translator_ui.cpp
+        src/translator_ui.h
+        src/conversation_ui.cpp
+        src/conversation_ui.h
+        src/wordlist_ui.cpp
+        src/wordlist_ui.h
+    )
+    target_link_libraries(english3000 PRIVATE core ai Qt6::Widgets)
+    if(NOT ANDROID AND UNIX)
+        target_link_libraries(english3000 PRIVATE X11 xcb)
+    endif()
+    if(WIN32)
+        target_link_libraries(english3000 PRIVATE user32)
+    endif()
+    target_compile_definitions(english3000 PRIVATE
+        ENGLISH3000_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+    )
 endif()
-if(WIN32)
-    target_link_libraries(english3000 PRIVATE user32)
-endif()
-target_compile_definitions(english3000 PRIVATE
-    ENGLISH3000_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
-)
 
 add_executable(test_core tests/test_core.cpp)
 target_link_libraries(test_core PRIVATE core ai Qt6::Core Qt6::Sql Qt6::Network)
