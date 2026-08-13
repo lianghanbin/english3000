@@ -1202,18 +1202,18 @@ QString MainWindow::renderArticleHtml(const QString &content) const
 {
     auto wordHtml = [this](const QString &w) {
         QString lookup = w.toLower();
-        std::optional<Word> inList =
-            m_store->findInNamedList(QStringLiteral("阅读生词"), lookup);
+        std::optional<Word> inList = m_store->findInCurrentList(lookup);
         if (!inList) {
             lookup = m_store->lookupLemma(lookup);
-            inList = m_store->findInNamedList(
-                QStringLiteral("阅读生词"), lookup);
+            inList = m_store->findInCurrentList(lookup);
         }
         QString color = QStringLiteral("#000000");
         if (!inList) {
             color = QStringLiteral("#c62828");
         } else if (inList->box == 0) {
             color = QStringLiteral("#1565c0");
+        } else {
+            color = QStringLiteral("#000000");
         }
         return QStringLiteral(
                    "<a href=\"word://%1\" style=\"color:%2; "
@@ -1451,8 +1451,7 @@ void MainWindow::showWordMenu(const QString &rawWord)
                     [this] { speakText(m_clickedWord); });
     menu->addAction(QStringLiteral("加入阅读词表"), this,
                     &MainWindow::queueClickedWord);
-    const std::optional<Word> inList =
-        m_store->findInNamedList(QStringLiteral("阅读生词"), word);
+    const std::optional<Word> inList = m_store->findInCurrentList(word);
     if (inList && inList->box == 0) {
         menu->addAction(QStringLiteral("标记已会"), this,
                         &MainWindow::markClickedWordKnown);
@@ -1477,8 +1476,7 @@ void MainWindow::queueClickedWord()
 
 void MainWindow::markClickedWordKnown()
 {
-    const std::optional<Word> found =
-        m_store->findInNamedList(QStringLiteral("阅读生词"), m_clickedWord);
+    const std::optional<Word> found = m_store->findInCurrentList(m_clickedWord);
     if (!found)
         return;
     m_store->markItemKnown(found->itemId);
