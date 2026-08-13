@@ -14,12 +14,13 @@ class QSqlDatabase;
 
 struct Word {
     qint64 id = 0;
+    qint64 itemId = 0; // word_list_items.id（词表条目）
     int rank = 0;
     QString word;
     QString pos;
     QString meaning;
     QString phonetic;
-    int box = 0;
+    int box = 0; // 词表条目状态：0=未学，6=已掌握
     QDate due;
     bool hasDue = false;
     int reviewCount = 0;
@@ -103,9 +104,8 @@ public:
     // 词库
     int importCsv(const QString &csvPath, bool reset);
     int countWords() const;
-    Counts counts(const QDate &day = QDate::currentDate()) const;
-    QVector<Word> getNew(int limit) const;
-    QVector<Word> getDue(int limit, const QDate &day = QDate::currentDate()) const;
+    Counts counts(const QDate &day = QDate::currentDate()) const; // 当前词表进度
+    QVector<Word> studyCards(int limit); // 当前词表未学单词
     std::optional<Word> getWord(qint64 id) const;
     QVector<Word> search(const QString &query, int limit = 300) const;
     qint64 addWord(const QString &word, const QString &pos, const QString &meaning);
@@ -145,12 +145,12 @@ public:
                                      int limit = 100) const;
     QVector<Word> extractDomainWordsFromArticles(
         const QVector<qint64> &articleIds, int limit = 100) const;
-    int queueWordListToToday(qint64 listId);
     int seedBuiltinWordList();
     int seedExamplesFromArticles();
     void setExampleSentence(qint64 wordId, const QString &sentence);
     void seedWordPhonetics();
     int knownInWordList(qint64 listId) const;
+    std::optional<Word> findInCurrentList(const QString &word) const;
     QString inflectionSummary(const QString &word) const;
     bool addInflections(const QString &lemma, const QStringList &forms);
 
@@ -179,12 +179,13 @@ public:
     QVector<CoveragePoint> coverageHistory(int days = 30) const;
     int coverageArticleCount() const;
 
-    // 复习调度
-    ReviewResult review(qint64 wordId, bool known,
-                        const QDate &day = QDate::currentDate());
-    void markKnown(qint64 wordId, const QDate &day = QDate::currentDate());
-    void resetWord(qint64 wordId);
-    void resetAll();
+    // 词表学习（选一本书 → 学这本书）
+    ReviewResult answerStudy(qint64 itemId, bool known,
+                             const QDate &day = QDate::currentDate());
+    void markItemKnown(qint64 itemId);
+    void resetItem(qint64 itemId);
+    void resetList(qint64 listId);
+    void resetAllLists();
 
     // 设置与统计
     void setSetting(const QString &key, const QString &value);

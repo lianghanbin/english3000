@@ -27,11 +27,6 @@ int MobileBridge::newCount() const
     return m_store->counts().newTotal;
 }
 
-int MobileBridge::dueCount() const
-{
-    return m_store->counts().due;
-}
-
 int MobileBridge::masteredCount() const
 {
     return m_store->counts().mastered;
@@ -42,13 +37,18 @@ int MobileBridge::streak() const
     return m_store->streak();
 }
 
+QString MobileBridge::currentListName() const
+{
+    return m_store->currentWordListName();
+}
+
 QVariantList MobileBridge::newCards(int limit)
 {
     QVariantList cards;
-    const QVector<Word> words = m_store->getNew(limit);
+    const QVector<Word> words = m_store->studyCards(limit);
     for (const Word &w : words) {
         QVariantMap card;
-        card.insert(QStringLiteral("id"), w.id);
+        card.insert(QStringLiteral("id"), w.itemId);
         card.insert(QStringLiteral("word"), w.word);
         card.insert(QStringLiteral("pos"), w.pos);
         card.insert(QStringLiteral("meaning"), w.meaning);
@@ -58,9 +58,30 @@ QVariantList MobileBridge::newCards(int limit)
     return cards;
 }
 
+QVariantList MobileBridge::wordLists()
+{
+    QVariantList lists;
+    const qint64 current = m_store->currentWordListId();
+    for (const WordListInfo &info : m_store->listWordLists()) {
+        QVariantMap m;
+        m.insert(QStringLiteral("id"), info.id);
+        m.insert(QStringLiteral("name"), info.name);
+        m.insert(QStringLiteral("wordCount"), info.wordCount);
+        m.insert(QStringLiteral("current"), info.id == current);
+        lists.append(m);
+    }
+    return lists;
+}
+
+void MobileBridge::setCurrentList(qint64 listId)
+{
+    m_store->setCurrentWordList(listId);
+    emit countsChanged();
+}
+
 void MobileBridge::answer(qint64 wordId, bool known)
 {
-    m_store->review(wordId, known);
+    m_store->answerStudy(wordId, known);
     emit countsChanged();
 }
 

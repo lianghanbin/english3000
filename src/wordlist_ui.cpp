@@ -5,7 +5,9 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -16,6 +18,7 @@
 #include <QProgressBar>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSqlQuery>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTableWidget>
@@ -146,20 +149,20 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     auto *listRow = new QHBoxLayout(m_listButtons);
     listRow->setContentsMargins(0, 0, 0, 0);
     m_currentButton = new QPushButton(QStringLiteral("设为当前词表"), right);
-    m_queueButton = new QPushButton(QStringLiteral("全部加入今日新词"), right);
+    m_resetButton = new QPushButton(QStringLiteral("重置本书进度"), right);
     m_moreButton = new QPushButton(QStringLiteral("AI 补充词表"), right);
     m_deleteButton = new QPushButton(QStringLiteral("删除词表"), right);
     m_currentButton->setObjectName(QStringLiteral("primaryButton"));
     connect(m_currentButton, &QPushButton::clicked, this,
             &WordListPage::setCurrent);
-    connect(m_queueButton, &QPushButton::clicked, this,
-            &WordListPage::queueAllToToday);
+    connect(m_resetButton, &QPushButton::clicked, this,
+            &WordListPage::resetCurrent);
     connect(m_moreButton, &QPushButton::clicked, this,
             &WordListPage::supplementAiList);
     connect(m_deleteButton, &QPushButton::clicked, this,
             &WordListPage::deleteCurrent);
     listRow->addWidget(m_currentButton);
-    listRow->addWidget(m_queueButton);
+    listRow->addWidget(m_resetButton);
     listRow->addWidget(m_moreButton);
     listRow->addWidget(m_deleteButton);
     listRow->addStretch();
@@ -177,10 +180,11 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     layout->addWidget(m_statusLabel);
 
     m_currentButton->setEnabled(false);
-    m_queueButton->setEnabled(false);
+    m_resetButton->setEnabled(false);
     m_moreButton->setEnabled(false);
     m_deleteButton->setEnabled(false);
     m_listButtons->hide();
+    m_globalButtons->hide();
     refresh();
 }
 
@@ -191,14 +195,10 @@ void WordListPage::refresh()
                                 ? m_listWidget->currentItem()
                                       ->data(Qt::UserRole)
                                       .toLongLong()
-                                : kAllWordsId;
+                                : -1;
     m_listWidget->clear();
 
-    auto *allItem = new QListWidgetItem(QStringLiteral("全部单词"));
-    allItem->setData(Qt::UserRole, kAllWordsId);
-    m_listWidget->addItem(allItem);
-    QListWidgetItem *selectItem =
-        (previous == kAllWordsId) ? allItem : nullptr;
+    QListWidgetItem *selectItem = nullptr;
 
     const QVector<WordListInfo> lists = m_store->listWordLists();
     for (const WordListInfo &info : lists) {
@@ -222,8 +222,11 @@ void WordListPage::refresh()
     }
     if (selectItem) {
         m_listWidget->setCurrentItem(selectItem);
+    } else if (m_listWidget->count() > 0) {
+        m_listWidget->setCurrentRow(0);
     } else {
-        m_listWidget->setCurrentItem(allItem);
+        onListSelected();
+        return;
     }
     onListSelected();
 }
@@ -234,58 +237,27 @@ void WordListPage::onListSelected()
     const qint64 id =
         item ? item->data(Qt::UserRole).toLongLong() : -1;
     m_scopeId = id;
+    const bool hasList = id > 0;
+    m_globalButtons->setVisible(hasList);
+    m_listButtons->setVisible(hasList);
+    m_currentButton->setEnabled(hasList);
+    m_resetButton->setEnabled(hasList);
+    m_moreButton->setEnabled(hasList);
+    m_deleteButton->setEnabled(hasList);
     fillCurrentScope();
 }
 
 void WordListPage::fillCurrentScope()
 {
-    const bool allScope = (m_scopeId == kAllWordsId);
-    m_globalButtons->setVisible(allScope);
-    m_listButtons->setVisible(!allScope);
     const QString query = m_searchEdit->text().trimmed();
     m_table->setRowCount(0);
-    if (allScope) {
-        const QVector<Word> words = m_store->search(query);
-        const Counts counts = m_store->counts();
-        m_progressBar->setMaximum(qMax(1, counts.total));
-        m_progressBar->setValue(counts.known);
-        m_progressBar->setFormat(
-            QStringLiteral("认识 %1 / %2 个词")
-                .arg(counts.known)
-                .arg(counts.total));
-        m_table->setRowCount(words.size());
-        for (int i = 0; i < words.size(); ++i) {
-            const Word &w = words[i];
-            m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-            m_table->setItem(i, 1, new QTableWidgetItem(w.meaning));
-            QString state;
-            if (w.box == 0)
-                state = QStringLiteral("新词");
-            else if (w.box == 6)
-                state = QStringLiteral("已掌握");
-            else
-                state = QStringLiteral("学习中");
-            m_table->setItem(i, 2, new QTableWidgetItem(state));
-        }
-        m_statusLabel->setText(
-            QStringLiteral("全部单词（当前词表：%1）")
-                .arg(m_store->currentWordListName().isEmpty()
-                         ? QStringLiteral("无")
-                         : m_store->currentWordListName()));
-        return;
-    }
-
-    m_currentButton->setEnabled(true);
-    m_queueButton->setEnabled(true);
-    m_moreButton->setEnabled(true);
-    m_deleteButton->setEnabled(true);
     QVector<Word> words = m_store->wordsInWordList(m_scopeId);
     const int totalWords = words.size();
     const int knownWords = m_store->knownInWordList(m_scopeId);
     m_progressBar->setMaximum(qMax(1, totalWords));
     m_progressBar->setValue(knownWords);
     m_progressBar->setFormat(
-        QStringLiteral("认识 %1 / %2 个词").arg(knownWords).arg(totalWords));
+        QStringLiteral("已掌握 %1 / %2 个词").arg(knownWords).arg(totalWords));
     if (!query.isEmpty()) {
         QVector<Word> filtered;
         for (const Word &w : words) {
@@ -299,19 +271,13 @@ void WordListPage::fillCurrentScope()
     m_table->setRowCount(words.size());
     for (int i = 0; i < words.size(); ++i) {
         const Word &w = words[i];
-        m_table->setItem(i, 0, new QTableWidgetItem(w.word));
+        auto *wordItem = new QTableWidgetItem(w.word);
+        wordItem->setData(Qt::UserRole, w.itemId);
+        m_table->setItem(i, 0, wordItem);
         m_table->setItem(i, 1, new QTableWidgetItem(w.meaning));
-        const std::optional<Word> found = m_store->findWordByText(w.word);
-        QString state;
-        if (found) {
-            if (found->box == 0)
-                state = QStringLiteral("新词");
-            else if (found->box == 6)
-                state = QStringLiteral("已掌握");
-            else
-                state = QStringLiteral("学习中");
-        }
-        m_table->setItem(i, 2, new QTableWidgetItem(state));
+        m_table->setItem(i, 2, new QTableWidgetItem(
+            w.box == 6 ? QStringLiteral("已掌握")
+                       : QStringLiteral("未学")));
     }
     QString name;
     const QVector<WordListInfo> lists = m_store->listWordLists();
@@ -320,7 +286,9 @@ void WordListPage::fillCurrentScope()
             name = info.name;
     }
     m_statusLabel->setText(
-        QStringLiteral("词表「%1」· %2 个词").arg(name).arg(words.size()));
+        QStringLiteral("词表「%1」· %2 个词（搜索后）")
+            .arg(name)
+            .arg(words.size()));
 }
 
 void WordListPage::selectList(qint64 listId)
@@ -579,15 +547,21 @@ void WordListPage::setCurrent()
         QStringLiteral("当前词表已切换为「%1」").arg(label));
 }
 
-void WordListPage::queueAllToToday()
+void WordListPage::resetCurrent()
 {
     QListWidgetItem *item = m_listWidget->currentItem();
     if (!item)
         return;
     const qint64 id = item->data(Qt::UserRole).toLongLong();
-    const int count = m_store->queueWordListToToday(id);
-    m_statusLabel->setText(
-        QStringLiteral("已加入今日新词 %1 个（排在队列最前）").arg(count));
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("重置本书进度？"),
+        QStringLiteral("确定把这本书的“已掌握”全部清空，重新开始学？"),
+        QMessageBox::Ok | QMessageBox::Cancel);
+    if (answer != QMessageBox::Ok)
+        return;
+    m_store->resetList(id);
+    fillCurrentScope();
+    m_statusLabel->setText(QStringLiteral("本书进度已重置，从头开始"));
 }
 
 void WordListPage::deleteCurrent()
@@ -613,13 +587,14 @@ void WordListPage::markSelected()
     const int row = m_table->currentRow();
     if (row < 0)
         return;
+    const qint64 itemId =
+        m_table->item(row, 0)->data(Qt::UserRole).toLongLong();
     const QString word = m_table->item(row, 0)->text();
-    const std::optional<Word> found = m_store->findWordByText(word);
-    if (found) {
-        m_store->markKnown(found->id);
-        fillCurrentScope();
-        m_statusLabel->setText(QStringLiteral("已标记：%1").arg(word));
-    }
+    if (itemId <= 0)
+        return;
+    m_store->markItemKnown(itemId);
+    fillCurrentScope();
+    m_statusLabel->setText(QStringLiteral("已标记为掌握：%1").arg(word));
 }
 
 void WordListPage::resetSelected()
@@ -627,13 +602,14 @@ void WordListPage::resetSelected()
     const int row = m_table->currentRow();
     if (row < 0)
         return;
+    const qint64 itemId =
+        m_table->item(row, 0)->data(Qt::UserRole).toLongLong();
     const QString word = m_table->item(row, 0)->text();
-    const std::optional<Word> found = m_store->findWordByText(word);
-    if (found) {
-        m_store->resetWord(found->id);
-        fillCurrentScope();
-        m_statusLabel->setText(QStringLiteral("已重置：%1").arg(word));
-    }
+    if (itemId <= 0)
+        return;
+    m_store->resetItem(itemId);
+    fillCurrentScope();
+    m_statusLabel->setText(QStringLiteral("已重置为未学：%1").arg(word));
 }
 
 void WordListPage::addWordDialog()
@@ -657,14 +633,30 @@ void WordListPage::addWordDialog()
     layout->addWidget(buttons);
     if (dialog.exec() != QDialog::Accepted)
         return;
-    const qint64 id = m_store->addWord(wordEdit->text(), posEdit->text(),
-                                       meaningEdit->text());
-    if (id < 0) {
-        m_statusLabel->setText(QStringLiteral("添加失败：单词已存在或为空"));
-    } else {
-        m_statusLabel->setText(QStringLiteral("已添加：%1").arg(wordEdit->text()));
-        fillCurrentScope();
+    const QString word = wordEdit->text().trimmed();
+    if (word.isEmpty() || m_scopeId <= 0) {
+        m_statusLabel->setText(
+            QStringLiteral("请先选择一本词表，再添加生词"));
+        return;
     }
+    const qint64 dictId =
+        m_store->addWord(word, posEdit->text(), meaningEdit->text());
+    if (dictId < 0 && !m_store->findWordByText(word)) {
+        m_statusLabel->setText(QStringLiteral("添加失败：单词为空或格式错误"));
+        return;
+    }
+    QSqlQuery mx = m_store->rawQuery(
+        QStringLiteral("SELECT COALESCE(MAX(sort_order), 0) + 1 "
+                       "FROM word_list_items WHERE list_id=?"),
+        {m_scopeId});
+    const int order = mx.next() ? mx.value(0).toInt() : 0;
+    if (m_store->addWordToList(m_scopeId, word, posEdit->text(),
+                               meaningEdit->text(), order)) {
+        m_statusLabel->setText(QStringLiteral("已加入词表：%1").arg(word));
+    } else {
+        m_statusLabel->setText(QStringLiteral("词表里已有这个词"));
+    }
+    fillCurrentScope();
 }
 
 void WordListPage::importDialog()
@@ -674,12 +666,47 @@ void WordListPage::importDialog()
         QStringLiteral("CSV 文件 (*.csv)"));
     if (path.isEmpty())
         return;
-    const int count = m_store->importCsv(path, false);
-    if (count < 0) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         m_statusLabel->setText(QStringLiteral("导入失败"));
         return;
     }
+    const QVector<QStringList> rows =
+        parseCsv(QString::fromUtf8(file.readAll()));
+    file.close();
+    qint64 listId = m_scopeId;
+    if (listId <= 0) {
+        const QFileInfo info(path);
+        listId = m_store->createWordList(
+            info.completeBaseName(), QStringLiteral("导入的 CSV"),
+            QStringLiteral("manual"));
+        if (listId < 0) {
+            m_statusLabel->setText(QStringLiteral("导入失败：无法创建词表"));
+            return;
+        }
+        m_store->setCurrentWordList(listId);
+    }
+    int count = 0;
+    int order = m_store->wordsInWordList(listId).size();
+    for (const QStringList &row : rows) {
+        if (row.size() < 4)
+            continue;
+        if (row[0].trimmed() == QStringLiteral("序号")
+            || row[1].trimmed() == QStringLiteral("单词")) {
+            continue;
+        }
+        const QString word = row[1].trimmed();
+        if (word.isEmpty())
+            continue;
+        m_store->addWord(word, row[2].trimmed(), row[3].trimmed());
+        if (m_store->addWordToList(listId, word, row[2].trimmed(),
+                                   row[3].trimmed(), order)) {
+            ++count;
+            ++order;
+        }
+    }
+    refresh();
     m_statusLabel->setText(
-        QStringLiteral("已导入/更新 %1 个单词").arg(count));
+        QStringLiteral("已导入 %1 个单词到当前词表").arg(count));
     fillCurrentScope();
 }

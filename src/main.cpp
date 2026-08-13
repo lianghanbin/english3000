@@ -47,6 +47,16 @@ int main(int argc, char *argv[])
     if (store.countWords() > 0)
         store.seedBuiltinWordList();
     store.seedWordPhonetics();
+    // 首次使用默认选「核心 3000」这本书
+    if (store.currentWordListId() <= 0) {
+        const QVector<WordListInfo> lists = store.listWordLists();
+        for (const WordListInfo &info : lists) {
+            if (info.source == QLatin1String("builtin")) {
+                store.setCurrentWordList(info.id);
+                break;
+            }
+        }
+    }
 
     if (store.listArticles().isEmpty()) {
         struct SampleArticle {

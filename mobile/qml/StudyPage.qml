@@ -4,6 +4,7 @@ import QtQuick.Layouts
 
 Page {
     property var cards: []
+    property var lists: []
     property int cardIndex: -1
     property bool revealed: false
     property string currentExample: ""
@@ -14,9 +15,23 @@ Page {
         spacing: 12
 
         RowLayout {
+            ComboBox {
+                id: listCombo
+                Layout.preferredWidth: 160
+                model: []
+                textRole: "name"
+                valueRole: "id"
+                onActivated: function(index) {
+                    if (index >= 0 && lists[index]) {
+                        bridge.setCurrentList(lists[index].id)
+                        load()
+                    }
+                }
+            }
             Label {
-                text: bridge.newCount + " 新词 · " + bridge.dueCount
-                      + " 复习 · 已掌握 " + bridge.masteredCount
+                text: bridge.currentListName === "" ? "未选词表"
+                    : "未学 " + bridge.newCount + " · 已掌握 "
+                      + bridge.masteredCount
             }
             Item { Layout.fillWidth: true }
             Label {
@@ -36,7 +51,8 @@ Page {
                 spacing: 10
 
                 Label {
-                    text: cardIndex >= 0 ? cards[cardIndex].word : "点下方按钮开始新词"
+                    text: cardIndex >= 0 ? cards[cardIndex].word
+                                         : "点下方按钮开始学习"
                     font.pixelSize: 34
                     font.bold: true
                     color: "white"
@@ -88,7 +104,7 @@ Page {
         }
 
         Button {
-            text: cards.length === 0 ? "开始新词" : "再来一组"
+            text: cards.length === 0 ? "开始学习" : "继续学习"
             Layout.fillWidth: true
             onClicked: load()
         }
@@ -105,6 +121,16 @@ Page {
     }
 
     function load() {
+        lists = bridge.wordLists()
+        listCombo.model = lists
+        var current = -1
+        for (var i = 0; i < lists.length; ++i) {
+            if (lists[i].current) {
+                current = i
+                break
+            }
+        }
+        listCombo.currentIndex = current >= 0 ? current : -1
         cards = bridge.newCards(10)
         cardIndex = cards.length > 0 ? 0 : -1
         revealed = false

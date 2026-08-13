@@ -36,6 +36,18 @@ QString sampleCsv()
         "5,a,,第一个字母 A\n");
 }
 
+qint64 makeList(WordStore &store, const QStringList &words)
+{
+    const qint64 id = store.createWordList(
+        QStringLiteral("测试"), {}, QStringLiteral("manual"));
+    for (int i = 0; i < words.size(); ++i) {
+        store.addWordToList(id, words[i], QStringLiteral("n."),
+                            QStringLiteral("释义%1").arg(i), i);
+    }
+    store.setCurrentWordList(id);
+    return id;
+}
+
 void testImport()
 {
     QTemporaryDir dir;
@@ -52,6 +64,9 @@ void testImport()
     check(store.countWords() == 5, "count words");
     check(store.search(QStringLiteral("单词")).isEmpty(),
           "header row not imported");
+    makeList(store, {QStringLiteral("the"), QStringLiteral("of"),
+                     QStringLiteral("and"), QStringLiteral("to"),
+                     QStringLiteral("a")});
     const Counts c = store.counts();
     check(c.total == 5 && c.newTotal == 5, "all new initially");
     check(c.known == 0, "known count initially zero");
@@ -69,72 +84,54 @@ void testReimportKeepsProgress()
 
     WordStore store(dir.filePath(QStringLiteral("test.db")));
     store.importCsv(csv, false);
-    const QVector<Word> words = store.getNew(1);
-    store.review(words.first().id, true);
+    makeList(store, {QStringLiteral("the"), QStringLiteral("of"),
+                     QStringLiteral("and"), QStringLiteral("to"),
+                     QStringLiteral("a")});
+    const QVector<Word> words = store.studyCards(1);
+    store.answerStudy(words.first().itemId, true);
     store.importCsv(csv, false);
-    const auto w = store.getWord(words.first().id);
-    check(w.has_value() && w->box == 1, "reimport keeps progress");
+    const auto w = store.findInCurrentList(words.first().word);
+    check(w.has_value() && w->box == 6, "reimport keeps progress");
 }
 
-void testReviewScheduling()
+void testAnswerStudy()
 {
     QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
     WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
+    makeList(store, {QStringLiteral("kernel"),
+                     QStringLiteral("folder")});
     const QDate day(2026, 1, 1);
 
-    const qint64 id = store.getNew(1).first().id;
-    const ReviewResult r1 = store.review(id, true, day);
-    check(r1.box == 1 && r1.due == day.addDays(1), "new+known -> box1 +1d");
-    const ReviewResult r2 = store.review(id, true, day.addDays(1));
-    check(r2.box == 2 && r2.due == day.addDays(3), "box1+known -> box2 +2d");
-    const ReviewResult r3 = store.review(id, false, day.addDays(3));
-    check(r3.box == 1 && r3.due == day.addDays(4), "box2+unknown -> box1 +1d");
+    QVector<Word> cards = store.studyCards(10);
+    check(cards.size() == 2, "two unlearned cards");
+    const ReviewResult r1 = store.answerStudy(cards[0].itemId, true, day);
+    check(r1.box == 6 && r1.wasNew, "known -> mastered");
+    const auto w1 = store.findInCurrentList(cards[0].word);
+    check(w1 && w1->box == 6, "mastered persisted");
+    const ReviewResult r2 =
+        store.answerStudy(cards[1].itemId, false, day);
+    check(r2.box == 0 && r2.wasNew, "unknown stays unlearned");
+    const auto w2 = store.findInCurrentList(cards[1].word);
+    check(w2 && w2->box == 0 && w2->reviewCount == 1,
+          "unknown keeps review count");
+    check(store.studyCards(10).size() == 1, "only unlearned card remains");
 }
 
-void testNewUnknownAdvances()
+void testMarkAndReset()
 {
     QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
     WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
-    const qint64 id = store.getNew(1).first().id;
-    const ReviewResult r = store.review(id, false, QDate(2026, 1, 1));
-    check(r.box == 1 && r.wasNew, "new+unknown -> box1");
-    const auto w = store.getWord(id);
-    check(w && w->wrongCount == 1, "wrong counted");
-}
-
-void testMarkKnownAndReset()
-{
-    QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
-    WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
-    const qint64 id = store.getNew(1).first().id;
-    store.markKnown(id, QDate(2026, 1, 1));
-    check(store.getWord(id)->box == 6, "mark known -> box6");
-    store.resetWord(id);
-    check(store.getWord(id)->box == 0, "reset -> box0");
+    const qint64 listId = makeList(store, {QStringLiteral("kernel"),
+                                           QStringLiteral("folder")});
+    const QVector<Word> cards = store.studyCards(10);
+    store.markItemKnown(cards[0].itemId);
+    check(store.findInCurrentList(cards[0].word)->box == 6,
+          "mark known -> box6");
+    store.resetItem(cards[0].itemId);
+    check(store.findInCurrentList(cards[0].word)->box == 0,
+          "reset item -> box0");
+    store.resetList(listId);
+    check(store.knownInWordList(listId) == 0, "reset list clears progress");
 }
 
 void testAddWordAndSearch()
@@ -154,42 +151,18 @@ void testAddWordAndSearch()
 void testDailyLogAndStreak()
 {
     QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
     WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
-    const QVector<Word> words = store.getNew(2);
-    store.review(words[0].id, true, QDate(2026, 1, 1));
-    store.review(words[1].id, false, QDate(2026, 1, 1));
-    store.review(words[0].id, true, QDate(2026, 1, 2));
+    makeList(store, {QStringLiteral("kernel"),
+                     QStringLiteral("folder")});
+    const QVector<Word> words = store.studyCards(2);
+    store.answerStudy(words[0].itemId, true, QDate(2026, 1, 1));
+    store.answerStudy(words[1].itemId, false, QDate(2026, 1, 1));
+    store.answerStudy(words[0].itemId, true, QDate(2026, 1, 2));
     const DailySummary s = store.dailySummary(QDate(2026, 1, 2));
     check(s.newCount == 0 && s.reviewCount == 1
               && s.correct == 1 && s.wrong == 0,
           "daily summary");
     check(store.streak(QDate(2026, 1, 2)) == 2, "streak 2 days");
-}
-
-void testDueQuery()
-{
-    QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
-    WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
-    const qint64 id = store.getNew(1).first().id;
-    store.review(id, true, QDate(2026, 1, 1));
-    check(store.getDue(10, QDate(2026, 1, 1)).isEmpty(), "not due same day");
-    check(store.getDue(10, QDate(2026, 1, 2)).size() == 1, "due next day");
 }
 
 void testCsvParser()
@@ -209,17 +182,10 @@ void testCsvParser()
 void testArticleSaveAndStats()
 {
     QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
     WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
-    const qint64 wordId = store.getNew(1).first().id;
-    store.review(wordId, true); // "the" 变为已学
+    makeList(store, {QStringLiteral("the")});
+    const QVector<Word> cards = store.studyCards(10);
+    store.answerStudy(cards.first().itemId, true); // "the" 变为已掌握
 
     const qint64 articleId = store.saveArticle(
         QStringLiteral("Test Article"),
@@ -235,8 +201,8 @@ void testArticleSaveAndStats()
     const ArticleStats stats = store.articleStats(articleId);
     check(stats.total == 7, "stats total");
     check(stats.known == 1, "stats known");
-    check(stats.inList == 5, "stats in list");
-    check(stats.outOfList == 2, "stats out of list");
+    check(stats.inList == 1, "stats in list");
+    check(stats.outOfList == 6, "stats out of list");
     check(qAbs(stats.coverage - 100.0 / 7.0) < 0.01, "stats coverage");
 
     store.deleteArticle(articleId);
@@ -246,15 +212,7 @@ void testArticleSaveAndStats()
 void testPoolPromoteAndPriority()
 {
     QTemporaryDir dir;
-    const QString csv = dir.filePath(QStringLiteral("words.csv"));
-    QFile f(csv);
-    if (!f.open(QIODevice::WriteOnly))
-        return;
-    f.write(sampleCsv().toUtf8());
-    f.close();
-
     WordStore store(dir.filePath(QStringLiteral("test.db")));
-    store.importCsv(csv, false);
     const qint64 articleId = store.saveArticle(
         QStringLiteral("Cat Story"),
         QStringLiteral("The cat is here. The dog runs."),
@@ -273,12 +231,9 @@ void testPoolPromoteAndPriority()
     check(store.promoteFromPool(poolId), "promote from pool");
     check(store.poolList().isEmpty(), "pool empty after promote");
     const auto word = store.findWordByText(QStringLiteral("the"));
-    check(word && word->queuePriority == 1, "promoted word has priority");
+    check(word.has_value(), "promoted word in dictionary");
     check(word && word->exampleSentence == QStringLiteral("The cat is here."),
           "promoted word keeps example sentence");
-    const QVector<Word> queue = store.getNew(10);
-    check(!queue.isEmpty() && queue.first().word == QStringLiteral("the"),
-          "promoted word is first in new queue");
 
     // 词表外生词：池中释义自动带入新词
     check(store.addToPool(articleId, QStringLiteral("cat"),
@@ -338,6 +293,20 @@ void testMigration()
     }
     check(hasExample && hasPriority && hasPhonetic,
           "migration adds new columns");
+    QSqlQuery itemPragma = store.rawQuery(QStringLiteral(
+        "PRAGMA table_info(word_list_items)"));
+    bool hasBox = false;
+    bool hasReviewCount = false;
+    while (itemPragma.next()) {
+        if (itemPragma.value(1).toString() == QStringLiteral("box"))
+            hasBox = true;
+        if (itemPragma.value(1).toString()
+            == QStringLiteral("review_count")) {
+            hasReviewCount = true;
+        }
+    }
+    check(hasBox && hasReviewCount,
+          "word list items migration adds progress columns");
     const qint64 articleId = store.saveArticle(
         QStringLiteral("Migrated"), QStringLiteral("hello world"),
         QStringLiteral("test"), 1);
@@ -415,6 +384,11 @@ void testLemmaNormalization()
 
     store.addWord(QStringLiteral("file"), QStringLiteral("n."),
                   QStringLiteral("文件"));
+    const qint64 listId = store.createWordList(
+        QStringLiteral("读"), {}, QStringLiteral("manual"));
+    store.addWordToList(listId, QStringLiteral("file"),
+                        QStringLiteral("n."), QStringLiteral("文件"), 0);
+    store.setCurrentWordList(listId);
     const qint64 id = store.saveArticle(
         QStringLiteral("T"), QStringLiteral("files folder"), QStringLiteral("test"), 1);
     const ArticleStats s = store.articleStats(id);
@@ -464,8 +438,7 @@ void testTranslationLinkage()
     WordStore store(dir.filePath(QStringLiteral("test.db")));
     store.addWord(QStringLiteral("file"), QStringLiteral("n."),
                   QStringLiteral("文件"));
-    const auto fileWord = store.findWordByText(QStringLiteral("file"));
-    store.review(fileWord->id, true); // 已学 → 不算生词
+    makeList(store, {QStringLiteral("file")}); // 已在词表 → 不算生词
 
     const QString text =
         QStringLiteral("The kernel file is stored here. Folders keep files safe.");
@@ -488,9 +461,8 @@ void testTranslationLinkage()
         QStringLiteral("The kernel file is stored here."));
     check(id > 0, "queue kernel");
     const auto kernel = store.findWordByText(QStringLiteral("kernel"));
-    check(kernel && kernel->queuePriority == 1
-              && kernel->exampleSentence.contains(QStringLiteral("kernel")),
-          "queue priority and example sentence");
+    check(kernel && kernel->exampleSentence.contains(QStringLiteral("kernel")),
+          "example sentence carried");
     check(store.queueWordFromTranslation(
               QStringLiteral("kernel"), QStringLiteral("内核"), {}) == id,
           "queue dedup by word");
@@ -498,13 +470,12 @@ void testTranslationLinkage()
               text, QStringLiteral("folders"))
               == QStringLiteral("Folders keep files safe."),
           "sentence containing word");
-    const qint64 listId = store.createWordList(
-        QStringLiteral("测试"), {}, QStringLiteral("manual"));
-    store.addWordToList(listId, QStringLiteral("kernel"),
-                        QStringLiteral("n."), QStringLiteral("内核"), 0);
-    store.review(store.findWordByText(QStringLiteral("kernel"))->id, true);
+    const auto kernelItem = store.findInCurrentList(QStringLiteral("kernel"));
+    check(kernelItem.has_value(), "translated word added to current list");
+    store.answerStudy(kernelItem->itemId, true);
+    const qint64 listId = store.currentWordListId();
     check(store.knownInWordList(listId) == 1,
-          "known in word list counts learned word");
+          "known in word list counts mastered word");
 }
 
 void testWordLists()
@@ -545,11 +516,14 @@ void testWordLists()
               == QStringLiteral("kernel"),
           "extract domain words by frequency");
 
-    const int queued = store.queueWordListToToday(listId);
-    check(queued == 2, "queue list words to today");
-    const auto kernel = store.findWordByText(QStringLiteral("kernel"));
-    check(kernel && kernel->queuePriority == 1,
-          "queued word has priority");
+    const QVector<Word> cards = store.studyCards(10);
+    check(cards.size() == 2, "study cards from current list");
+    store.answerStudy(cards.first().itemId, true);
+    check(store.knownInWordList(listId) == 1,
+          "known count after answer");
+    store.resetList(listId);
+    check(store.knownInWordList(listId) == 0,
+          "reset list progress");
 
     check(store.deleteWordList(listId), "delete word list");
     check(store.listWordLists().isEmpty(), "word lists empty after delete");
@@ -576,6 +550,10 @@ void testSeedBuiltinWordList()
               && lists.first().source == QStringLiteral("builtin")
               && lists.first().wordCount == 5,
           "builtin list visible with words");
+    store.setCurrentWordList(lists.first().id);
+    const Counts c = store.counts();
+    check(c.total == 5 && c.newTotal == 5 && c.mastered == 0,
+          "builtin list progress starts fresh");
 }
 
 void testExamples()
@@ -611,12 +589,10 @@ int main(int argc, char *argv[])
 
     testImport();
     testReimportKeepsProgress();
-    testReviewScheduling();
-    testNewUnknownAdvances();
-    testMarkKnownAndReset();
+    testAnswerStudy();
+    testMarkAndReset();
     testAddWordAndSearch();
     testDailyLogAndStreak();
-    testDueQuery();
     testCsvParser();
     testArticleSaveAndStats();
     testPoolPromoteAndPriority();

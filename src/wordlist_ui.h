@@ -30,7 +30,7 @@ private slots:
     void createFromArticlesDialog();
     void supplementAiList();
     void setCurrent();
-    void queueAllToToday();
+    void resetCurrent();
     void deleteCurrent();
     void markSelected();
     void resetSelected();
@@ -42,7 +42,6 @@ private slots:
 private:
     void fillCurrentScope();
     void selectList(qint64 listId);
-    static constexpr qint64 kAllWordsId = -2;
 
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
@@ -54,7 +53,7 @@ private:
     QPushButton *m_aiButton = nullptr;
     QPushButton *m_articleButton = nullptr;
     QPushButton *m_currentButton = nullptr;
-    QPushButton *m_queueButton = nullptr;
+    QPushButton *m_resetButton = nullptr;
     QPushButton *m_moreButton = nullptr;
     QPushButton *m_deleteButton = nullptr;
     QWidget *m_globalButtons = nullptr;
@@ -62,5 +61,5 @@ private:
     QString m_pendingName;
     int m_pendingCount = 0;
     qint64 m_pendingListId = -1;
-    qint64 m_scopeId = kAllWordsId;
+    qint64 m_scopeId = -1;
 };

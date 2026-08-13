@@ -44,7 +44,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
 private slots:
-    void startSession(const QString &kind);
+    void startSession();
     void reveal();
     void answer(bool known);
     void backToToday();
@@ -109,13 +109,12 @@ private:
 
     // 今日
     QLabel *m_newCountLabel = nullptr;
-    QLabel *m_dueCountLabel = nullptr;
     QLabel *m_masteredLabel = nullptr;
     QLabel *m_streakLabel = nullptr;
     QLabel *m_dailyLabel = nullptr;
+    QLabel *m_bookLabel = nullptr;
     QProgressBar *m_progress = nullptr;
     QPushButton *m_startNewButton = nullptr;
-    QPushButton *m_startReviewButton = nullptr;
 
     // 学习
     QLabel *m_rankLabel = nullptr;
@@ -205,6 +204,7 @@ private:
 
     struct SessionCard {
         qint64 id = 0;
+        qint64 itemId = 0;
         int rank = 0;
         QString word;
         QString pos;

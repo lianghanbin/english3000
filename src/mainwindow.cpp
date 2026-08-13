@@ -227,11 +227,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
     auto *newShortcut = new QShortcut(
         QKeySequence(Qt::CTRL | Qt::Key_N), this);
     connect(newShortcut, &QShortcut::activated, this,
-            [this] { startSession(QStringLiteral("new")); });
-    auto *reviewShortcut = new QShortcut(
-        QKeySequence(Qt::CTRL | Qt::Key_R), this);
-    connect(reviewShortcut, &QShortcut::activated, this,
-            [this] { startSession(QStringLiteral("review")); });
+            [this] { startSession(); });
 
     refreshAll();
 }
@@ -247,12 +243,16 @@ void MainWindow::buildDashboard()
     auto *statsRow = new QHBoxLayout;
     statsRow->setSpacing(48);
     statsRow->addStretch();
-    statsRow->addWidget(makeStatValue(m_newCountLabel, QStringLiteral("新词待学"), page));
-    statsRow->addWidget(makeStatValue(m_dueCountLabel, QStringLiteral("今日复习"), page));
+    statsRow->addWidget(makeStatValue(m_newCountLabel, QStringLiteral("未学"), page));
     statsRow->addWidget(makeStatValue(m_masteredLabel, QStringLiteral("已掌握"), page));
     statsRow->addWidget(makeStatValue(m_streakLabel, QStringLiteral("连续学习(天)"), page));
     statsRow->addStretch();
     layout->addLayout(statsRow);
+
+    m_bookLabel = new QLabel(QStringLiteral("当前词表：无"), page);
+    m_bookLabel->setObjectName(QStringLiteral("meaningLabel"));
+    m_bookLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_bookLabel);
 
     m_progress = new QProgressBar(page);
     m_progress->setFixedWidth(520);
@@ -272,22 +272,17 @@ void MainWindow::buildDashboard()
     auto *buttonRow = new QHBoxLayout;
     buttonRow->setSpacing(16);
     buttonRow->addStretch();
-    m_startNewButton = new QPushButton(QStringLiteral("开始新词"), page);
+    m_startNewButton = new QPushButton(QStringLiteral("开始学习本书"), page);
     m_startNewButton->setObjectName(QStringLiteral("primaryButton"));
-    m_startReviewButton = new QPushButton(QStringLiteral("开始复习"), page);
     m_startNewButton->setFocusPolicy(Qt::NoFocus);
-    m_startReviewButton->setFocusPolicy(Qt::NoFocus);
     connect(m_startNewButton, &QPushButton::clicked, this,
-            [this] { startSession(QStringLiteral("new")); });
-    connect(m_startReviewButton, &QPushButton::clicked, this,
-            [this] { startSession(QStringLiteral("review")); });
+            [this] { startSession(); });
     buttonRow->addWidget(m_startNewButton);
-    buttonRow->addWidget(m_startReviewButton);
     buttonRow->addStretch();
     layout->addLayout(buttonRow);
 
     auto *shortcutHint = new QLabel(
-        QStringLiteral("快捷键：Ctrl+N 开始新词 · Ctrl+R 开始复习"), page);
+        QStringLiteral("快捷键：Ctrl+N 开始学习"), page);
     shortcutHint->setObjectName(QStringLiteral("hintLabel"));
     shortcutHint->setAlignment(Qt::AlignCenter);
     layout->addWidget(shortcutHint);
@@ -680,7 +675,7 @@ void MainWindow::buildStats()
     auto *coverageBox = makeStatValue(
         m_statsCoverageLabel, QStringLiteral("平均覆盖率"), page);
     auto *knownBox = makeStatValue(
-        m_statsKnownLabel, QStringLiteral("认识单词"), page);
+        m_statsKnownLabel, QStringLiteral("未学单词"), page);
     auto *streakBox = makeStatValue(m_statsStreakLabel,
                                     QStringLiteral("连续学习(天)"), page);
     auto *masteredBox = makeStatValue(
@@ -941,14 +936,17 @@ void MainWindow::refreshDashboard()
     const DailySummary s = m_store->dailySummary();
     const int streak = m_store->streak();
     m_newCountLabel->setText(QString::number(c.newTotal));
-    m_dueCountLabel->setText(QString::number(c.due));
     m_masteredLabel->setText(QString::number(c.mastered));
     m_streakLabel->setText(QString::number(streak));
+    const QString bookName = m_store->currentWordListName();
+    m_bookLabel->setText(
+        bookName.isEmpty()
+            ? QStringLiteral("当前词表：无（请到词表页选一本）")
+            : QStringLiteral("当前词表：《%1》").arg(bookName));
     m_progress->setMaximum(qMax(1, c.total));
     m_progress->setValue(c.mastered);
     m_progress->setFormat(
-        QStringLiteral("已掌握 %1 / %2（学习中 %3）")
-            .arg(c.mastered).arg(c.total).arg(c.learning));
+        QStringLiteral("已掌握 %1 / %2").arg(c.mastered).arg(c.total));
     if (s.newCount > 0 || s.reviewCount > 0) {
         m_dailyLabel->setText(
             QStringLiteral("今天：新学 %1 · 复习 %2 · 认识 %3 · 不认识 %4")
@@ -956,23 +954,19 @@ void MainWindow::refreshDashboard()
     } else {
         m_dailyLabel->setText(QStringLiteral("今天还没有学习记录"));
     }
-    m_startNewButton->setEnabled(c.newTotal > 0);
-    m_startReviewButton->setEnabled(c.due > 0);
+    m_startNewButton->setEnabled(c.total > 0 && c.newTotal > 0);
 }
 
 // ---------- 学习会话 ----------
 
-void MainWindow::startSession(const QString &kind)
+void MainWindow::startSession()
 {
-    QVector<Word> words;
-    if (kind == QLatin1String("new")) {
-        words = m_store->getNew(100000); // 当天不设上限
-    } else {
-        words = m_store->getDue(500);
-    }
+    const QVector<Word> words = m_store->studyCards(100000);
     if (words.isEmpty()) {
-        infoBox(QStringLiteral("没有可学习的卡片"),
-                QStringLiteral("新词学完了，或今天的复习都完成了。"));
+        infoBox(QStringLiteral("没有未学的单词"),
+                m_store->currentWordListId() > 0
+                    ? QStringLiteral("本书已经全部掌握，或去词表页换一本。")
+                    : QStringLiteral("请先在词表页选一本词表。"));
         return;
     }
 
@@ -980,7 +974,7 @@ void MainWindow::startSession(const QString &kind)
     m_session.reserve(words.size());
     for (const Word &w : words) {
         m_session.push_back(
-            {w.id, w.rank, w.word, w.pos, w.meaning,
+            {w.id, w.itemId, w.rank, w.word, w.pos, w.meaning,
              w.exampleSentence});
     }
     m_sessionIndex = 0;
@@ -1060,7 +1054,7 @@ void MainWindow::answer(bool known)
         return;
     }
     const SessionCard &card = m_session[m_sessionIndex];
-    m_store->review(card.id, known);
+    m_store->answerStudy(card.itemId, known);
     if (known)
         ++m_sessionCorrect;
     ++m_sessionIndex;
@@ -1070,11 +1064,13 @@ void MainWindow::answer(bool known)
 void MainWindow::finishSession()
 {
     const int total = m_session.size();
+    const int remaining = m_store->counts().newTotal;
     m_summaryLabel->setText(
         QStringLiteral("本次共学习 %1 个单词，认识 %2 个。\n"
-                       "不认识的在复习里会自动出现，明天见。")
+                       "本书还剩 %3 个未掌握，下次继续。")
             .arg(total)
-            .arg(m_sessionCorrect));
+            .arg(m_sessionCorrect)
+            .arg(remaining));
     m_studyStack->setCurrentIndex(1);
     refreshDashboard();
 }
@@ -1120,13 +1116,12 @@ void MainWindow::reimportBuiltin()
 void MainWindow::resetAllDialog()
 {
     const auto answer = QMessageBox::warning(
-        this, QStringLiteral("重置全部学习进度？"),
-        QStringLiteral("所有单词会回到“新词”状态，复习记录也会清空。"),
+        this, QStringLiteral("重置全部词表进度？"),
+        QStringLiteral("所有词表的“已掌握”状态都会清空，词表本身不受影响。"),
         QMessageBox::Ok | QMessageBox::Cancel);
     if (answer != QMessageBox::Ok)
         return;
-    m_store->resetAll();
-    reimportBuiltin();
+    m_store->resetAllLists();
     refreshAll();
 }
 
@@ -1178,16 +1173,18 @@ QString MainWindow::renderArticleHtml(const QString &content) const
 {
     auto wordHtml = [this](const QString &w) {
         QString lookup = w.toLower();
-        std::optional<Word> found = m_store->findWordByText(lookup);
-        if (!found) {
+        std::optional<Word> inList = m_store->findInCurrentList(lookup);
+        if (!inList) {
             lookup = m_store->lookupLemma(lookup);
-            found = m_store->findWordByText(lookup);
+            inList = m_store->findInCurrentList(lookup);
         }
         QString color = QStringLiteral("#000000");
-        if (!found) {
+        if (!inList) {
             color = QStringLiteral("#c62828");
-        } else if (found->box == 0) {
+        } else if (inList->box == 0) {
             color = QStringLiteral("#1565c0");
+        } else {
+            color = QStringLiteral("#2e7d32");
         }
         return QStringLiteral(
                    "<a href=\"word://%1\" style=\"color:%2; "
@@ -1416,16 +1413,17 @@ void MainWindow::showWordMenu(const QString &rawWord)
             meaningAction->setEnabled(false);
         } else {
             auto *outAction = menu->addAction(
-                QStringLiteral("词表外（可加入今日新词）"));
+                QStringLiteral("词表外（可加入当前词表）"));
             outAction->setEnabled(false);
         }
     }
     menu->addSeparator();
     menu->addAction(QStringLiteral("发音"), this,
                     [this] { speakText(m_clickedWord); });
-    menu->addAction(QStringLiteral("加入今日新词"), this,
+    menu->addAction(QStringLiteral("加入当前词表"), this,
                     &MainWindow::queueClickedWord);
-    if (found && found->box == 0) {
+    const std::optional<Word> inList = m_store->findInCurrentList(word);
+    if (inList && inList->box == 0) {
         menu->addAction(QStringLiteral("标记已会"), this,
                         &MainWindow::markClickedWordKnown);
     }
@@ -1442,17 +1440,18 @@ void MainWindow::queueClickedWord()
         m_clickedWord, m_clickedDictMeaning, sentence);
     if (id > 0) {
         statusBar()->showMessage(
-            QStringLiteral("已加入今日新词：%1").arg(m_clickedWord), 3000);
+            QStringLiteral("已加入当前词表：%1").arg(m_clickedWord), 3000);
         refreshDashboard();
     }
 }
 
 void MainWindow::markClickedWordKnown()
 {
-    const std::optional<Word> found = m_store->findWordByText(m_clickedWord);
+    const std::optional<Word> found =
+        m_store->findInCurrentList(m_clickedWord);
     if (!found)
         return;
-    m_store->markKnown(found->id);
+    m_store->markItemKnown(found->itemId);
     refreshDashboard();
     if (m_currentArticleId >= 0)
         m_reader->setHtml(renderArticleHtml(m_currentArticleContent));
@@ -1816,7 +1815,7 @@ void MainWindow::refreshStats()
         QString::number(m_store->coverageArticleCount()));
     m_statsCoverageLabel->setText(
         QStringLiteral("%1%").arg(QString::number(avg, 'f', 1)));
-    m_statsKnownLabel->setText(QString::number(counts.known));
+    m_statsKnownLabel->setText(QString::number(counts.newTotal));
     m_statsStreakLabel->setText(QString::number(m_store->streak()));
     m_statsMasteredLabel->setText(QString::number(counts.mastered));
 }
