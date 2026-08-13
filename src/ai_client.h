@@ -33,7 +33,8 @@ public:
     void translateText(const QString &text, const QString &model = {},
                        bool toChinese = true);
     void generateWordList(const QString &domain, int count);
-    void chat(const QString &prompt, int maxTokens = 400);
+    void chat(const QString &prompt, int maxTokens = 400,
+              const QString &model = {});
     void cancel();
 
     // prompt 模板（纯函数，便于单元测试）

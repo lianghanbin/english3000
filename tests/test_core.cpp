@@ -554,6 +554,31 @@ void testSeedBuiltinWordList()
           "builtin list visible with words");
 }
 
+void testExamples()
+{
+    QTemporaryDir dir;
+    WordStore store(dir.filePath(QStringLiteral("test.db")));
+    store.addWord(QStringLiteral("kernel"), QStringLiteral("n."),
+                  QStringLiteral("内核"));
+    store.addWord(QStringLiteral("the"), QStringLiteral("art."),
+                  QStringLiteral("art. 那"));
+    store.saveArticle(
+        QStringLiteral("T"),
+        QStringLiteral("The kernel is the heart of the system."),
+        QStringLiteral("test"), 1);
+    check(store.seedExamplesFromArticles() == 2,
+          "seed examples from articles");
+    const auto kernel = store.findWordByText(QStringLiteral("kernel"));
+    check(kernel && !kernel->exampleSentence.isEmpty()
+              && kernel->exampleSentence.contains(QStringLiteral("kernel")),
+          "kernel got example");
+    store.setExampleSentence(kernel->id,
+                             QStringLiteral("Custom sentence here."));
+    check(store.findWordByText(QStringLiteral("kernel"))->exampleSentence
+              == QStringLiteral("Custom sentence here."),
+          "set example sentence");
+}
+
 } // namespace
 
 int main(int argc, char *argv[])
@@ -578,6 +603,7 @@ int main(int argc, char *argv[])
     testTranslationLinkage();
     testWordLists();
     testSeedBuiltinWordList();
+    testExamples();
 
     if (g_failures == 0) {
         std::printf("all tests passed\n");

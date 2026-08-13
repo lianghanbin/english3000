@@ -921,6 +921,45 @@ int WordStore::seedBuiltinWordList()
     return count;
 }
 
+int WordStore::seedExamplesFromArticles()
+{
+    const QVector<Article> articles = listArticles();
+    if (articles.isEmpty())
+        return 0;
+    QSqlQuery words = rawQuery(QStringLiteral(
+        "SELECT id, word FROM words WHERE example_sentence=''"));
+    int count = 0;
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral(
+        "UPDATE words SET example_sentence=? WHERE id=?"));
+    while (words.next()) {
+        const qint64 wordId = words.value(0).toLongLong();
+        const QString word = words.value(1).toString();
+        for (const Article &article : articles) {
+            const QString sentence =
+                sentenceContaining(article.content, word);
+            if (!sentence.isEmpty()) {
+                update.bindValue(0, sentence);
+                update.bindValue(1, wordId);
+                update.exec();
+                ++count;
+                break;
+            }
+        }
+    }
+    return count;
+}
+
+void WordStore::setExampleSentence(qint64 wordId, const QString &sentence)
+{
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE words SET example_sentence=? WHERE id=?"));
+    q.addBindValue(sentence.isEmpty() ? QStringLiteral("") : sentence.trimmed());
+    q.addBindValue(wordId);
+    q.exec();
+}
+
 // ---------- 离线词典（ECDICT） ----------
 
 bool WordStore::dictReady() const

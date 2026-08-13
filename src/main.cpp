@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
                               QStringLiteral("sample"), sample.level);
         }
     }
+    store.seedExamplesFromArticles();
 
     MainWindow window(&store);
     window.show();

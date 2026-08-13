@@ -24,6 +24,7 @@ public:
     Q_INVOKABLE QVariantList newCards(int limit);
     Q_INVOKABLE void answer(qint64 wordId, bool known);
     Q_INVOKABLE void translate(const QString &text, const QString &model);
+    Q_INVOKABLE void requestExample(qint64 wordId, const QString &word);
     Q_INVOKABLE void refresh();
 
     Q_INVOKABLE QString aiUrl() const;
@@ -35,8 +36,10 @@ signals:
     void countsChanged();
     void translationReady(const QString &translation);
     void translationFailed(const QString &message);
+    void exampleReady(qint64 wordId, const QString &sentence);
 
 private:
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
+    qint64 m_pendingExampleId = -1;
 };

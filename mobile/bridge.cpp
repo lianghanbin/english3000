@@ -12,6 +12,14 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
             [this](const QString &t) { emit translationReady(t); });
     connect(m_ai, &AiClient::failed, this,
             [this](const QString &m) { emit translationFailed(m); });
+    connect(m_ai, &AiClient::chatFinished, this,
+            [this](const QString &text) {
+                if (m_pendingExampleId <= 0)
+                    return;
+                const qint64 id = m_pendingExampleId;
+                m_pendingExampleId = -1;
+                emit exampleReady(id, text.trimmed().simplified());
+            });
 }
 
 int MobileBridge::newCount() const
@@ -85,6 +93,19 @@ void MobileBridge::translate(const QString &text, const QString &model)
         !(total > 0 && double(cjk) / total >= 0.3);
     m_ai->translateText(trimmed, model, toChinese);
     emit countsChanged();
+}
+
+void MobileBridge::requestExample(qint64 wordId, const QString &word)
+{
+    if (m_pendingExampleId > 0)
+        return;
+    m_pendingExampleId = wordId;
+    const QString prompt =
+        QStringLiteral(
+            "Write one short, simple English sentence using the word "
+            "\"%1\". Use the exact word. Output only the sentence.")
+            .arg(word);
+    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
 }
 
 void MobileBridge::refresh()

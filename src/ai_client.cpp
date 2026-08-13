@@ -160,10 +160,12 @@ void AiClient::generateWordList(const QString &domain, int count)
     start(wordListPrompt(domain, count));
 }
 
-void AiClient::chat(const QString &prompt, int maxTokens)
+void AiClient::chat(const QString &prompt, int maxTokens,
+                    const QString &model)
 {
     m_requestType = RequestType::Chat;
     m_requestPredict = qBound(100, maxTokens, 2000);
+    m_requestModel = model.trimmed();
     start(prompt);
 }
 

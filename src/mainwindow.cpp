@@ -182,6 +182,8 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
     connect(m_ai, &AiClient::finished, this, &MainWindow::onAiFinished);
     connect(m_ai, &AiClient::translationFinished, this,
             &MainWindow::onTranslationFinished);
+    connect(m_ai, &AiClient::chatFinished, this,
+            &MainWindow::onExampleFinished);
     connect(m_ai, &AiClient::failed, this, &MainWindow::onAiFailed);
 
     m_webManager = new QNetworkAccessManager(this);
@@ -997,7 +999,11 @@ void MainWindow::showCard()
     m_wordLabel->setText(card.word);
     m_posLabel->setText(card.pos);
     m_meaningLabel->setText(card.meaning);
-    m_exampleLabel->setText(card.exampleSentence);
+    const bool exampleRequested = m_exampleRequested.contains(card.id);
+    m_exampleLabel->setText(
+        card.exampleSentence.isEmpty() && exampleRequested
+            ? QStringLiteral("例句生成中…")
+            : card.exampleSentence);
     m_meaningLabel->hide();
     m_exampleLabel->hide();
     m_revealButton->setEnabled(true);
@@ -1005,6 +1011,14 @@ void MainWindow::showCard()
     m_knownButton->setEnabled(false);
     m_revealed = false;
     m_wordLabel->setFocus(Qt::OtherFocusReason);
+    if (card.exampleSentence.isEmpty() && !exampleRequested)
+        requestExample(card.id, card.word);
+    if (m_sessionIndex + 1 < m_session.size()
+        && m_session[m_sessionIndex + 1].exampleSentence.isEmpty()
+        && !m_exampleRequested.contains(m_session[m_sessionIndex + 1].id)) {
+        requestExample(m_session[m_sessionIndex + 1].id,
+                       m_session[m_sessionIndex + 1].word);
+    }
     if (autoPronounceEnabled())
         speakText(card.word);
 }
@@ -1825,6 +1839,35 @@ bool MainWindow::autoPronounceEnabled() const
     return m_store->getSetting(QStringLiteral("auto_pronounce"),
                                QStringLiteral("1"))
         == QLatin1String("1");
+}
+
+void MainWindow::requestExample(qint64 wordId, const QString &word)
+{
+    if (m_exampleRequested.contains(wordId))
+        return;
+    m_exampleRequested.insert(wordId);
+    m_pendingExampleId = wordId;
+    const QString prompt =
+        QStringLiteral(
+            "Write one short, simple English sentence using the word "
+            "\"%1\". Use the exact word. Output only the sentence.")
+            .arg(word);
+    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
+}
+
+void MainWindow::onExampleFinished(const QString &sentence)
+{
+    const QString example = sentence.trimmed().simplified();
+    if (m_pendingExampleId <= 0 || example.isEmpty())
+        return;
+    const qint64 id = m_pendingExampleId;
+    m_pendingExampleId = -1;
+    m_store->setExampleSentence(id, example);
+    if (m_sessionIndex < m_session.size()
+        && m_session[m_sessionIndex].id == id) {
+        m_session[m_sessionIndex].exampleSentence = example;
+        m_exampleLabel->setText(example);
+    }
 }
 
 // ---------- 键盘与工具 ----------

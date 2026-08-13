@@ -145,6 +145,8 @@ public:
         const QVector<qint64> &articleIds, int limit = 100) const;
     int queueWordListToToday(qint64 listId);
     int seedBuiltinWordList();
+    int seedExamplesFromArticles();
+    void setExampleSentence(qint64 wordId, const QString &sentence);
 
     // 词形归一化（file→file, files→file）
     int importWordForms(const QString &path);

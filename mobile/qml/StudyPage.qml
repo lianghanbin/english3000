@@ -6,6 +6,7 @@ Page {
     property var cards: []
     property int cardIndex: -1
     property bool revealed: false
+    property string currentExample: ""
 
     ColumnLayout {
         anchors.fill: parent
@@ -56,9 +57,8 @@ Page {
                     horizontalAlignment: Text.AlignHCenter
                 }
                 Label {
-                    visible: revealed && cardIndex >= 0
-                            && cards[cardIndex].example !== ""
-                    text: cardIndex >= 0 ? cards[cardIndex].example : ""
+                    visible: revealed && currentExample !== ""
+                    text: currentExample
                     color: "#999999"
                     wrapMode: Text.Wrap
                     Layout.fillWidth: true
@@ -94,10 +94,27 @@ Page {
         }
     }
 
+    Connections {
+        target: bridge
+        function onExampleReady(wordId, sentence) {
+            if (cardIndex >= 0 && cards[cardIndex].id === wordId) {
+                currentExample = sentence
+                cards[cardIndex].example = sentence
+            }
+        }
+    }
+
     function load() {
         cards = bridge.newCards(10)
         cardIndex = cards.length > 0 ? 0 : -1
         revealed = false
+        currentExample = ""
+        if (cardIndex >= 0) {
+            currentExample = cards[cardIndex].example
+            if (currentExample === "")
+                bridge.requestExample(cards[cardIndex].id,
+                                      cards[cardIndex].word)
+        }
     }
 
     function answer(known) {
@@ -105,6 +122,10 @@ Page {
         if (cardIndex + 1 < cards.length) {
             cardIndex++
             revealed = false
+            currentExample = cards[cardIndex].example
+            if (currentExample === "")
+                bridge.requestExample(cards[cardIndex].id,
+                                      cards[cardIndex].word)
         } else {
             load()
         }

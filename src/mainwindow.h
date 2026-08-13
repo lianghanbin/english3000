@@ -2,6 +2,7 @@
 
 #include <QKeyEvent>
 #include <QMainWindow>
+#include <QSet>
 #include <QVector>
 
 #include "core.h"
@@ -67,6 +68,7 @@ private slots:
     void onCancelClicked();
     void onAiFinished(const QString &articleText);
     void onTranslationFinished(const QString &translation);
+    void onExampleFinished(const QString &sentence);
     void onAiFailed(const QString &message);
     void onTranslateSelection();
     void onTranslateFull();
@@ -75,6 +77,7 @@ private slots:
     void refreshStats();
     void applyHotkeys();
     bool autoPronounceEnabled() const;
+    void requestExample(qint64 wordId, const QString &word);
 
 private:
     void buildDashboard();
@@ -143,6 +146,8 @@ private:
     qint64 m_currentArticleId = -1;
     QString m_currentArticleContent;
     bool m_translating = false;
+    QSet<qint64> m_exampleRequested;
+    qint64 m_pendingExampleId = -1;
 
     // 全局翻译
     TranslatorWindow *m_translator = nullptr;
