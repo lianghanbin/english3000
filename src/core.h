@@ -149,6 +149,7 @@ public:
     QVector<Word> wordsInWordList(qint64 listId) const;
     QVector<WordListInfo> listsContainingWord(const QString &word) const;
     QSet<QString> allListWords() const;
+    QSet<QString> currentListWords() const;
     QSet<QString> masteredListWords() const;
     void resetWordInAllLists(const QString &word);
     void setCurrentWordList(qint64 listId);

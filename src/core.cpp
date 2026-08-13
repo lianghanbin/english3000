@@ -1078,6 +1078,20 @@ QSet<QString> WordStore::allListWords() const
     return words;
 }
 
+QSet<QString> WordStore::currentListWords() const
+{
+    QSet<QString> words;
+    const qint64 listId = currentWordListId();
+    if (listId <= 0)
+        return words;
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT word FROM word_list_items WHERE list_id=?"),
+        {listId});
+    while (q.next())
+        words.insert(q.value(0).toString().toLower());
+    return words;
+}
+
 QSet<QString> WordStore::masteredListWords() const
 {
     QSet<QString> words;

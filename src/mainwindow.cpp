@@ -548,7 +548,7 @@ void MainWindow::buildReading()
     layout->addLayout(translateRow);
 
     auto *hint = new QLabel(
-        QStringLiteral("左键点词发音 · 右键菜单：红=翻译/加入阅读词表 · 蓝=翻译/所在词表 · 黑=翻译/重置 · 拖选后翻译"),
+        QStringLiteral("左键点词发音 · 红=未入词表(可加入阅读) · 蓝=其他词表 · 绿=当前词表 · 黑=已掌握 · 右键菜单 · 拖选后翻译"),
         page);
     hint->setObjectName(QStringLiteral("hintLabel"));
     layout->addWidget(hint);
@@ -1201,8 +1201,10 @@ void MainWindow::loadArticle(qint64 articleId)
 QString MainWindow::renderArticleHtml(const QString &content) const
 {
     const QSet<QString> inAnyList = m_store->allListWords();
+    const QSet<QString> currentList = m_store->currentListWords();
     const QSet<QString> mastered = m_store->masteredListWords();
-    auto wordHtml = [this, &inAnyList, &mastered](const QString &w) {
+    auto wordHtml = [this, &inAnyList, &currentList,
+                     &mastered](const QString &w) {
         QString lookup = w.toLower();
         const bool known =
             inAnyList.contains(lookup)
@@ -1210,10 +1212,16 @@ QString MainWindow::renderArticleHtml(const QString &content) const
         const bool masteredWord =
             mastered.contains(lookup)
             || mastered.contains(m_store->lookupLemma(lookup));
-        const QString color =
-            !known ? QStringLiteral("#c62828")
-                   : (masteredWord ? QStringLiteral("#000000")
-                                   : QStringLiteral("#1565c0"));
+        const bool inCurrent =
+            currentList.contains(lookup)
+            || currentList.contains(m_store->lookupLemma(lookup));
+        QString color = QStringLiteral("#c62828"); // 红：未入任何词表
+        if (known && masteredWord)
+            color = QStringLiteral("#000000"); // 黑：已掌握
+        else if (known && inCurrent)
+            color = QStringLiteral("#2e7d32"); // 绿：当前词表
+        else if (known)
+            color = QStringLiteral("#1565c0"); // 蓝：其他词表
         return QStringLiteral(
                    "<a href=\"word://%1\" style=\"color:%2; "
                    "text-decoration:none;\">%3</a>")
@@ -1450,8 +1458,6 @@ void MainWindow::showWordMenu(const QString &rawWord)
         }
     }
     menu->addSeparator();
-    menu->addAction(QStringLiteral("翻译"), this,
-                    [this] { startTranslate(m_clickedWord); });
     if (lists.isEmpty()) {
         // 红色：不在任何词表，只能加入阅读词表
         menu->addAction(QStringLiteral("加入阅读词表"), this,

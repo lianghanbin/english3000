@@ -522,6 +522,9 @@ void testWordLists()
     check(store.currentWordListId() == listId
               && store.currentWordListName() == QStringLiteral("Linux 运维"),
           "current word list");
+    check(store.currentListWords().contains(QStringLiteral("kernel"))
+              && store.currentListWords().contains(QStringLiteral("directory")),
+          "current list words set");
 
     const qint64 secondId = store.createWordList(
         QStringLiteral("第二个"), {}, QStringLiteral("manual"));
