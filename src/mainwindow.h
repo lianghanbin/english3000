@@ -120,6 +120,7 @@ private:
     // 学习
     QLabel *m_rankLabel = nullptr;
     QLabel *m_wordLabel = nullptr;
+    QLabel *m_phoneticLabel = nullptr;
     QLabel *m_posLabel = nullptr;
     QLabel *m_meaningLabel = nullptr;
     QLabel *m_exampleLabel = nullptr;
@@ -131,7 +132,6 @@ private:
     QPushButton *m_translateExampleButton = nullptr;
 
     // 设置
-    QSpinBox *m_dailySpin = nullptr;
     QLabel *m_dataDirLabel = nullptr;
     QLineEdit *m_aiUrlEdit = nullptr;
     QLineEdit *m_aiModelEdit = nullptr;
@@ -190,6 +190,7 @@ private:
     CoverageChart *m_chart = nullptr;
     QLabel *m_statsReadLabel = nullptr;
     QLabel *m_statsCoverageLabel = nullptr;
+    QLabel *m_statsKnownLabel = nullptr;
     QLabel *m_statsStreakLabel = nullptr;
     QLabel *m_statsMasteredLabel = nullptr;
 
@@ -205,6 +206,7 @@ private:
         qint64 id = 0;
         int rank = 0;
         QString word;
+        QString phonetic;
         QString pos;
         QString meaning;
         QString exampleSentence;

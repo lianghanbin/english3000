@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
         store.importWordForms(lemmaFile);
     if (store.countWords() > 0)
         store.seedBuiltinWordList();
+    store.seedWordPhonetics();
 
     if (store.listArticles().isEmpty()) {
         struct SampleArticle {

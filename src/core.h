@@ -18,6 +18,7 @@ struct Word {
     QString word;
     QString pos;
     QString meaning;
+    QString phonetic;
     int box = 0;
     QDate due;
     bool hasDue = false;
@@ -31,6 +32,7 @@ struct Word {
 struct Counts {
     int total = 0;
     int newTotal = 0;
+    int known = 0;
     int learning = 0;
     int mastered = 0;
     int due = 0;
@@ -147,6 +149,8 @@ public:
     int seedBuiltinWordList();
     int seedExamplesFromArticles();
     void setExampleSentence(qint64 wordId, const QString &sentence);
+    void seedWordPhonetics();
+    int knownInWordList(qint64 listId) const;
 
     // 词形归一化（file→file, files→file）
     int importWordForms(const QString &path);

@@ -54,6 +54,7 @@ void testImport()
           "header row not imported");
     const Counts c = store.counts();
     check(c.total == 5 && c.newTotal == 5, "all new initially");
+    check(c.known == 0, "known count initially zero");
 }
 
 void testReimportKeepsProgress()
@@ -326,13 +327,17 @@ void testMigration()
         store.rawQuery(QStringLiteral("PRAGMA table_info(words)"));
     bool hasExample = false;
     bool hasPriority = false;
+    bool hasPhonetic = false;
     while (pragma.next()) {
         if (pragma.value(1).toString() == QStringLiteral("example_sentence"))
             hasExample = true;
         if (pragma.value(1).toString() == QStringLiteral("queue_priority"))
             hasPriority = true;
+        if (pragma.value(1).toString() == QStringLiteral("phonetic"))
+            hasPhonetic = true;
     }
-    check(hasExample && hasPriority, "migration adds new columns");
+    check(hasExample && hasPriority && hasPhonetic,
+          "migration adds new columns");
     const qint64 articleId = store.saveArticle(
         QStringLiteral("Migrated"), QStringLiteral("hello world"),
         QStringLiteral("test"), 1);
@@ -481,6 +486,13 @@ void testTranslationLinkage()
               text, QStringLiteral("folders"))
               == QStringLiteral("Folders keep files safe."),
           "sentence containing word");
+    const qint64 listId = store.createWordList(
+        QStringLiteral("测试"), {}, QStringLiteral("manual"));
+    store.addWordToList(listId, QStringLiteral("kernel"),
+                        QStringLiteral("n."), QStringLiteral("内核"), 0);
+    store.review(store.findWordByText(QStringLiteral("kernel"))->id, true);
+    check(store.knownInWordList(listId) == 1,
+          "known in word list counts learned word");
 }
 
 void testWordLists()

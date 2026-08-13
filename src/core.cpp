@@ -136,6 +136,7 @@ Word wordFromQuery(const QSqlQuery &query)
     w.wrongCount = query.value(9).toInt();
     w.exampleSentence = query.value(10).toString();
     w.queuePriority = query.value(11).toInt();
+    w.phonetic = query.value(12).toString();
     return w;
 }
 
@@ -169,6 +170,22 @@ WordStore::WordStore(const QString &dbPath)
                  QStringLiteral("TEXT NOT NULL DEFAULT ''"));
     ensureColumn(QStringLiteral("words"), QStringLiteral("queue_priority"),
                  QStringLiteral("INTEGER NOT NULL DEFAULT 0"));
+    ensureColumn(QStringLiteral("words"), QStringLiteral("phonetic"),
+                 QStringLiteral("TEXT NOT NULL DEFAULT ''"));
+    if (m_dict.isOpen()) {
+        QSqlQuery pragma(m_dict);
+        pragma.exec(QStringLiteral("PRAGMA table_info(dict)"));
+        bool hasPhonetic = false;
+        while (pragma.next()) {
+            if (pragma.value(1).toString() == QStringLiteral("phonetic"))
+                hasPhonetic = true;
+        }
+        if (!hasPhonetic) {
+            QSqlQuery alter(m_dict);
+            alter.exec(QStringLiteral(
+                "ALTER TABLE dict ADD COLUMN phonetic TEXT NOT NULL DEFAULT ''"));
+        }
+    }
     const QList<QPair<QString, QString>> defaults = {
         {QStringLiteral("daily_new"), QStringLiteral("25")},
         {QStringLiteral("ai_base_url"),
@@ -304,6 +321,7 @@ Counts WordStore::counts(const QDate &day) const
             "SUM(CASE WHEN box=0 THEN 1 ELSE 0 END),"
             "SUM(CASE WHEN box BETWEEN 1 AND 5 THEN 1 ELSE 0 END),"
             "SUM(CASE WHEN box=6 THEN 1 ELSE 0 END),"
+            "SUM(CASE WHEN box>0 THEN 1 ELSE 0 END),"
             "SUM(CASE WHEN box>0 AND due<=? THEN 1 ELSE 0 END) "
             "FROM words"),
         {dueSql(day)});
@@ -313,7 +331,8 @@ Counts WordStore::counts(const QDate &day) const
         c.newTotal = q.value(1).toInt();
         c.learning = q.value(2).toInt();
         c.mastered = q.value(3).toInt();
-        c.due = q.value(4).toInt();
+        c.known = q.value(4).toInt();
+        c.due = q.value(5).toInt();
     }
     return c;
 }
@@ -399,7 +418,17 @@ qint64 WordStore::addWord(const QString &word, const QString &pos,
                                           : meaning.trimmed());
     if (!insert.exec())
         return -1;
-    return insert.lastInsertId().toLongLong();
+    const qint64 id = insert.lastInsertId().toLongLong();
+    const std::optional<Word> dictWord = lookupDict(w);
+    if (dictWord && !dictWord->phonetic.isEmpty()) {
+        QSqlQuery upd(m_db);
+        upd.prepare(QStringLiteral(
+            "UPDATE words SET phonetic=? WHERE id=?"));
+        upd.addBindValue(dictWord->phonetic);
+        upd.addBindValue(id);
+        upd.exec();
+    }
+    return id;
 }
 
 std::optional<Word> WordStore::findWordByText(const QString &word) const
@@ -783,8 +812,10 @@ bool WordStore::addWordToList(qint64 listId, const QString &word,
 QVector<Word> WordStore::wordsInWordList(qint64 listId) const
 {
     QSqlQuery q = rawQuery(QStringLiteral(
-        "SELECT word, pos, meaning FROM word_list_items "
-        "WHERE list_id=? ORDER BY sort_order, id"),
+        "SELECT i.word, i.pos, i.meaning, w.phonetic "
+        "FROM word_list_items i "
+        "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
+        "WHERE i.list_id=? ORDER BY i.sort_order, i.id"),
         {listId});
     QVector<Word> words;
     while (q.next()) {
@@ -792,9 +823,20 @@ QVector<Word> WordStore::wordsInWordList(qint64 listId) const
         w.word = q.value(0).toString();
         w.pos = q.value(1).toString();
         w.meaning = q.value(2).toString();
+        w.phonetic = q.value(3).toString();
         words.append(w);
     }
     return words;
+}
+
+int WordStore::knownInWordList(qint64 listId) const
+{
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT COUNT(*) FROM word_list_items i "
+        "JOIN words w ON w.word = i.word COLLATE NOCASE "
+        "WHERE i.list_id=? AND w.box>0"),
+        {listId});
+    return q.next() ? q.value(0).toInt() : 0;
 }
 
 void WordStore::setCurrentWordList(qint64 listId)
@@ -960,6 +1002,24 @@ void WordStore::setExampleSentence(qint64 wordId, const QString &sentence)
     q.exec();
 }
 
+void WordStore::seedWordPhonetics()
+{
+    QSqlQuery words = rawQuery(QStringLiteral(
+        "SELECT id, word FROM words WHERE phonetic=''"));
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral(
+        "UPDATE words SET phonetic=? WHERE id=?"));
+    while (words.next()) {
+        const std::optional<Word> dict =
+            lookupDict(words.value(1).toString());
+        if (dict && !dict->phonetic.isEmpty()) {
+            update.bindValue(0, dict->phonetic);
+            update.bindValue(1, words.value(0).toLongLong());
+            update.exec();
+        }
+    }
+}
+
 // ---------- 离线词典（ECDICT） ----------
 
 bool WordStore::dictReady() const
@@ -988,8 +1048,8 @@ int WordStore::importDictCsv(const QString &path)
     }
     QSqlQuery insert(m_dict);
     insert.prepare(QStringLiteral(
-        "INSERT OR IGNORE INTO dict(word, pos, translation) "
-        "VALUES(?, ?, ?)"));
+        "INSERT OR IGNORE INTO dict(word, pos, translation, phonetic) "
+        "VALUES(?, ?, ?, ?)"));
     int count = 0;
     QTextStream in(&file);
     in.setEncoding(QStringConverter::Utf8);
@@ -1037,6 +1097,8 @@ int WordStore::importDictCsv(const QString &path)
                                                 : fields[4].trimmed());
         insert.bindValue(2, fields[3].isEmpty() ? QStringLiteral("")
                                                 : fields[3].trimmed());
+        insert.bindValue(3, fields[1].isEmpty() ? QStringLiteral("")
+                                                : fields[1].trimmed());
         if (insert.exec())
             ++count;
     }
@@ -1053,7 +1115,8 @@ std::optional<Word> WordStore::lookupDict(const QString &word) const
         return std::nullopt;
     QSqlQuery q(m_dict);
     q.prepare(QStringLiteral(
-        "SELECT word, pos, translation FROM dict WHERE word=? COLLATE NOCASE"));
+        "SELECT word, pos, translation, phonetic FROM dict "
+        "WHERE word=? COLLATE NOCASE"));
     q.addBindValue(word.trimmed().toLower());
     if (!q.exec() || !q.next())
         return std::nullopt;
@@ -1061,6 +1124,7 @@ std::optional<Word> WordStore::lookupDict(const QString &word) const
     w.word = q.value(0).toString();
     w.pos = q.value(1).toString();
     w.meaning = q.value(2).toString();
+    w.phonetic = q.value(3).toString();
     return w;
 }
 

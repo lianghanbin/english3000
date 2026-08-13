@@ -50,6 +50,7 @@ QVariantList MobileBridge::newCards(int limit)
         QVariantMap card;
         card.insert(QStringLiteral("id"), w.id);
         card.insert(QStringLiteral("word"), w.word);
+        card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("pos"), w.pos);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);

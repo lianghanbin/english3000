@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QRegularExpression>
 #include <QSet>
 #include <QSpinBox>
@@ -83,6 +84,10 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     topRow->addWidget(m_articleButton);
     layout->addLayout(topRow);
 
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setFormat(QStringLiteral("%v / %m"));
+    layout->addWidget(m_progressBar);
+
     auto *splitter = new QSplitter(Qt::Horizontal, this);
     auto *left = new QWidget(splitter);
     auto *leftLayout = new QVBoxLayout(left);
@@ -102,11 +107,18 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     rightLayout->setContentsMargins(0, 0, 0, 0);
     m_table = new QTableWidget(0, 4, right);
     m_table->setHorizontalHeaderLabels(
-        {QStringLiteral("单词"), QStringLiteral("词性"),
+        {QStringLiteral("单词"), QStringLiteral("音标"),
          QStringLiteral("释义"), QStringLiteral("状态")});
     m_table->horizontalHeader()->setSectionResizeMode(
         2, QHeaderView::Stretch);
     m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    connect(m_table, &QTableWidget::cellClicked, this,
+            [this](int row, int column) {
+                if (column == 0 && m_table->item(row, 0)) {
+                    emit wordSpeakRequested(
+                        m_table->item(row, 0)->text());
+                }
+            });
     rightLayout->addWidget(m_table, 1);
 
     m_globalButtons = new QWidget(right);
@@ -234,11 +246,18 @@ void WordListPage::fillCurrentScope()
     m_table->setRowCount(0);
     if (allScope) {
         const QVector<Word> words = m_store->search(query);
+        const Counts counts = m_store->counts();
+        m_progressBar->setMaximum(qMax(1, counts.total));
+        m_progressBar->setValue(counts.known);
+        m_progressBar->setFormat(
+            QStringLiteral("认识 %1 / %2 个词")
+                .arg(counts.known)
+                .arg(counts.total));
         m_table->setRowCount(words.size());
         for (int i = 0; i < words.size(); ++i) {
             const Word &w = words[i];
             m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-            m_table->setItem(i, 1, new QTableWidgetItem(w.pos));
+            m_table->setItem(i, 1, new QTableWidgetItem(w.phonetic));
             m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
             QString state;
             if (w.box == 0)
@@ -262,6 +281,12 @@ void WordListPage::fillCurrentScope()
     m_moreButton->setEnabled(true);
     m_deleteButton->setEnabled(true);
     QVector<Word> words = m_store->wordsInWordList(m_scopeId);
+    const int totalWords = words.size();
+    const int knownWords = m_store->knownInWordList(m_scopeId);
+    m_progressBar->setMaximum(qMax(1, totalWords));
+    m_progressBar->setValue(knownWords);
+    m_progressBar->setFormat(
+        QStringLiteral("认识 %1 / %2 个词").arg(knownWords).arg(totalWords));
     if (!query.isEmpty()) {
         QVector<Word> filtered;
         for (const Word &w : words) {
@@ -276,7 +301,7 @@ void WordListPage::fillCurrentScope()
     for (int i = 0; i < words.size(); ++i) {
         const Word &w = words[i];
         m_table->setItem(i, 0, new QTableWidgetItem(w.word));
-        m_table->setItem(i, 1, new QTableWidgetItem(w.pos));
+        m_table->setItem(i, 1, new QTableWidgetItem(w.phonetic));
         m_table->setItem(i, 2, new QTableWidgetItem(w.meaning));
         const std::optional<Word> found = m_store->findWordByText(w.word);
         QString state;

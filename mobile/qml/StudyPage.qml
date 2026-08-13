@@ -48,6 +48,11 @@ Page {
                     Layout.alignment: Qt.AlignHCenter
                 }
                 Label {
+                    text: cardIndex >= 0 ? cards[cardIndex].phonetic : ""
+                    color: "#888888"
+                    Layout.alignment: Qt.AlignHCenter
+                }
+                Label {
                     visible: revealed && cardIndex >= 0
                     text: cardIndex >= 0 ? cards[cardIndex].meaning : ""
                     color: "#cccccc"

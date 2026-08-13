@@ -9,6 +9,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QProgressBar;
 class QTableWidget;
 
 class WordListPage : public QWidget {
@@ -19,6 +20,9 @@ public:
 
 public slots:
     void refresh();
+
+signals:
+    void wordSpeakRequested(const QString &word);
 
 private slots:
     void onListSelected();
@@ -45,6 +49,7 @@ private:
     QLineEdit *m_searchEdit = nullptr;
     QListWidget *m_listWidget = nullptr;
     QTableWidget *m_table = nullptr;
+    QProgressBar *m_progressBar = nullptr;
     QLabel *m_statusLabel = nullptr;
     QPushButton *m_aiButton = nullptr;
     QPushButton *m_articleButton = nullptr;

@@ -120,6 +120,18 @@ protected:
         for (const QPointF &pt : pts)
             p.drawEllipse(pt, 3.0, 3.0);
 
+        // 每个点标出数值
+        p.setPen(QColor(QStringLiteral("#555555")));
+        for (int i = 0; i < pts.size(); ++i) {
+            const QString label =
+                QStringLiteral("%1%").arg(qRound(m_points[i].second));
+            const QRectF textRect(pts[i].x() - 24, pts[i].y() - 20, 48, 16);
+            p.drawText(textRect, Qt::AlignHCenter | Qt::AlignBottom, label);
+        }
+        p.setPen(QColor(QStringLiteral("#888888")));
+        p.drawText(plot.left(), top, 90, 14, Qt::AlignLeft,
+                   QStringLiteral("覆盖率 %"));
+
         p.setPen(QColor(QStringLiteral("#888888")));
         p.drawText(plot.left(), plot.bottom() + 10, 70, 16, Qt::AlignLeft,
                    m_points.first().first.toString(QStringLiteral("MM-dd")));
@@ -292,6 +304,14 @@ void MainWindow::buildStudy()
     cardLayout->setSpacing(14);
     cardLayout->addStretch();
 
+    auto *backButton = new QPushButton(QStringLiteral("← 返回"), card);
+    backButton->setFocusPolicy(Qt::NoFocus);
+    connect(backButton, &QPushButton::clicked, this, [this] {
+        stopSpeaking();
+        backToToday();
+    });
+    cardLayout->addWidget(backButton, 0, Qt::AlignLeft);
+
     m_rankLabel = new QLabel(card);
     m_rankLabel->setObjectName(QStringLiteral("rankLabel"));
     m_rankLabel->setAlignment(Qt::AlignCenter);
@@ -303,6 +323,11 @@ void MainWindow::buildStudy()
     m_wordLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     m_wordLabel->setFocusPolicy(Qt::StrongFocus);
     cardLayout->addWidget(m_wordLabel);
+
+    m_phoneticLabel = new QLabel(card);
+    m_phoneticLabel->setObjectName(QStringLiteral("posLabel"));
+    m_phoneticLabel->setAlignment(Qt::AlignCenter);
+    cardLayout->addWidget(m_phoneticLabel);
 
     m_pronounceButton = new QPushButton(QStringLiteral("🔊 发音"), card);
     m_pronounceButton->setFocusPolicy(Qt::NoFocus);
@@ -641,6 +666,8 @@ void MainWindow::buildAi(QWidget *container)
 void MainWindow::buildWordLists()
 {
     m_wordListPage = new WordListPage(m_store, this);
+    connect(m_wordListPage, &WordListPage::wordSpeakRequested, this,
+            &MainWindow::speakText);
 }
 
 void MainWindow::buildStats()
@@ -656,12 +683,15 @@ void MainWindow::buildStats()
                                   QStringLiteral("累计阅读文章"), page);
     auto *coverageBox = makeStatValue(
         m_statsCoverageLabel, QStringLiteral("平均覆盖率"), page);
+    auto *knownBox = makeStatValue(
+        m_statsKnownLabel, QStringLiteral("认识单词"), page);
     auto *streakBox = makeStatValue(m_statsStreakLabel,
                                     QStringLiteral("连续学习(天)"), page);
     auto *masteredBox = makeStatValue(
         m_statsMasteredLabel, QStringLiteral("已掌握词"), page);
     statsRow->addWidget(readBox);
     statsRow->addWidget(coverageBox);
+    statsRow->addWidget(knownBox);
     statsRow->addWidget(streakBox);
     statsRow->addWidget(masteredBox);
     statsRow->addStretch();
@@ -671,7 +701,7 @@ void MainWindow::buildStats()
     layout->addWidget(m_chart, 1);
 
     auto *hint = new QLabel(
-        QStringLiteral("近 30 天阅读文章的词汇覆盖率（每天取平均值）"), page);
+        QStringLiteral("近 30 天阅读覆盖率：曲线越高=读得越懂（每天取平均）"), page);
     hint->setObjectName(QStringLiteral("hintLabel"));
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
@@ -685,23 +715,6 @@ void MainWindow::buildSettings()
     auto *layout = new QVBoxLayout(page);
     layout->setSpacing(18);
     layout->addStretch();
-
-    auto *dailyRow = new QHBoxLayout;
-    dailyRow->addStretch();
-    dailyRow->addWidget(new QLabel(QStringLiteral("每日新词数"), page));
-    m_dailySpin = new QSpinBox(page);
-    m_dailySpin->setRange(5, 100);
-    m_dailySpin->setSingleStep(5);
-    m_dailySpin->setValue(m_store->getSetting(QStringLiteral("daily_new"),
-                                               QStringLiteral("25")).toInt());
-    connect(m_dailySpin, &QSpinBox::valueChanged, this,
-            [this](int value) {
-                m_store->setSetting(QStringLiteral("daily_new"),
-                                    QString::number(value));
-            });
-    dailyRow->addWidget(m_dailySpin);
-    dailyRow->addStretch();
-    layout->addLayout(dailyRow);
 
     auto *pronounceRow = new QHBoxLayout;
     pronounceRow->addStretch();
@@ -957,10 +970,7 @@ void MainWindow::startSession(const QString &kind)
 {
     QVector<Word> words;
     if (kind == QLatin1String("new")) {
-        const int daily = m_store
-            ->getSetting(QStringLiteral("daily_new"), QStringLiteral("25"))
-            .toInt();
-        words = m_store->getNew(daily);
+        words = m_store->getNew(100000); // 当天不设上限
     } else {
         words = m_store->getDue(500);
     }
@@ -974,7 +984,8 @@ void MainWindow::startSession(const QString &kind)
     m_session.reserve(words.size());
     for (const Word &w : words) {
         m_session.push_back(
-            {w.id, w.rank, w.word, w.pos, w.meaning, w.exampleSentence});
+            {w.id, w.rank, w.word, w.phonetic, w.pos, w.meaning,
+             w.exampleSentence});
     }
     m_sessionIndex = 0;
     m_sessionCorrect = 0;
@@ -997,6 +1008,7 @@ void MainWindow::showCard()
             .arg(m_sessionIndex + 1)
             .arg(m_session.size()));
     m_wordLabel->setText(card.word);
+    m_phoneticLabel->setText(card.phonetic);
     m_posLabel->setText(card.pos);
     m_meaningLabel->setText(card.meaning);
     const bool exampleRequested = m_exampleRequested.contains(card.id);
@@ -1809,6 +1821,7 @@ void MainWindow::refreshStats()
         QString::number(m_store->coverageArticleCount()));
     m_statsCoverageLabel->setText(
         QStringLiteral("%1%").arg(QString::number(avg, 'f', 1)));
+    m_statsKnownLabel->setText(QString::number(counts.known));
     m_statsStreakLabel->setText(QString::number(m_store->streak()));
     m_statsMasteredLabel->setText(QString::number(counts.mastered));
 }
@@ -1880,6 +1893,11 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
         && m_homeStack->currentIndex() == 1
         && m_studyStack->currentIndex() == 0) {
         switch (event->key()) {
+        case Qt::Key_Escape:
+            stopSpeaking();
+            backToToday();
+            event->accept();
+            return;
         case Qt::Key_Space:
         case Qt::Key_Return:
         case Qt::Key_Enter:
