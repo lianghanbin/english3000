@@ -1,4 +1,5 @@
 build/
+dist/
 __pycache__/
 *.pyc
 English_3000-x86_64.AppImage
