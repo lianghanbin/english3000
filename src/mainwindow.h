@@ -40,6 +40,7 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(WordStore *store, QWidget *parent = nullptr);
+    void showTab(int index) { m_tabs->setCurrentIndex(index); }
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;

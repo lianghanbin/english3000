@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QPair>
 #include <QStandardPaths>
+#include <QTemporaryDir>
+#include <QTimer>
 
 #include "core.h"
 #include "mainwindow.h"
@@ -15,8 +17,23 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("english3000"));
     QCoreApplication::setOrganizationName(QStringLiteral("liang"));
 
+    QString screenshotPath;
+    int screenshotTab = 0;
+    const QStringList args = app.arguments();
+    const int shotIdx = args.indexOf(QStringLiteral("--screenshot"));
+    if (shotIdx >= 0 && shotIdx + 1 < args.size()) {
+        screenshotPath = args.at(shotIdx + 1);
+        const int tabIdx = args.indexOf(QStringLiteral("--tab"));
+        if (tabIdx >= 0 && tabIdx + 1 < args.size())
+            screenshotTab = args.at(tabIdx + 1).toInt();
+    }
+
+    QTemporaryDir shotDir;
     const QString dataDir =
-        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        screenshotPath.isEmpty()
+            ? QStandardPaths::writableLocation(
+                  QStandardPaths::AppDataLocation)
+            : shotDir.path();
     QDir().mkpath(dataDir);
     const QString dbPath = dataDir + QStringLiteral("/english3000.db");
 
@@ -85,5 +102,15 @@ int main(int argc, char *argv[])
 
     MainWindow window(&store);
     window.show();
+    if (!screenshotPath.isEmpty()) {
+        QTimer::singleShot(1200, &window, [&window, screenshotTab] {
+            window.showTab(screenshotTab);
+        });
+        QTimer::singleShot(2200, &window,
+                           [&window, screenshotPath] {
+                               window.grab().save(screenshotPath);
+                               QCoreApplication::quit();
+                           });
+    }
     return app.exec();
 }
