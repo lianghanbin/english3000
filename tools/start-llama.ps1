@@ -1,4 +1,4 @@
-# English 3000 本地 AI 启动器：GPU(Vulkan) 优先，失败自动回退 CPU
+# English 3000 本地 AI 启动器：CUDA -> Vulkan -> CPU 自动回退
 $ErrorActionPreference = "SilentlyContinue"
 
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -10,19 +10,31 @@ if (Get-NetTCPConnection -LocalPort 8080 -State Listen) {
     exit
 }
 
+$cuda = Join-Path $dir "llama\cuda\llama-server.exe"
 $vulkan = Join-Path $dir "llama\vulkan\llama-server.exe"
 $cpu = Join-Path $dir "llama\cpu\llama-server.exe"
 
-$proc = $null
-if (Test-Path $vulkan) {
-    $proc = Start-Process -FilePath $vulkan -ArgumentList $commonArgs -WindowStyle Hidden -PassThru
-    Start-Sleep -Seconds 5
-    if (Get-NetTCPConnection -LocalPort 8080 -State Listen) {
-        exit
+function Try-Start($exePath) {
+    $p = Start-Process -FilePath $exePath -ArgumentList $commonArgs -WindowStyle Hidden -PassThru
+    for ($i = 0; $i -lt 10; $i++) {
+        Start-Sleep -Milliseconds 500
+        if ($p.HasExited) {
+            return $false
+        }
+        if (Get-NetTCPConnection -LocalPort 8080 -State Listen) {
+            return $true
+        }
     }
-    Stop-Process -Id $proc.Id -Force
+    Stop-Process -Id $p.Id -Force
+    return $false
 }
 
+if (Test-Path $cuda) {
+    if (Try-Start $cuda) { exit }
+}
+if (Test-Path $vulkan) {
+    if (Try-Start $vulkan) { exit }
+}
 if (Test-Path $cpu) {
     Start-Process -FilePath $cpu -ArgumentList $commonArgs -WindowStyle Hidden
 }
