@@ -88,3 +88,9 @@ src/mainwindow.cpp  Qt Widgets 界面
 tests/test_core.cpp 核心逻辑单元测试
 assets/             词表 CSV 与图标
 ```
+
+## 许可证
+
+本项目以 **GPL-3.0** 协议开源：你可以自由使用、修改、分发，
+但修改后的版本必须同样以 GPL 协议开源，并保留版权声明。
+完整条款见 [LICENSE](LICENSE)。
