@@ -77,6 +77,7 @@ private slots:
     void onTabChanged(int index);
     void refreshStats();
     void applyHotkeys();
+    void applyShortcuts();
     bool autoPronounceEnabled() const;
     void applyAiSettings();
     void checkForUpdates(bool silent);
@@ -149,6 +150,13 @@ private:
     QPushButton *m_checkUpdateButton = nullptr;
     UpdateChecker *m_updateChecker = nullptr;
     bool m_checkSilent = false;
+    QShortcut *m_learnShortcut = nullptr;
+    QShortcut *m_reviewShortcut = nullptr;
+    QKeySequenceEdit *m_learnHotkeyEdit = nullptr;
+    QKeySequenceEdit *m_reviewHotkeyEdit = nullptr;
+    QKeySequenceEdit *m_revealHotkeyEdit = nullptr;
+    QKeySequenceEdit *m_unknownHotkeyEdit = nullptr;
+    QKeySequenceEdit *m_knownHotkeyEdit = nullptr;
 
     // 阅读
     QListWidget *m_articleList = nullptr;

@@ -27,6 +27,26 @@
 
 namespace {
 
+const QSet<QString> kNoiseWords = {
+    "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
+    "to", "for", "with", "from", "by", "as", "is", "are", "was", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "shall", "should", "can", "could", "may", "might",
+    "must", "not", "no", "yes", "this", "that", "these", "those", "it",
+    "its", "he", "she", "they", "we", "you", "i", "me", "him", "her",
+    "them", "us", "my", "your", "his", "their", "our", "what", "which",
+    "who", "whom", "when", "where", "why", "how", "all", "any", "some",
+    "each", "every", "both", "few", "more", "most", "other", "such",
+    "there", "here", "then", "than", "so", "very", "just", "also", "too",
+    "into", "about", "after", "before", "between", "under", "over",
+    "again", "once", "only", "own", "same", "through", "during",
+    "list", "words", "word", "example", "please", "include", "output",
+    "one", "per", "line", "lowercase", "numbers", "explanations",
+    "duplicates", "important", "nouns", "verbs", "adjectives", "field",
+    "domain", "common", "commonly", "used", "exactly", "often",
+    "related", "following", "below", "above", "see", "etc", "like",
+};
+
 QStringList splitWordList(const QString &raw)
 {
     QString normalized = raw;
@@ -46,7 +66,8 @@ QStringList splitWordList(const QString &raw)
             }
         }
         if (lettersOnly && word.size() >= 2 && !result.contains(word))
-            result << word;
+            if (!kNoiseWords.contains(word))
+                result << word;
     }
     return result;
 }
@@ -280,7 +301,9 @@ void WordListPage::fillCurrentScope()
         auto *wordItem = new QTableWidgetItem(w.word);
         wordItem->setData(Qt::UserRole, w.itemId);
         m_table->setItem(i, 0, wordItem);
-        m_table->setItem(i, 1, new QTableWidgetItem(w.meaning));
+        m_table->setItem(i, 1, new QTableWidgetItem(
+            w.meaning.isEmpty() ? QStringLiteral("（待补充）")
+                                : w.meaning));
         m_table->setItem(i, 2, new QTableWidgetItem(
             w.box == 6 ? QStringLiteral("已掌握")
                        : QStringLiteral("未学")));

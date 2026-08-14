@@ -236,15 +236,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
             });
     applyHotkeys();
 
-    auto *newShortcut = new QShortcut(
-        QKeySequence(Qt::CTRL | Qt::Key_N), this);
-    connect(newShortcut, &QShortcut::activated, this,
-            [this] { startSession(QStringLiteral("learn")); });
-    auto *reviewShortcut = new QShortcut(
-        QKeySequence(Qt::CTRL | Qt::Key_R), this);
-    connect(reviewShortcut, &QShortcut::activated, this,
-            [this] { startSession(QStringLiteral("review")); });
-
+    applyShortcuts();
     refreshAll();
     QTimer::singleShot(6000, this, [this] {
         if (m_store->getSetting(QStringLiteral("update_check_enabled"),
@@ -834,6 +826,40 @@ void MainWindow::buildSettings()
     transHint->setObjectName(QStringLiteral("hintLabel"));
     transLayout->addWidget(transHint);
     layout->addWidget(transGroup);
+
+    auto *shortcutGroup = new QGroupBox(QStringLiteral("快捷键"), page);
+    auto *shortcutLayout = new QVBoxLayout(shortcutGroup);
+    shortcutLayout->setSpacing(8);
+    auto makeHotkey = [this, shortcutGroup, shortcutLayout](
+                          const QString &label, QKeySequenceEdit *&out,
+                          const QString &settingKey,
+                          const QString &def) {
+        auto *row = new QHBoxLayout;
+        row->addWidget(new QLabel(label, shortcutGroup));
+        row->addStretch();
+        out = new QKeySequenceEdit(shortcutGroup);
+        out->setKeySequence(
+            QKeySequence(m_store->getSetting(settingKey, def)));
+        row->addWidget(out);
+        shortcutLayout->addLayout(row);
+        connect(out, &QKeySequenceEdit::editingFinished, this,
+                [this, out, settingKey] {
+                    m_store->setSetting(
+                        settingKey, out->keySequence().toString());
+                    applyShortcuts();
+                });
+    };
+    makeHotkey(QStringLiteral("开始学习"), m_learnHotkeyEdit,
+               QStringLiteral("hotkey_learn"), QStringLiteral("Ctrl+N"));
+    makeHotkey(QStringLiteral("开始复习"), m_reviewHotkeyEdit,
+               QStringLiteral("hotkey_review"), QStringLiteral("Ctrl+R"));
+    makeHotkey(QStringLiteral("显示释义"), m_revealHotkeyEdit,
+               QStringLiteral("hotkey_reveal"), QStringLiteral("Space"));
+    makeHotkey(QStringLiteral("不认识"), m_unknownHotkeyEdit,
+               QStringLiteral("hotkey_unknown"), QStringLiteral("1"));
+    makeHotkey(QStringLiteral("认识"), m_knownHotkeyEdit,
+               QStringLiteral("hotkey_known"), QStringLiteral("2"));
+    layout->addWidget(shortcutGroup);
 
     auto *aiUrlRow = new QHBoxLayout;
     aiUrlRow->addStretch();
@@ -1986,6 +2012,30 @@ void MainWindow::applyHotkeys()
         QStringLiteral("screenshot"));
 }
 
+void MainWindow::applyShortcuts()
+{
+    if (m_learnShortcut) {
+        m_learnShortcut->deleteLater();
+        m_learnShortcut = nullptr;
+    }
+    if (m_reviewShortcut) {
+        m_reviewShortcut->deleteLater();
+        m_reviewShortcut = nullptr;
+    }
+    m_learnShortcut = new QShortcut(
+        QKeySequence(m_store->getSetting(QStringLiteral("hotkey_learn"),
+                                         QStringLiteral("Ctrl+N"))),
+        this);
+    connect(m_learnShortcut, &QShortcut::activated, this,
+            [this] { startSession(QStringLiteral("learn")); });
+    m_reviewShortcut = new QShortcut(
+        QKeySequence(m_store->getSetting(QStringLiteral("hotkey_review"),
+                                         QStringLiteral("Ctrl+R"))),
+        this);
+    connect(m_reviewShortcut, &QShortcut::activated, this,
+            [this] { startSession(QStringLiteral("review")); });
+}
+
 void MainWindow::applyAiSettings()
 {
     if (!m_ai)
@@ -2170,29 +2220,39 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
     if (m_tabs->currentIndex() == TabStudy
         && m_homeStack->currentIndex() == 1
         && m_studyStack->currentIndex() == 0) {
-        switch (event->key()) {
-        case Qt::Key_Escape:
+        if (event->key() == Qt::Key_Escape) {
             stopSpeaking();
             backToToday();
             event->accept();
             return;
-        case Qt::Key_Space:
-        case Qt::Key_Return:
-        case Qt::Key_Enter:
-            if (!m_revealed)
+        }
+        const QKeySequence pressed(event->key());
+        const QKeySequence revealSeq(QKeySequence::fromString(
+            m_store->getSetting(QStringLiteral("hotkey_reveal"),
+                                QStringLiteral("Space"))));
+        const QKeySequence unknownSeq(QKeySequence::fromString(
+            m_store->getSetting(QStringLiteral("hotkey_unknown"),
+                                QStringLiteral("1"))));
+        const QKeySequence knownSeq(QKeySequence::fromString(
+            m_store->getSetting(QStringLiteral("hotkey_known"),
+                                QStringLiteral("2"))));
+        if (pressed == revealSeq || event->key() == Qt::Key_Return
+            || event->key() == Qt::Key_Enter) {
+            if (!m_revealed) {
                 reveal();
+            }
             event->accept();
             return;
-        case Qt::Key_1:
+        }
+        if (pressed == unknownSeq) {
             answer(false);
             event->accept();
             return;
-        case Qt::Key_2:
+        }
+        if (pressed == knownSeq) {
             answer(true);
             event->accept();
             return;
-        default:
-            break;
         }
     }
     QMainWindow::keyPressEvent(event);
