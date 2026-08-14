@@ -263,6 +263,27 @@ jobs:
         with:
           name: english3000-android
           path: build-android/android-build/*.apk
+      - name: Publish Android release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $apk = Get-ChildItem build-android\android-build -Filter *.apk | Select-Object -First 1 -ExpandProperty FullName
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json" }
+          $uri = "https://api.github.com/repos/${{ github.repository }}/releases"
+          $release = $null
+          try { $release = Invoke-RestMethod -Method Get -Uri "$uri/tags/android-latest" -Headers $headers } catch { }
+          if ($null -eq $release) {
+            $body = @{ tag_name = "android-latest"; name = "安卓最新版"; body = "自动构建 ${{ github.sha }}"; draft = $false; prerelease = $false } | ConvertTo-Json
+            $release = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType "application/json" -Body $body
+          }
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq "english3000-mobile.apk") {
+              Invoke-RestMethod -Method Delete -Uri "https://api.github.com/repos/${{ github.repository }}/releases/assets/$($asset.id)" -Headers $headers
+            }
+          }
+          $uploadUri = "https://uploads.github.com/repos/${{ github.repository }}/releases/$($release.id)/assets?name=english3000-mobile.apk"
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Headers $headers -ContentType "application/vnd.android.package-archive" -InFile $apk
 
   update-meta:
     runs-on: ubuntu-latest
