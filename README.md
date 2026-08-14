@@ -94,3 +94,9 @@ assets/             词表 CSV 与图标
 本项目以 **GPL-3.0** 协议开源：你可以自由使用、修改、分发，
 但修改后的版本必须同样以 GPL 协议开源，并保留版权声明。
 完整条款见 [LICENSE](LICENSE)。
+
+## 鸿蒙（规划中）
+
+代码层已为 HarmonyOS 适配做好准备（移动端为 Qt Quick/QML + 纯 C++），
+实际出包需要 DevEco Studio、华为开发者账号与 Qt for HarmonyOS 工具链，
+详见 [docs/harmonyos.md](docs/harmonyos.md)。
