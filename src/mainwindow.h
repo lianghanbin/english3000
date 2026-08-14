@@ -41,6 +41,10 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(WordStore *store, QWidget *parent = nullptr);
     void showTab(int index) { m_tabs->setCurrentIndex(index); }
+    void demoJumpToList(qint64 listId);
+    void demoTranslate(const QString &text);
+    void demoHideTranslator();
+    void demoScrollReader(int delta);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;

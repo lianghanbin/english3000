@@ -1,6 +1,11 @@
 build/
 dist/
 llama-local/
+docs/video/source/node_modules/
+docs/video/source/videos/
+docs/video/source/tmp/
+docs/video/source/*.wav
+docs/video/source/demo-*.mp4
 __pycache__/
 *.pyc
 English_3000-x86_64.AppImage

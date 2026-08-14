@@ -454,6 +454,15 @@ void TranslatorWindow::openWithText(const QString &text)
     m_sourceEdit->setFocus();
 }
 
+void TranslatorWindow::demoTranslate(const QString &text)
+{
+    m_sourceEdit->setPlainText(text);
+    show();
+    raise();
+    activateWindow();
+    translate();
+}
+
 void TranslatorWindow::translate()
 {
     const QString text = m_sourceEdit->toPlainText().trimmed();

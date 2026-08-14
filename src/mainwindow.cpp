@@ -41,6 +41,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
+#include <QScrollBar>
 #include <QShortcut>
 #include <QSet>
 #include <QKeySequence>
@@ -2034,6 +2035,36 @@ void MainWindow::applyShortcuts()
         this);
     connect(m_reviewShortcut, &QShortcut::activated, this,
             [this] { startSession(QStringLiteral("review")); });
+}
+
+void MainWindow::demoJumpToList(qint64 listId)
+{
+    if (m_wordListPage)
+        m_wordListPage->jumpToList(listId);
+}
+
+void MainWindow::demoTranslate(const QString &text)
+{
+    if (!m_translator)
+        return;
+    m_translator->demoTranslate(text);
+    m_translator->move(geometry().topLeft()
+                       + QPoint(140, 120));
+}
+
+void MainWindow::demoHideTranslator()
+{
+    if (m_translator)
+        m_translator->hide();
+}
+
+void MainWindow::demoScrollReader(int delta)
+{
+    if (m_reader) {
+        QScrollBar *bar = m_reader->verticalScrollBar();
+        if (bar)
+            bar->setValue(bar->value() + delta);
+    }
 }
 
 void MainWindow::applyAiSettings()

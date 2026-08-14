@@ -84,6 +84,7 @@ public:
 
     void openWithText(const QString &text = {});
     void startScreenshot();
+    void demoTranslate(const QString &text);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;

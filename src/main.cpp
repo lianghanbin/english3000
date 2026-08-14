@@ -3,12 +3,15 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMetaObject>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QPair>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
+
+#include <functional>
 
 #include "core.h"
 #include "mainwindow.h"
@@ -19,9 +22,10 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("english3000"));
     QCoreApplication::setOrganizationName(QStringLiteral("liang"));
 
+    const QStringList args = app.arguments();
     QString screenshotPath;
     int screenshotTab = 0;
-    const QStringList args = app.arguments();
+    bool demoMode = args.contains(QStringLiteral("--demo"));
     const int shotIdx = args.indexOf(QStringLiteral("--screenshot"));
     if (shotIdx >= 0 && shotIdx + 1 < args.size()) {
         screenshotPath = args.at(shotIdx + 1);
@@ -40,7 +44,7 @@ int main(int argc, char *argv[])
 
     // 单实例保护：已有实例时通知它显示并退出
     QLocalServer singleServer;
-    if (screenshotPath.isEmpty()) {
+    if (screenshotPath.isEmpty() && !demoMode) {
         const QString singleName = QStringLiteral("english3000-single");
         QLocalSocket probe;
         probe.connectToServer(singleName);
@@ -132,6 +136,94 @@ int main(int argc, char *argv[])
                          window.activateWindow();
                      });
     window.show();
+    if (demoMode) {
+        const auto lists = store.listWordLists();
+        const qint64 firstList = lists.isEmpty() ? -1 : lists.first().id;
+        const qint64 secondList =
+            lists.size() > 1 ? lists.at(1).id : firstList;
+        const qint64 transList = store.getOrCreateWordList(
+            QStringLiteral("翻译生词"),
+            QStringLiteral("翻译时自动收集的生词"),
+            QStringLiteral("translation"));
+        const auto articles = store.listArticles();
+        const qint64 articleId =
+            articles.isEmpty() ? -1 : articles.first().id;
+        struct Step {
+            int ms;
+            std::function<void()> fn;
+        };
+        const QVector<Step> steps = {
+            {4000, [&] { window.showTab(0); }},
+            {8000, [&] { window.showTab(1); }},
+            {11000, [&] { window.demoJumpToList(secondList); }},
+            {15000, [&] { window.demoJumpToList(firstList); }},
+            {19000, [&] { window.showTab(0); }},
+            {21000, [&] {
+                 QMetaObject::invokeMethod(
+                     &window, "startSession", Qt::QueuedConnection,
+                     Q_ARG(QString, QStringLiteral("learn")));
+             }},
+            {25000, [&] {
+                 QMetaObject::invokeMethod(&window, "reveal",
+                                           Qt::QueuedConnection);
+             }},
+            {29000, [&] {
+                 QMetaObject::invokeMethod(&window, "answer",
+                                           Qt::QueuedConnection,
+                                           Q_ARG(bool, true));
+             }},
+            {32000, [&] {
+                 QMetaObject::invokeMethod(&window, "reveal",
+                                           Qt::QueuedConnection);
+             }},
+            {36000, [&] {
+                 QMetaObject::invokeMethod(&window, "answer",
+                                           Qt::QueuedConnection,
+                                           Q_ARG(bool, true));
+             }},
+            {39000, [&] {
+                 QMetaObject::invokeMethod(&window, "reveal",
+                                           Qt::QueuedConnection);
+             }},
+            {43000, [&] {
+                 QMetaObject::invokeMethod(&window, "answer",
+                                           Qt::QueuedConnection,
+                                           Q_ARG(bool, false));
+             }},
+            {47000, [&] {
+                 QMetaObject::invokeMethod(&window, "backToToday",
+                                           Qt::QueuedConnection);
+             }},
+            {50000, [&] { window.showTab(2); }},
+            {53000, [&] {
+                 if (articleId > 0) {
+                     QMetaObject::invokeMethod(
+                         &window, "loadArticle", Qt::QueuedConnection,
+                         Q_ARG(qint64, articleId));
+                 }
+             }},
+            {57000, [&] { window.demoScrollReader(300); }},
+            {61000, [&] { window.demoScrollReader(300); }},
+            {65000, [&] { window.showTab(1); }},
+            {68000, [&] { window.demoJumpToList(transList); }},
+            {73000, [&] { window.demoJumpToList(firstList); }},
+            {77000, [&] { window.showTab(0); }},
+            {80000, [&] {
+                 window.demoTranslate(
+                     QStringLiteral(
+                         "The quick brown fox jumps over the lazy dog."));
+             }},
+            {101000, [&] { window.demoHideTranslator(); }},
+            {104000, [&] {
+                 window.showTab(1);
+                 window.demoJumpToList(transList);
+             }},
+            {109000, [&] { window.demoJumpToList(firstList); }},
+            {113000, [&] { window.showTab(0); }},
+        };
+        for (const Step &step : steps)
+            QTimer::singleShot(step.ms, &window, step.fn);
+    }
     if (!screenshotPath.isEmpty()) {
         QTimer::singleShot(1200, &window, [&window, screenshotTab] {
             window.showTab(screenshotTab);
