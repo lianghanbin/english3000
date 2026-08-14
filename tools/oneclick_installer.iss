@@ -25,7 +25,7 @@ Name: "{userappdata}\liang\english3000"
 Source: "..\oneclick\English3000\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "English3000AI"; ValueData: """{app}\llama\llama-server.exe"" -m ""{app}\llama\{#ModelFile}"" --host 127.0.0.1 --port 8080 -c 4096"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "English3000AI"; ValueData: """{app}\llama\llama-server.exe"" -m ""{app}\llama\{#ModelFile}"" --host 127.0.0.1 --port 8080 -c 2048"; Flags: uninsdeletevalue
 
 [Icons]
 Name: "{autodesktop}\{#AppName}.lnk"; Filename: "{app}\english3000.exe"
@@ -36,5 +36,5 @@ Filename: "{app}\sqlite3.exe"; Parameters: """{userappdata}\liang\english3000\en
 Filename: "{app}\sqlite3.exe"; Parameters: """{userappdata}\liang\english3000\english3000.db"" ""INSERT OR REPLACE INTO settings(key,value) VALUES('ai_provider','openai')"""; Flags: runhidden
 Filename: "{app}\sqlite3.exe"; Parameters: """{userappdata}\liang\english3000\english3000.db"" ""INSERT OR REPLACE INTO settings(key,value) VALUES('ai_base_url','http://127.0.0.1:8080')"""; Flags: runhidden
 Filename: "{app}\sqlite3.exe"; Parameters: """{userappdata}\liang\english3000\english3000.db"" ""INSERT OR REPLACE INTO settings(key,value) VALUES('ai_model','qwen2.5:1.5b')"""; Flags: runhidden
-Filename: "{app}\llama\llama-server.exe"; Parameters: "-m ""{app}\llama\{#ModelFile}"" --host 127.0.0.1 --port 8080 -c 4096"; Flags: runhidden nowait
+Filename: "{app}\llama\llama-server.exe"; Parameters: "-m ""{app}\llama\{#ModelFile}"" --host 127.0.0.1 --port 8080 -c 2048"; Flags: runhidden nowait
 Filename: "{app}\english3000.exe"; Description: "启动 English 3000"; Flags: nowait

@@ -90,7 +90,7 @@ jobs:
         run: Copy-Item -Recurse assets build/Release/assets
       - name: Download llama.cpp
         run: |
-          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10419/llama-b10419-bin-win-cpu-x64.zip"
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10423/llama-b10423-bin-win-vulkan-x64.zip"
           Expand-Archive llama.zip -DestinationPath llama
       - name: Download small model
         run: |
