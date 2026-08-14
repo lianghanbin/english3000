@@ -3,6 +3,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QPair>
 #include <QStandardPaths>
 #include <QTemporaryDir>
@@ -35,6 +37,23 @@ int main(int argc, char *argv[])
                   QStandardPaths::AppDataLocation)
             : shotDir.path();
     QDir().mkpath(dataDir);
+
+    // 单实例保护：已有实例时通知它显示并退出
+    QLocalServer singleServer;
+    if (screenshotPath.isEmpty()) {
+        const QString singleName = QStringLiteral("english3000-single");
+        QLocalSocket probe;
+        probe.connectToServer(singleName);
+        if (probe.waitForConnected(300)) {
+            probe.write("show");
+            probe.flush();
+            return 0;
+        }
+        QLocalServer::removeServer(singleName);
+        if (!singleServer.listen(singleName)) {
+            qWarning("单实例锁创建失败，继续启动");
+        }
+    }
     const QString dbPath = dataDir + QStringLiteral("/english3000.db");
 
     WordStore store(dbPath);
@@ -101,6 +120,17 @@ int main(int argc, char *argv[])
     store.seedExamplesFromArticles();
 
     MainWindow window(&store);
+    QObject::connect(&singleServer, &QLocalServer::newConnection,
+                     &window, [&window, &singleServer] {
+                         while (singleServer.hasPendingConnections()) {
+                             QLocalSocket *sock =
+                                 singleServer.nextPendingConnection();
+                             sock->deleteLater();
+                         }
+                         window.show();
+                         window.raise();
+                         window.activateWindow();
+                     });
     window.show();
     if (!screenshotPath.isEmpty()) {
         QTimer::singleShot(1200, &window, [&window, screenshotTab] {
