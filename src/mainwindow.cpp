@@ -3,6 +3,7 @@
 #include "ai_client.h"
 #include "conversation_ui.h"
 #include "translator_ui.h"
+#include "update_checker.h"
 #include "wordlist_ui.h"
 
 #include <QApplication>
@@ -13,6 +14,7 @@
 #include <QDir>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -53,6 +55,7 @@
 #include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -199,6 +202,14 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
             &MainWindow::onAiChatFinished);
     connect(m_ai, &AiClient::failed, this, &MainWindow::onAiFailed);
 
+    m_updateChecker = new UpdateChecker(this);
+    connect(m_updateChecker, &UpdateChecker::updateAvailable, this,
+            &MainWindow::onUpdateAvailable);
+    connect(m_updateChecker, &UpdateChecker::upToDate, this,
+            &MainWindow::onUpdateUpToDate);
+    connect(m_updateChecker, &UpdateChecker::failed, this,
+            &MainWindow::onUpdateFailed);
+
     m_webManager = new QNetworkAccessManager(this);
 
     m_tray = new QSystemTrayIcon(
@@ -234,6 +245,13 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
             [this] { startSession(QStringLiteral("review")); });
 
     refreshAll();
+    QTimer::singleShot(6000, this, [this] {
+        if (m_store->getSetting(QStringLiteral("update_check_enabled"),
+                                QStringLiteral("1"))
+            == QLatin1String("1")) {
+            checkForUpdates(true);
+        }
+    });
 }
 
 void MainWindow::buildDashboard()
@@ -902,6 +920,24 @@ void MainWindow::buildSettings()
     aiHint->setAlignment(Qt::AlignCenter);
     layout->addWidget(aiHint);
 
+    auto *updateRow = new QHBoxLayout;
+    updateRow->addStretch();
+    m_updateCheckEnabledCheck = new QCheckBox(
+        QStringLiteral("启动时自动检查更新"), page);
+    m_updateCheckEnabledCheck->setChecked(
+        m_store->getSetting(QStringLiteral("update_check_enabled"),
+                            QStringLiteral("1"))
+        == QLatin1String("1"));
+    connect(m_updateCheckEnabledCheck, &QCheckBox::toggled, this,
+            [this](bool checked) {
+                m_store->setSetting(
+                    QStringLiteral("update_check_enabled"),
+                    checked ? QStringLiteral("1") : QStringLiteral("0"));
+            });
+    updateRow->addWidget(m_updateCheckEnabledCheck);
+    updateRow->addStretch();
+    layout->addLayout(updateRow);
+
     auto *dataRow = new QHBoxLayout;
     dataRow->addStretch();
     dataRow->addWidget(new QLabel(QStringLiteral("数据目录"), page));
@@ -915,13 +951,17 @@ void MainWindow::buildSettings()
     buttonRow->addStretch();
     auto *reimportButton = new QPushButton(QStringLiteral("重新导入内置词表"), page);
     auto *resetButton = new QPushButton(QStringLiteral("重置全部进度"), page);
+    m_checkUpdateButton = new QPushButton(QStringLiteral("检查更新"), page);
     resetButton->setObjectName(QStringLiteral("dangerButton"));
     connect(reimportButton, &QPushButton::clicked, this,
             &MainWindow::reimportBuiltin);
     connect(resetButton, &QPushButton::clicked, this,
             &MainWindow::resetAllDialog);
+    connect(m_checkUpdateButton, &QPushButton::clicked, this,
+            [this] { checkForUpdates(false); });
     buttonRow->addWidget(reimportButton);
     buttonRow->addWidget(resetButton);
+    buttonRow->addWidget(m_checkUpdateButton);
     buttonRow->addStretch();
     layout->addLayout(buttonRow);
 
@@ -1962,6 +2002,45 @@ void MainWindow::applyAiSettings()
                              : AiClient::Provider::Ollama);
     m_ai->setApiKey(
         m_store->getSetting(QStringLiteral("ai_api_key")));
+}
+
+void MainWindow::checkForUpdates(bool silent)
+{
+    if (!m_updateChecker)
+        return;
+    m_checkSilent = silent;
+    if (!silent)
+        statusBar()->showMessage(QStringLiteral("正在检查更新…"), 3000);
+    m_updateChecker->check(silent);
+}
+
+void MainWindow::onUpdateAvailable(const QString &version,
+                                   const QString &notes,
+                                   const QString &url)
+{
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("发现新版本"),
+        QStringLiteral("新版本：%1\n\n%2\n\n是否打开下载页？")
+            .arg(version.isEmpty() ? QStringLiteral("未知") : version,
+                 notes),
+        QMessageBox::Yes | QMessageBox::No);
+    if (answer == QMessageBox::Yes)
+        QDesktopServices::openUrl(QUrl(url));
+}
+
+void MainWindow::onUpdateUpToDate()
+{
+    if (m_checkSilent)
+        return;
+    infoBox(QStringLiteral("检查更新"),
+            QStringLiteral("当前已是最新版本。"));
+}
+
+void MainWindow::onUpdateFailed(const QString &message)
+{
+    if (m_checkSilent)
+        return;
+    infoBox(QStringLiteral("检查更新"), message);
 }
 
 bool MainWindow::autoPronounceEnabled() const

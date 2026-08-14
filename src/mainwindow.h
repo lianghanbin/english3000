@@ -32,6 +32,7 @@ class QTabWidget;
 class QTableWidget;
 class QTextBrowser;
 class TranslatorWindow;
+class UpdateChecker;
 class WordListPage;
 
 class MainWindow : public QMainWindow {
@@ -78,6 +79,11 @@ private slots:
     void applyHotkeys();
     bool autoPronounceEnabled() const;
     void applyAiSettings();
+    void checkForUpdates(bool silent);
+    void onUpdateAvailable(const QString &version, const QString &notes,
+                           const QString &url);
+    void onUpdateUpToDate();
+    void onUpdateFailed(const QString &message);
     void requestExample(qint64 wordId, const QString &word);
 
 private:
@@ -138,6 +144,10 @@ private:
     QLineEdit *m_aiModelEdit = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiKeyEdit = nullptr;
+    QCheckBox *m_updateCheckEnabledCheck = nullptr;
+    QPushButton *m_checkUpdateButton = nullptr;
+    UpdateChecker *m_updateChecker = nullptr;
+    bool m_checkSilent = false;
 
     // 阅读
     QListWidget *m_articleList = nullptr;

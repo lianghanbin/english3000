@@ -5,6 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
+set(ENGLISH3000_BUILD_ID "dev")
+if(DEFINED ENV{ENGLISH3000_BUILD_ID}
+   AND NOT "$ENV{ENGLISH3000_BUILD_ID}" STREQUAL "")
+    set(ENGLISH3000_BUILD_ID "$ENV{ENGLISH3000_BUILD_ID}")
+endif()
+configure_file(src/build_info.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/build_info.h @ONLY)
+
 find_package(Qt6 REQUIRED COMPONENTS Sql Network)
 find_package(Qt6 QUIET COMPONENTS Widgets)
 
@@ -55,6 +63,8 @@ if(Qt6Widgets_FOUND)
         src/main.cpp
         src/mainwindow.cpp
         src/mainwindow.h
+        src/update_checker.cpp
+        src/update_checker.h
         src/translator_ui.cpp
         src/translator_ui.h
         src/conversation_ui.cpp
@@ -62,6 +72,8 @@ if(Qt6Widgets_FOUND)
         src/wordlist_ui.cpp
         src/wordlist_ui.h
     )
+    target_include_directories(english3000 PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(english3000 PRIVATE core ai Qt6::Widgets)
     if(NOT ANDROID AND UNIX)
         target_link_libraries(english3000 PRIVATE X11 xcb)
