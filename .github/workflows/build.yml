@@ -90,12 +90,14 @@ jobs:
         run: Copy-Item -Recurse assets build/Release/assets
       - name: Download llama.cpp
         run: |
-          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10423/llama-b10423-bin-win-vulkan-x64.zip"
-          Expand-Archive llama.zip -DestinationPath llama
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama-vulkan.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10423/llama-b10423-bin-win-vulkan-x64.zip"
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama-cpu.zip "https://github.com/ggml-org/llama.cpp/releases/download/b10423/llama-b10423-bin-win-cpu-x64.zip"
+          Expand-Archive llama-vulkan.zip -DestinationPath llama-vulkan
+          Expand-Archive llama-cpu.zip -DestinationPath llama-cpu
       - name: Download small model
         run: |
-          New-Item -ItemType Directory -Force -Path llama | Out-Null
-          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama\qwen2.5-1.5b-instruct-q4_k_m.gguf "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+          New-Item -ItemType Directory -Force -Path llama-vulkan | Out-Null
+          curl.exe -L --fail --retry 3 --connect-timeout 30 -o llama-vulkan\qwen2.5-1.5b-instruct-q4_k_m.gguf "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
       - name: Download tools
         run: |
           curl.exe -L --fail --retry 3 --connect-timeout 30 -o sqlite.zip "https://www.sqlite.org/2026/sqlite-tools-win-x64-3530400.zip"
@@ -104,11 +106,15 @@ jobs:
       - name: Assemble package
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path oneclick\English3000\llama | Out-Null
+          New-Item -ItemType Directory -Force -Path oneclick\English3000\llama\vulkan | Out-Null
+          New-Item -ItemType Directory -Force -Path oneclick\English3000\llama\cpu | Out-Null
           Copy-Item build/Release/* oneclick\English3000\ -Recurse -Force
-          Copy-Item llama\llama-server.exe oneclick\English3000\llama\ -Force
-          Get-ChildItem llama -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\llama\ -Force }
-          Copy-Item llama\qwen2.5-1.5b-instruct-q4_k_m.gguf oneclick\English3000\llama\ -Force
+          Copy-Item llama-vulkan\llama-server.exe oneclick\English3000\llama\vulkan\ -Force
+          Get-ChildItem llama-vulkan -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\llama\vulkan\ -Force }
+          Copy-Item llama-cpu\llama-server.exe oneclick\English3000\llama\cpu\ -Force
+          Get-ChildItem llama-cpu -Recurse -Filter *.dll | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\llama\cpu\ -Force }
+          Copy-Item llama-vulkan\qwen2.5-1.5b-instruct-q4_k_m.gguf oneclick\English3000\llama\ -Force
+          Copy-Item tools\start-llama.ps1 oneclick\English3000\ -Force
           Get-ChildItem sqlite -Recurse -Filter sqlite3.exe | ForEach-Object { Copy-Item $_.FullName oneclick\English3000\ -Force }
           $sum = (Get-ChildItem oneclick -Recurse -File | Measure-Object -Property Length -Sum).Sum
           Write-Host "package size: $([math]::Round($sum/1MB,1)) MB"
