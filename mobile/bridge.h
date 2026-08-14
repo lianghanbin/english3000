@@ -4,6 +4,7 @@
 #include <QVariantList>
 
 class AiClient;
+class QTextToSpeech;
 class WordStore;
 
 class MobileBridge : public QObject {
@@ -35,6 +36,11 @@ public:
     Q_INVOKABLE void translate(const QString &text, const QString &model);
     Q_INVOKABLE void requestExample(qint64 wordId, const QString &word);
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE QVariantList articles();
+    Q_INVOKABLE QString articleHtml(qint64 articleId);
+    Q_INVOKABLE QString articleContent(qint64 articleId);
+    Q_INVOKABLE void addReadingWord(const QString &word);
+    Q_INVOKABLE void speak(const QString &text);
 
     Q_INVOKABLE QString aiUrl() const;
     Q_INVOKABLE void setAiUrl(const QString &url);
@@ -53,4 +59,9 @@ private:
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
     qint64 m_pendingExampleId = -1;
+    qint64 m_currentArticleId = -1;
+    QString m_currentArticleContent;
+#ifdef ENGLISH3000_HAS_TTS
+    QTextToSpeech *m_tts = nullptr;
+#endif
 };

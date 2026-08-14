@@ -12,6 +12,8 @@ ApplicationWindow {
         id: swipe
         anchors.fill: parent
         StudyPage {}
+        ReadingPage {}
+        WordListsPage {}
         TranslatePage {}
         SettingsPage {}
     }

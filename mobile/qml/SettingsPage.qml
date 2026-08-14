@@ -33,7 +33,7 @@ Page {
             valueRole: "value"
             Component.onCompleted: {
                 for (var i = 0; i < model.length; ++i) {
-                    if (model[i].value === bridge.aiProvider()) {
+                    if (model[i].value === bridge.aiProvider) {
                         currentIndex = i
                         break
                     }
@@ -43,7 +43,7 @@ Page {
         TextField {
             id: keyField
             Layout.fillWidth: true
-            text: bridge.aiApiKey()
+            text: bridge.aiApiKey
             echoMode: TextInput.Password
             placeholderText: "API Key（本地 Ollama 可留空）"
         }

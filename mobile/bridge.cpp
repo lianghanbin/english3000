@@ -3,6 +3,10 @@
 #include "ai_client.h"
 #include "core.h"
 
+#ifdef ENGLISH3000_HAS_TTS
+#include <QTextToSpeech>
+#endif
+
 MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
     : QObject(parent)
     , m_store(store)
@@ -164,6 +168,117 @@ void MobileBridge::requestExample(qint64 wordId, const QString &word)
 void MobileBridge::refresh()
 {
     emit countsChanged();
+}
+
+QVariantList MobileBridge::articles()
+{
+    QVariantList out;
+    for (const Article &a : m_store->listArticles()) {
+        QVariantMap m;
+        m.insert(QStringLiteral("id"), a.id);
+        m.insert(QStringLiteral("title"), a.title);
+        m.insert(QStringLiteral("difficulty"), a.difficulty);
+        out.append(m);
+    }
+    return out;
+}
+
+QString MobileBridge::articleHtml(qint64 articleId)
+{
+    const std::optional<Article> article = m_store->getArticle(articleId);
+    if (!article)
+        return {};
+    m_currentArticleId = articleId;
+    m_currentArticleContent = article->content;
+    const QSet<QString> inAny = m_store->allListWords();
+    const QSet<QString> current = m_store->currentListWords();
+    const QSet<QString> mastered = m_store->masteredListWords();
+
+    auto colorFor = [&](const QString &w) {
+        QString lookup = w.toLower();
+        const bool known =
+            inAny.contains(lookup)
+            || inAny.contains(m_store->lookupLemma(lookup));
+        const bool isMastered =
+            mastered.contains(lookup)
+            || mastered.contains(m_store->lookupLemma(lookup));
+        const bool inCurrent =
+            current.contains(lookup)
+            || current.contains(m_store->lookupLemma(lookup));
+        if (!known)
+            return QStringLiteral("#c62828");
+        if (isMastered)
+            return QStringLiteral("#000000");
+        if (inCurrent)
+            return QStringLiteral("#2e7d32");
+        return QStringLiteral("#1565c0");
+    };
+
+    QString html = QStringLiteral(
+        "<div style='font-size:18px; line-height:1.7;'>");
+    QString word;
+    const QString content = article->content;
+    for (const QChar c : content) {
+        if (c.isLetterOrNumber() || c == QLatin1Char('\'')
+            || c == QLatin1Char('-')) {
+            word += c;
+        } else {
+            if (!word.isEmpty()) {
+                html += QStringLiteral(
+                            "<a href=\"word://%1\"><font color=\"%2\">%3"
+                            "</font></a>")
+                            .arg(word.toLower().toHtmlEscaped(),
+                                 colorFor(word), word.toHtmlEscaped());
+                word.clear();
+            }
+            html += QString(c).toHtmlEscaped();
+        }
+    }
+    if (!word.isEmpty()) {
+        html += QStringLiteral(
+                    "<a href=\"word://%1\"><font color=\"%2\">%3</font></a>")
+                    .arg(word.toLower().toHtmlEscaped(),
+                         colorFor(word), word.toHtmlEscaped());
+    }
+    html += QStringLiteral("</div>");
+    return html;
+}
+
+QString MobileBridge::articleContent(qint64 articleId)
+{
+    const std::optional<Article> article = m_store->getArticle(articleId);
+    return article ? article->content : QString();
+}
+
+void MobileBridge::addReadingWord(const QString &word)
+{
+    const QString w = word.trimmed();
+    if (w.isEmpty() || m_currentArticleContent.isEmpty())
+        return;
+    QString meaning;
+    const std::optional<Word> found = m_store->findWordByText(w);
+    if (found) {
+        meaning = found->meaning;
+    } else {
+        const std::optional<Word> dict = m_store->lookupDict(w);
+        if (dict)
+            meaning = dict->meaning;
+    }
+    m_store->queueWordToReadingList(
+        w, meaning,
+        WordStore::sentenceContaining(m_currentArticleContent, w));
+    emit countsChanged();
+}
+
+void MobileBridge::speak(const QString &text)
+{
+#ifdef ENGLISH3000_HAS_TTS
+    if (!m_tts)
+        m_tts = new QTextToSpeech(this);
+    m_tts->say(text);
+#else
+    Q_UNUSED(text);
+#endif
 }
 
 QString MobileBridge::aiUrl() const

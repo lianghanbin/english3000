@@ -17,6 +17,7 @@ find_package(Qt6 REQUIRED COMPONENTS Sql Network)
 find_package(Qt6 QUIET COMPONENTS Widgets)
 
 find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
+find_package(Qt6 QUIET COMPONENTS TextToSpeech)
 if(Qt6Quick_FOUND)
     qt_add_executable(english3000-mobile MANUAL_FINALIZATION
         mobile/MobileApp.cpp
@@ -27,11 +28,18 @@ if(Qt6Quick_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(english3000-mobile PRIVATE
         core ai Qt6::Quick Qt6::QuickControls2)
+    if(Qt6TextToSpeech_FOUND)
+        target_link_libraries(english3000-mobile PRIVATE Qt6::TextToSpeech)
+        target_compile_definitions(english3000-mobile PRIVATE
+            ENGLISH3000_HAS_TTS=1)
+    endif()
     qt_add_resources(english3000-mobile "mobile_resources"
         PREFIX "/"
         FILES
             mobile/qml/main.qml
             mobile/qml/StudyPage.qml
+            mobile/qml/ReadingPage.qml
+            mobile/qml/WordListsPage.qml
             mobile/qml/TranslatePage.qml
             mobile/qml/SettingsPage.qml
             assets/oxford3000.csv
