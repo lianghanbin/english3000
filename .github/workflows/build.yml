@@ -32,6 +32,8 @@ jobs:
     runs-on: windows-latest
     outputs:
       build_id: ${{ steps.buildid.outputs.BUILD_ID }}
+      desktop_size: ${{ steps.hash.outputs.DESKTOP_SIZE }}
+      desktop_sha256: ${{ steps.hash.outputs.DESKTOP_SHA256 }}
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
@@ -56,6 +58,14 @@ jobs:
         run: Copy-Item -Recurse assets build/Release/assets
       - name: Package zip
         run: Compress-Archive -Path build/Release/* -DestinationPath english3000-windows.zip
+      - name: Compute hash
+        id: hash
+        shell: pwsh
+        run: |
+          $h = Get-FileHash english3000-windows.zip -Algorithm SHA256
+          $s = (Get-Item english3000-windows.zip).Length
+          Write-Output "DESKTOP_SIZE=$s" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "DESKTOP_SHA256=$($h.Hash.ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       - name: Upload exe
         uses: actions/upload-artifact@v4
         with:
@@ -84,6 +94,9 @@ jobs:
 
   windows-oneclick:
     runs-on: windows-latest
+    outputs:
+      oneclick_size: ${{ steps.hash.outputs.ONECLICK_SIZE }}
+      oneclick_sha256: ${{ steps.hash.outputs.ONECLICK_SHA256 }}
     steps:
       - uses: actions/checkout@v4
       - uses: jurplel/install-qt-action@v4
@@ -152,6 +165,14 @@ jobs:
           & $iscc /Qp tools\oneclick_installer.iss 2>&1 | Tee-Object -FilePath iscc.log
           if ($LASTEXITCODE -ne 0) { Write-Host "ISCC failed with exit $LASTEXITCODE"; exit $LASTEXITCODE }
           Get-Item English3000-OneClick-Setup.exe | ForEach-Object { Write-Host "installer size: $([math]::Round($_.Length/1MB,1)) MB" }
+      - name: Compute hash
+        id: hash
+        shell: pwsh
+        run: |
+          $h = Get-FileHash English3000-OneClick-Setup.exe -Algorithm SHA256
+          $s = (Get-Item English3000-OneClick-Setup.exe).Length
+          Write-Output "ONECLICK_SIZE=$s" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Output "ONECLICK_SHA256=$($h.Hash.ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
       - name: Upload build failure log
         if: failure() && steps.inno.conclusion == 'failure'
         env:
@@ -245,7 +266,7 @@ jobs:
 
   update-meta:
     runs-on: ubuntu-latest
-    needs: windows
+    needs: [windows, windows-oneclick]
     steps:
       - name: Generate update json
         run: |
@@ -255,6 +276,10 @@ jobs:
             "version": "1.0.0",
             "desktop_url": "https://github.com/${{ github.repository }}/releases/download/win-latest/english3000-windows.zip",
             "oneclick_url": "https://github.com/${{ github.repository }}/releases/download/win-oneclick/English3000-OneClick-Setup.exe",
+            "desktop_size": ${{ needs.windows.outputs.desktop_size }},
+            "desktop_sha256": "${{ needs.windows.outputs.desktop_sha256 }}",
+            "oneclick_size": ${{ needs['windows-oneclick'].outputs.oneclick_size }},
+            "oneclick_sha256": "${{ needs['windows-oneclick'].outputs.oneclick_sha256 }}",
             "notes": "自动构建 ${{ github.sha }}"
           }
           EOF

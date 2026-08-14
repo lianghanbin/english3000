@@ -37,6 +37,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProgressBar>
+#include <QProgressDialog>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
@@ -2018,14 +2019,48 @@ void MainWindow::onUpdateAvailable(const QString &version,
                                    const QString &notes,
                                    const QString &url)
 {
-    const auto answer = QMessageBox::question(
-        this, QStringLiteral("发现新版本"),
-        QStringLiteral("新版本：%1\n\n%2\n\n是否打开下载页？")
+    Q_UNUSED(url);
+    QMessageBox box(this);
+    box.setWindowTitle(QStringLiteral("发现新版本"));
+    box.setText(
+        QStringLiteral("新版本：%1\n\n%2\n\n是否立即下载更新？")
             .arg(version.isEmpty() ? QStringLiteral("未知") : version,
-                 notes),
-        QMessageBox::Yes | QMessageBox::No);
-    if (answer == QMessageBox::Yes)
-        QDesktopServices::openUrl(QUrl(url));
+                 notes));
+    auto *updateBtn =
+        box.addButton(QStringLiteral("立即更新"), QMessageBox::AcceptRole);
+    box.addButton(QStringLiteral("稍后"), QMessageBox::RejectRole);
+    box.exec();
+    if (box.clickedButton() != updateBtn)
+        return;
+
+    auto *dlg = new QProgressDialog(
+        QStringLiteral("正在下载更新…"), QStringLiteral("取消"),
+        0, 0, this);
+    dlg->setWindowTitle(QStringLiteral("更新"));
+    dlg->setWindowModality(Qt::WindowModal);
+    dlg->setMinimumDuration(0);
+    dlg->setAutoClose(false);
+    dlg->setAutoReset(false);
+    connect(m_updateChecker, &UpdateChecker::downloadProgress, dlg,
+            [dlg](qint64 received, qint64 total) {
+                if (total > 0) {
+                    dlg->setMaximum(static_cast<int>(total));
+                    dlg->setValue(static_cast<int>(received));
+                }
+            });
+    connect(dlg, &QProgressDialog::canceled, m_updateChecker,
+            &UpdateChecker::cancelDownload);
+    connect(m_updateChecker, &UpdateChecker::downloadFinished, dlg,
+            [this, dlg](const QString &path) {
+                dlg->close();
+                applyUpdate(path);
+            });
+    connect(m_updateChecker, &UpdateChecker::downloadFailed, dlg,
+            [this, dlg](const QString &message) {
+                dlg->close();
+                infoBox(QStringLiteral("更新失败"), message);
+            });
+    m_updateChecker->startDownload();
 }
 
 void MainWindow::onUpdateUpToDate()
@@ -2041,6 +2076,45 @@ void MainWindow::onUpdateFailed(const QString &message)
     if (m_checkSilent)
         return;
     infoBox(QStringLiteral("检查更新"), message);
+}
+
+void MainWindow::applyUpdate(const QString &path)
+{
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const bool oneClick = QFileInfo(appDir + QStringLiteral("/llama"))
+                              .exists();
+    if (oneClick) {
+        // 一键包：静默运行新安装器覆盖安装
+        QProcess::startDetached(
+            path, {QStringLiteral("/VERYSILENT"),
+                   QStringLiteral("/SUPPRESSMSGBOXES"),
+                   QStringLiteral("/NORESTART")});
+    } else {
+        // 绿色版：退出后由脚本解压替换并重启
+        const QString batPath =
+            QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+            + QStringLiteral("/english3000-update.bat");
+        const QString script =
+            QStringLiteral(
+                "@echo off\r\n"
+                "timeout /t 3 /nobreak >nul\r\n"
+                "powershell -NoProfile -Command \"Expand-Archive -Force "
+                "-Path '%1' -DestinationPath '%2'\"\r\n"
+                "start \"\" \"%2\\english3000.exe\"\r\n"
+                "del \"%1\"\r\n"
+                "del \"%~f0\"\r\n")
+                .arg(path, appDir);
+        QFile bat(batPath);
+        if (!bat.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            infoBox(QStringLiteral("更新失败"),
+                    QStringLiteral("无法创建更新脚本，请到下载页手动安装。"));
+            return;
+        }
+        bat.write(script.toUtf8());
+        bat.close();
+        QProcess::startDetached(batPath);
+    }
+    QTimer::singleShot(500, qApp, &QCoreApplication::quit);
 }
 
 bool MainWindow::autoPronounceEnabled() const

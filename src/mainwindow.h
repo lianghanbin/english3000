@@ -84,6 +84,7 @@ private slots:
                            const QString &url);
     void onUpdateUpToDate();
     void onUpdateFailed(const QString &message);
+    void applyUpdate(const QString &path);
     void requestExample(qint64 wordId, const QString &word);
 
 private:
