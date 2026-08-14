@@ -160,6 +160,7 @@ void AiClient::translateText(const QString &text, const QString &model,
 {
     m_requestType = RequestType::Translate;
     m_requestModel = model.trimmed();
+    m_requestPredict = 4096; // 长文本翻译预留足够输出空间
     start(translatePrompt(text, toChinese));
 }
 

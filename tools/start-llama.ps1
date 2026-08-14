@@ -3,7 +3,7 @@ $ErrorActionPreference = "SilentlyContinue"
 
 $dir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $model = Join-Path $dir "llama\qwen2.5-1.5b-instruct-q4_k_m.gguf"
-$commonArgs = @("-m", $model, "--host", "127.0.0.1", "--port", "8080", "-c", "2048")
+$commonArgs = @("-m", $model, "--host", "127.0.0.1", "--port", "8080", "-c", "8192")
 
 # 已经在运行就直接退出
 if (Get-NetTCPConnection -LocalPort 8080 -State Listen) {
