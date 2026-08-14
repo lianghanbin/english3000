@@ -61,7 +61,7 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     m_ai->setEndpoint(
         store->getSetting(QStringLiteral("ai_base_url"),
                           QStringLiteral("http://127.0.0.1:11434")),
-        QStringLiteral("qwen2.5:3b")); // 词表生成用快模型
+        QStringLiteral("qwen2.5:1.5b")); // 词表生成用快模型
     const bool openAi =
         store->getSetting(QStringLiteral("ai_provider"),
                           QStringLiteral("ollama"))

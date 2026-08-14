@@ -194,7 +194,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
         m_store->getSetting(QStringLiteral("ai_base_url"),
                             QStringLiteral("http://127.0.0.1:11434")),
         m_store->getSetting(QStringLiteral("ai_model"),
-                            QStringLiteral("qwen3:14b")));
+                            QStringLiteral("qwen2.5:1.5b")));
     applyAiSettings();
     connect(m_ai, &AiClient::finished, this, &MainWindow::onAiFinished);
     connect(m_ai, &AiClient::translationFinished, this,
@@ -809,13 +809,13 @@ void MainWindow::buildSettings()
     auto *modelRow = new QHBoxLayout;
     modelRow->addWidget(new QLabel(QStringLiteral("默认引擎"), transGroup));
     m_translateModelCombo = new QComboBox(transGroup);
-    m_translateModelCombo->addItem(QStringLiteral("快译 qwen2.5:3b"),
-                                   QStringLiteral("qwen2.5:3b"));
+    m_translateModelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
+                                   QStringLiteral("qwen2.5:1.5b"));
     m_translateModelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
                                    QStringLiteral("qwen3:14b"));
     const QString defModel = m_store->getSetting(
         QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:3b"));
+        QStringLiteral("qwen2.5:1.5b"));
     const int defIdx = m_translateModelCombo->findData(defModel);
     m_translateModelCombo->setCurrentIndex(defIdx >= 0 ? defIdx : 0);
     connect(m_translateModelCombo, &QComboBox::currentIndexChanged, this,
@@ -858,7 +858,7 @@ void MainWindow::buildSettings()
     m_aiModelEdit = new QLineEdit(page);
     m_aiModelEdit->setText(
         m_store->getSetting(QStringLiteral("ai_model"),
-                            QStringLiteral("qwen3:14b")));
+                            QStringLiteral("qwen2.5:1.5b")));
     m_aiModelEdit->setMinimumWidth(260);
     connect(m_aiModelEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_model"),
@@ -1994,7 +1994,7 @@ void MainWindow::applyAiSettings()
         m_store->getSetting(QStringLiteral("ai_base_url"),
                             QStringLiteral("http://127.0.0.1:11434")),
         m_store->getSetting(QStringLiteral("ai_model"),
-                            QStringLiteral("qwen3:14b")));
+                            QStringLiteral("qwen2.5:1.5b")));
     const bool openAi =
         m_store->getSetting(QStringLiteral("ai_provider"),
                             QStringLiteral("ollama"))
@@ -2137,7 +2137,7 @@ void MainWindow::requestExample(qint64 wordId, const QString &word)
             "Write one short, simple English sentence using the word "
             "\"%1\". Use the exact word. Output only the sentence.")
             .arg(word);
-    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
+    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:1.5b"));
 }
 
 void MainWindow::onAiChatFinished(const QString &text)

@@ -23,7 +23,7 @@ Page {
                 text: "翻译"
                 onClicked: {
                     if (input.text.trim() !== "")
-                        bridge.translate(input.text, "qwen2.5:3b")
+                        bridge.translate(input.text, "qwen2.5:1.5b")
                 }
             }
         }

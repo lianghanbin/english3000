@@ -76,7 +76,7 @@ private:
     int m_requestPredict = 0;
     int m_requestTimeoutMs = 10 * 60 * 1000;
     QString m_baseUrl = QStringLiteral("http://127.0.0.1:11434");
-    QString m_model = QStringLiteral("qwen3:14b");
+    QString m_model = QStringLiteral("qwen2.5:1.5b");
     Provider m_provider = Provider::Ollama;
     QString m_apiKey;
 };

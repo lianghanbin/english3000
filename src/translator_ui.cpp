@@ -339,7 +339,7 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
         store->getSetting(QStringLiteral("ai_base_url"),
                           QStringLiteral("http://127.0.0.1:11434")),
         store->getSetting(QStringLiteral("ai_model"),
-                          QStringLiteral("qwen3:14b")));
+                          QStringLiteral("qwen2.5:1.5b")));
     const bool openAi =
         store->getSetting(QStringLiteral("ai_provider"),
                           QStringLiteral("ollama"))
@@ -362,8 +362,8 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
     title->setObjectName(QStringLiteral("wordLabel"));
     titleRow->addWidget(title);
     m_modelCombo = new QComboBox(this);
-    m_modelCombo->addItem(QStringLiteral("快译 qwen2.5:3b"),
-                          QStringLiteral("qwen2.5:3b"));
+    m_modelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
+                          QStringLiteral("qwen2.5:1.5b"));
     m_modelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
                           QStringLiteral("qwen3:14b"));
     const QString defModel = defaultModel();
@@ -428,8 +428,8 @@ QString TranslatorWindow::defaultModel() const
 {
     const QString model = m_store->getSetting(
         QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:3b"));
-    return model.isEmpty() ? QStringLiteral("qwen2.5:3b") : model;
+        QStringLiteral("qwen2.5:1.5b"));
+    return model.isEmpty() ? QStringLiteral("qwen2.5:1.5b") : model;
 }
 
 QString TranslatorWindow::currentModel() const
@@ -659,7 +659,7 @@ ScreenshotResultWindow::ScreenshotResultWindow(WordStore *store,
         store->getSetting(QStringLiteral("ai_base_url"),
                           QStringLiteral("http://127.0.0.1:11434")),
         store->getSetting(QStringLiteral("ai_model"),
-                          QStringLiteral("qwen3:14b")));
+                          QStringLiteral("qwen2.5:1.5b")));
     const bool openAi =
         store->getSetting(QStringLiteral("ai_provider"),
                           QStringLiteral("ollama"))
@@ -712,7 +712,7 @@ ScreenshotResultWindow::ScreenshotResultWindow(WordStore *store,
 
     const QString model = store->getSetting(
         QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:3b"));
+        QStringLiteral("qwen2.5:1.5b"));
     m_ai->translateText(m_ocrText, model, true);
 }
 

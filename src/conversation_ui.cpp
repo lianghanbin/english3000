@@ -28,7 +28,7 @@ ConversationWindow::ConversationWindow(WordStore *store, QWidget *parent)
         store->getSetting(QStringLiteral("ai_base_url"),
                           QStringLiteral("http://127.0.0.1:11434")),
         store->getSetting(QStringLiteral("ai_model"),
-                          QStringLiteral("qwen3:14b")));
+                          QStringLiteral("qwen2.5:1.5b")));
     const bool openAi =
         store->getSetting(QStringLiteral("ai_provider"),
                           QStringLiteral("ollama"))

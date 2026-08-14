@@ -25,8 +25,8 @@
 ## 构建
 
 依赖：g++、CMake、Qt 6（Widgets + Sql + Network，Debian 装 `qt6-base-dev` 即可）。
-AI 文章功能需要本机 ollama 服务（默认 `http://127.0.0.1:11434`，模型 `qwen3:14b`，
-可在设置页修改）。
+AI 文章功能需要本机 ollama 服务或 OpenAI 兼容接口（默认 `http://127.0.0.1:11434`，
+模型 `qwen2.5:1.5b`，可在设置页修改）。
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

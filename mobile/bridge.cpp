@@ -158,7 +158,7 @@ void MobileBridge::requestExample(qint64 wordId, const QString &word)
             "Write one short, simple English sentence using the word "
             "\"%1\". Use the exact word. Output only the sentence.")
             .arg(word);
-    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:3b"));
+    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:1.5b"));
 }
 
 void MobileBridge::refresh()
@@ -181,7 +181,7 @@ void MobileBridge::setAiUrl(const QString &url)
 QString MobileBridge::aiModel() const
 {
     return m_store->getSetting(QStringLiteral("ai_model"),
-                               QStringLiteral("qwen3:14b"));
+                               QStringLiteral("qwen2.5:1.5b"));
 }
 
 void MobileBridge::setAiModel(const QString &model)
