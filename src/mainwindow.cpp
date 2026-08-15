@@ -984,6 +984,7 @@ void MainWindow::buildSettings()
     auto *resetButton = new QPushButton(QStringLiteral("重置全部进度"), page);
     m_checkUpdateButton = new QPushButton(QStringLiteral("检查更新"), page);
     auto *donateButton = new QPushButton(QStringLiteral("赞助支持"), page);
+    auto *guideButton = new QPushButton(QStringLiteral("使用说明"), page);
     resetButton->setObjectName(QStringLiteral("dangerButton"));
     connect(reimportButton, &QPushButton::clicked, this,
             &MainWindow::reimportBuiltin);
@@ -993,10 +994,13 @@ void MainWindow::buildSettings()
             [this] { checkForUpdates(false); });
     connect(donateButton, &QPushButton::clicked, this,
             &MainWindow::showDonateDialog);
+    connect(guideButton, &QPushButton::clicked, this,
+            &MainWindow::showGuideDialog);
     buttonRow->addWidget(reimportButton);
     buttonRow->addWidget(resetButton);
     buttonRow->addWidget(m_checkUpdateButton);
     buttonRow->addWidget(donateButton);
+    buttonRow->addWidget(guideButton);
     buttonRow->addStretch();
     layout->addLayout(buttonRow);
 
@@ -2217,6 +2221,43 @@ void MainWindow::showDonateDialog()
     layout->addWidget(hint);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+    dialog.exec();
+}
+
+void MainWindow::showGuideDialog()
+{
+    auto findGuide = []() -> QString {
+        const QString local =
+            QCoreApplication::applicationDirPath()
+            + QStringLiteral("/assets/guide.html");
+        if (QFileInfo::exists(local))
+            return local;
+        const QString bundled =
+            QStringLiteral(ENGLISH3000_ASSET_DIR)
+            + QStringLiteral("/guide.html");
+        return QFileInfo::exists(bundled) ? bundled : QString();
+    };
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("使用说明"));
+    dialog.resize(680, 580);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *browser = new QTextBrowser(&dialog);
+    const QString path = findGuide();
+    if (!path.isEmpty()) {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            browser->setHtml(QString::fromUtf8(f.readAll()));
+            browser->setOpenExternalLinks(true);
+        }
+    } else {
+        browser->setPlainText(
+            QStringLiteral("未找到使用说明文件 guide.html"));
+    }
+    layout->addWidget(browser);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::clicked, &dialog, &QDialog::accept);
     layout->addWidget(buttons);
     dialog.exec();
 }

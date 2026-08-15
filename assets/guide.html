@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: sans-serif; color: #1f2933; line-height: 1.7;
+         margin: 20px; }
+  h1 { font-size: 22px; color: #1565c0; }
+  h2 { font-size: 17px; color: #1565c0; margin-top: 26px; }
+  p, li { font-size: 14px; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+  .note { background: #e8f5e9; border-left: 4px solid #2e7d32;
+          padding: 8px 12px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>English 3000 使用说明</h1>
+<p>English 3000 是一套“词表即学习对象”的英语学习工具：选中一个词表，
+学习页就学这个词表；阅读、翻译和生词收集都围绕词表闭环。数据保存在本地，
+AI 可以完全离线运行。</p>
+
+<h2>一、快速开始</h2>
+<ol>
+  <li>打开软件，默认已选中「核心 3000」词表</li>
+  <li>在「学习」页点击<strong>开始学习</strong>，进入卡片流</li>
+  <li>按 <code>空格</code> 显示释义和例句，点<strong>认识</strong>或<strong>不认识</strong></li>
+  <li>不认识的词会自动进入复习队列，下次点击「开始复习」再学</li>
+</ol>
+<div class="note">学习没有每日上限，随时可以按 <code>Esc</code> 退出，进度自动保存。</div>
+
+<h2>二、词表</h2>
+<ul>
+  <li><strong>词表即书</strong>：每个词表独立记录未学 / 待复习 / 已掌握进度</li>
+  <li>可以 AI 生成领域词表、从文章提取、导入 CSV，也可以手动添加生词</li>
+  <li>左侧列表支持拖拽排序；「设为当前词表」决定学习页学哪本</li>
+  <li>「重置词表进度」会把该词表的已掌握状态清空</li>
+</ul>
+
+<h2>三、阅读</h2>
+<ul>
+  <li>内置示例文章，也可用 AI 生成分级文章或粘贴文章改写</li>
+  <li>高亮颜色：<span style="color:#c62828">红色</span>=未入词表 ·
+    <span style="color:#1565c0">蓝色</span>=其他词表 ·
+    <span style="color:#2e7d32">绿色</span>=当前词表 ·
+    <span style="color:#000000">黑色</span>=已掌握</li>
+  <li>左键点单词直接发音；选中一段文字后右键直接朗读</li>
+  <li>右键菜单按颜色区分：红色=加入阅读词表、蓝/绿=查看所在词表、黑色=重置为未学</li>
+</ul>
+
+<h2>四、翻译</h2>
+<ul>
+  <li>全局热键（默认 <code>Ctrl+Alt+T</code>）打开翻译小窗；截图翻译默认
+    <code>Ctrl+Alt+O</code>（Linux 需 tesseract）</li>
+  <li>小窗打开时，鼠标选中的文字会自动带进输入框</li>
+  <li>翻译中遇到的不认识单词，会自动收集到「翻译生词」词表</li>
+</ul>
+
+<h2>五、AI 设置</h2>
+<ul>
+  <li>供应商可选「本地 Ollama」或「OpenAI 兼容」（DeepSeek / 通义 / GLM / Kimi 等）</li>
+  <li>本地模式：服务地址填 <code>http://127.0.0.1:11434</code>（或内置小模型的
+    <code>http://127.0.0.1:8080</code>），模型如 <code>qwen2.5:1.5b</code></li>
+  <li>云端模式：服务地址填厂商地址，模型填对应模型名，API Key 按提示填写</li>
+  <li>默认模型是本地小模型 <code>qwen2.5:1.5b</code>，日常学习够用；
+    长文翻译建议切换更大的模型或云端 API</li>
+</ul>
+
+<h2>六、快捷键</h2>
+<ul>
+  <li><code>Ctrl+N</code> 学习未学单词 · <code>Ctrl+R</code> 复习不认识的单词</li>
+  <li><code>空格</code> 显示释义 · <code>1</code> 不认识 · <code>2</code> 认识</li>
+  <li>所有快捷键都可在「设置」页自定义</li>
+</ul>
+
+<h2>七、数据与更新</h2>
+<ul>
+  <li>所有数据保存在本地 SQLite，不会上传</li>
+  <li>「设置」页可查看数据目录、检查更新；发现新版本可一键自动更新</li>
+  <li>「重置全部进度」会清空所有词表的已掌握状态，词表本身不受影响</li>
+</ul>
+
+<h2>八、赞助支持</h2>
+<p>如果这个软件对你有帮助，欢迎在「设置」页点击「赞助支持」。
+感谢每一位使用者。</p>
+</body>
+</html>

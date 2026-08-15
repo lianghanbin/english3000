@@ -91,6 +91,7 @@ private slots:
     void onUpdateUpToDate();
     void onUpdateFailed(const QString &message);
     void showDonateDialog();
+    void showGuideDialog();
     void applyUpdate(const QString &path);
     void requestExample(qint64 wordId, const QString &word);
 
