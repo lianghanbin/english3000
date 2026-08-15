@@ -406,14 +406,13 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
     layout->addLayout(buttonRow);
 
     m_resultView = new QTextBrowser(this);
-    m_resultView->setMaximumHeight(120);
+    m_resultView->setMaximumHeight(200);
     layout->addWidget(m_resultView);
 
     m_statusLabel = new QLabel(this);
     m_statusLabel->setObjectName(QStringLiteral("hintLabel"));
     layout->addWidget(m_statusLabel);
 
-    layout->addStretch(1);
 }
 
 TranslatorWindow::~TranslatorWindow()
@@ -441,12 +440,22 @@ void TranslatorWindow::openWithText(const QString &text)
 {
     if (!text.isEmpty()) {
         m_sourceEdit->setPlainText(text);
+        m_sourceEdit->moveCursor(QTextCursor::End);
+        show();
+        raise();
+        activateWindow();
+        m_sourceEdit->setFocus();
+        return;
+    }
+    // X11 主选择：用户刚用鼠标选中的文字，优先于剪贴板
+    const QString sel =
+        QApplication::clipboard()->text(QClipboard::Selection).trimmed();
+    if (!sel.isEmpty()) {
+        m_sourceEdit->setPlainText(sel);
     } else if (m_sourceEdit->toPlainText().trimmed().isEmpty()) {
         const QString clip =
             QApplication::clipboard()->text(QClipboard::Clipboard).trimmed();
-        const QString sel =
-            QApplication::clipboard()->text(QClipboard::Selection).trimmed();
-        m_sourceEdit->setPlainText(!clip.isEmpty() ? clip : sel);
+        m_sourceEdit->setPlainText(clip);
     }
     show();
     raise();
