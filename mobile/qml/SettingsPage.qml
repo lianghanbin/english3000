@@ -58,6 +58,12 @@ Page {
             }
         }
 
+        Button {
+            text: "赞助支持"
+            Layout.fillWidth: true
+            onClicked: donatePopup.open()
+        }
+
         Label {
             Layout.topMargin: 20
             color: "#888888"
@@ -65,6 +71,52 @@ Page {
                   + "例如 http://192.168.1.100:11434"
             wrapMode: Text.Wrap
             Layout.fillWidth: true
+        }
+    }
+
+    Popup {
+        id: donatePopup
+        anchors.centerIn: parent
+        width: parent.width * 0.9
+        modal: true
+        focus: true
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 12
+            Label {
+                text: "如果 English 3000 对你有帮助，欢迎赞助支持，让项目可以继续走下去。"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Image {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 160
+                    fillMode: Image.PreserveAspectFit
+                    source: "qrc:/assets/donate/qr1.jpg"
+                }
+                Image {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 160
+                    fillMode: Image.PreserveAspectFit
+                    source: "qrc:/assets/donate/qr2.jpg"
+                }
+            }
+            Label {
+                text: "扫一扫上面的二维码即可支持。感谢每一位使用者。"
+                color: "#888888"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+            }
+            Button {
+                text: "关闭"
+                Layout.fillWidth: true
+                onClicked: donatePopup.close()
+            }
         }
     }
 }
