@@ -35,6 +35,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPlainTextEdit>
+#include <QPixmap>
 #include <QProcess>
 #include <QProgressBar>
 #include <QProgressDialog>
@@ -980,6 +981,7 @@ void MainWindow::buildSettings()
     auto *reimportButton = new QPushButton(QStringLiteral("重新导入内置词表"), page);
     auto *resetButton = new QPushButton(QStringLiteral("重置全部进度"), page);
     m_checkUpdateButton = new QPushButton(QStringLiteral("检查更新"), page);
+    auto *donateButton = new QPushButton(QStringLiteral("赞助支持"), page);
     resetButton->setObjectName(QStringLiteral("dangerButton"));
     connect(reimportButton, &QPushButton::clicked, this,
             &MainWindow::reimportBuiltin);
@@ -987,9 +989,12 @@ void MainWindow::buildSettings()
             &MainWindow::resetAllDialog);
     connect(m_checkUpdateButton, &QPushButton::clicked, this,
             [this] { checkForUpdates(false); });
+    connect(donateButton, &QPushButton::clicked, this,
+            &MainWindow::showDonateDialog);
     buttonRow->addWidget(reimportButton);
     buttonRow->addWidget(resetButton);
     buttonRow->addWidget(m_checkUpdateButton);
+    buttonRow->addWidget(donateButton);
     buttonRow->addStretch();
     layout->addLayout(buttonRow);
 
@@ -2157,6 +2162,60 @@ void MainWindow::onUpdateFailed(const QString &message)
     if (m_checkSilent)
         return;
     infoBox(QStringLiteral("检查更新"), message);
+}
+
+void MainWindow::showDonateDialog()
+{
+    auto findAsset = [](const QString &name) -> QString {
+        const QString local =
+            QCoreApplication::applicationDirPath()
+            + QStringLiteral("/assets/donate/") + name;
+        if (QFileInfo::exists(local))
+            return local;
+        const QString bundled =
+            QStringLiteral(ENGLISH3000_ASSET_DIR)
+            + QStringLiteral("/donate/") + name;
+        return QFileInfo::exists(bundled) ? bundled : QString();
+    };
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("赞助支持"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *title = new QLabel(
+        QStringLiteral("如果 English 3000 对你有帮助，欢迎赞助一杯咖啡 ☕"),
+        &dialog);
+    title->setObjectName(QStringLiteral("meaningLabel"));
+    title->setWordWrap(true);
+    title->setAlignment(Qt::AlignCenter);
+    layout->addWidget(title);
+
+    auto *row = new QHBoxLayout;
+    const QStringList files = {QStringLiteral("qr1.jpg"),
+                               QStringLiteral("qr2.jpg")};
+    for (const QString &file : files) {
+        const QString path = findAsset(file);
+        auto *label = new QLabel(&dialog);
+        if (!path.isEmpty()) {
+            QPixmap pix(path);
+            label->setPixmap(
+                pix.scaled(260, 260, Qt::KeepAspectRatio,
+                           Qt::SmoothTransformation));
+        } else {
+            label->setText(QStringLiteral("（二维码缺失）"));
+        }
+        label->setAlignment(Qt::AlignCenter);
+        row->addWidget(label);
+    }
+    layout->addLayout(row);
+    auto *hint = new QLabel(
+        QStringLiteral("扫一扫上面的二维码即可支持。感谢每一位使用者。"),
+        &dialog);
+    hint->setObjectName(QStringLiteral("hintLabel"));
+    hint->setAlignment(Qt::AlignCenter);
+    layout->addWidget(hint);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+    dialog.exec();
 }
 
 void MainWindow::applyUpdate(const QString &path)

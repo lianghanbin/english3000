@@ -43,7 +43,9 @@ if(Qt6Quick_FOUND)
             mobile/qml/TranslatePage.qml
             mobile/qml/SettingsPage.qml
             assets/oxford3000.csv
-            assets/lemma.en.txt)
+            assets/lemma.en.txt
+            assets/donate/qr1.jpg
+            assets/donate/qr2.jpg)
     if(ANDROID)
         set_target_properties(english3000-mobile PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR
