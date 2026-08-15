@@ -11,7 +11,7 @@ import sys
 
 SRC = "/home/liang/Projects/english3000/docs/video/source"
 DEMO = f"{SRC}/demo-full.mp4"
-SCENES = f"{SRC}/videos"
+AI = f"{SRC}/ai-scenes"
 MUSIC = f"{SRC}/music.wav"
 TMP = f"{SRC}/tmp"
 FADE = 0.5
@@ -19,28 +19,30 @@ FADE = 0.5
 # (源, 起始秒, 时长)
 SEGMENTS = {
     "vertical": [
-        (DEMO, 0, 4),
-        (f"{SCENES}/vertical-scenes.mp4", 0, 3),
+        (f"{AI}/01-entry.png", 0, 5),
+        (DEMO, 82, 6),
+        (f"{AI}/02-characters.png", 0, 5),
         (DEMO, 8, 7),
-        (f"{SCENES}/vertical-scenes.mp4", 8, 3),
+        (f"{AI}/03-pulse.png", 0, 5),
         (DEMO, 21, 9),
-        (f"{SCENES}/vertical-scenes.mp4", 18, 3),
-        (DEMO, 50, 10),
-        (f"{SCENES}/vertical-scenes.mp4", 30, 3),
-        (DEMO, 82, 15),
-        (f"{SCENES}/vertical-scenes.mp4", 38, 3),
+        (f"{AI}/04-merge.png", 0, 5),
+        (DEMO, 50, 8),
+        (f"{AI}/05-world.png", 0, 5),
+        (DEMO, 104, 7),
+        (f"{AI}/06-one.png", 0, 5),
     ],
     "horizontal": [
-        (DEMO, 0, 8),
-        (f"{SCENES}/horizontal-scenes.mp4", 0, 4),
-        (DEMO, 8, 14),
-        (f"{SCENES}/horizontal-scenes.mp4", 8, 4),
-        (DEMO, 21, 16),
-        (f"{SCENES}/horizontal-scenes.mp4", 18, 4),
-        (DEMO, 50, 18),
-        (f"{SCENES}/horizontal-scenes.mp4", 30, 4),
-        (DEMO, 82, 22),
-        (f"{SCENES}/horizontal-scenes.mp4", 38, 4),
+        (f"{AI}/01-entry.png", 0, 7),
+        (DEMO, 82, 10),
+        (f"{AI}/02-characters.png", 0, 7),
+        (DEMO, 8, 12),
+        (f"{AI}/03-pulse.png", 0, 7),
+        (DEMO, 21, 14),
+        (f"{AI}/04-merge.png", 0, 7),
+        (DEMO, 50, 16),
+        (f"{AI}/05-world.png", 0, 7),
+        (DEMO, 104, 14),
+        (f"{AI}/06-one.png", 0, 7),
     ],
 }
 
@@ -69,12 +71,33 @@ def prepare_segments(mode):
     )
     for i, (src, start, dur) in enumerate(SEGMENTS[mode]):
         out = f"{TMP}/seg{mode}{i}.mp4"
-        run([
-            "ffmpeg", "-y", "-v", "error",
-            "-ss", str(start), "-t", str(dur), "-i", src,
-            "-vf", vf, "-c:v", "libx264", "-preset", "fast",
-            "-crf", "18", "-r", "30", "-an", out,
-        ])
+        if src.endswith(".png"):
+            # 氛围图：Ken Burns 缓慢推拉，输出 16:9 前景片段
+            if mode == "vertical":
+                sw, sh = 1080, 608
+            else:
+                sw, sh = 1920, 1080
+            d = int(30 * dur)
+            kb = (
+                f"zoompan=z='min(zoom+0.0010,1.18)':d={d}:"
+                f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+                f"fps=30:s={sw}x{sh},settb=AVTB,format=yuv420p"
+            )
+            run([
+                "ffmpeg", "-y", "-v", "error",
+                "-i", src,
+                "-vf", f"{kb},{vf}",
+                "-t", str(dur),
+                "-c:v", "libx264", "-preset", "fast",
+                "-crf", "18", "-r", "30", "-an", out,
+            ])
+        else:
+            run([
+                "ffmpeg", "-y", "-v", "error",
+                "-ss", str(start), "-t", str(dur), "-i", src,
+                "-vf", vf, "-c:v", "libx264", "-preset", "fast",
+                "-crf", "18", "-r", "30", "-an", out,
+            ])
 
 
 def concat(mode):
