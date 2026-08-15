@@ -2181,7 +2181,8 @@ void MainWindow::showDonateDialog()
     dialog.setWindowTitle(QStringLiteral("赞助支持"));
     auto *layout = new QVBoxLayout(&dialog);
     auto *title = new QLabel(
-        QStringLiteral("如果 English 3000 对你有帮助，欢迎赞助一杯咖啡 ☕"),
+        QStringLiteral("如果 English 3000 对你有帮助，欢迎赞助支持，"
+                       "让项目可以继续走下去。"),
         &dialog);
     title->setObjectName(QStringLiteral("meaningLabel"));
     title->setWordWrap(true);
