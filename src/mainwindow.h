@@ -109,7 +109,7 @@ private:
     void infoBox(const QString &title, const QString &text);
     QString findAssetCsv() const;
     void refreshArticleList();
-    void loadArticle(qint64 articleId);
+    Q_INVOKABLE void loadArticle(qint64 articleId);
     QString renderArticleHtml(const QString &content) const;
     QString sentenceForWord(const QString &content,
                             const QString &word) const;

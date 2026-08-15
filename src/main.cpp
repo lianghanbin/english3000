@@ -225,8 +225,16 @@ int main(int argc, char *argv[])
             QTimer::singleShot(step.ms, &window, step.fn);
     }
     if (!screenshotPath.isEmpty()) {
-        QTimer::singleShot(1200, &window, [&window, screenshotTab] {
+        QTimer::singleShot(1200, &window, [&window, screenshotTab, &store] {
             window.showTab(screenshotTab);
+            if (screenshotTab == 2) {
+                const auto articles = store.listArticles();
+                if (!articles.isEmpty()) {
+                    QMetaObject::invokeMethod(
+                        &window, "loadArticle", Qt::QueuedConnection,
+                        Q_ARG(qint64, articles.first().id));
+                }
+            }
         });
         QTimer::singleShot(2200, &window,
                            [&window, screenshotPath] {
