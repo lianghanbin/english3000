@@ -30,6 +30,8 @@ int main(int argc, char *argv[])
         args.contains(QStringLiteral("--real"));
     bool cardScreenshot =
         args.contains(QStringLiteral("--card"));
+    bool translateScreenshot =
+        args.contains(QStringLiteral("--translate"));
     const int shotIdx = args.indexOf(QStringLiteral("--screenshot"));
     if (shotIdx >= 0 && shotIdx + 1 < args.size()) {
         screenshotPath = args.at(shotIdx + 1);
@@ -251,11 +253,22 @@ int main(int argc, char *argv[])
                                           Qt::QueuedConnection);
             });
         }
-        QTimer::singleShot(2200, &window,
-                           [&window, screenshotPath] {
-                               window.grab().save(screenshotPath);
-                               QCoreApplication::quit();
-                           });
+        if (translateScreenshot) {
+            qputenv("ENGLISH3000_SCREENSHOT", "1");
+            QTimer::singleShot(1500, &window, [&window] {
+                window.demoTranslate(
+                    QStringLiteral(
+                        "The quick brown fox jumps over the lazy dog."));
+            });
+            QTimer::singleShot(30000, &window,
+                               [&window] { QCoreApplication::quit(); });
+        } else {
+            QTimer::singleShot(2200, &window,
+                               [&window, screenshotPath] {
+                                   window.grab().save(screenshotPath);
+                                   QCoreApplication::quit();
+                               });
+        }
     }
     return app.exec();
 }

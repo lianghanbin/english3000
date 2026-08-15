@@ -635,6 +635,9 @@ void TranslatorWindow::keyPressEvent(QKeyEvent *event)
 bool TranslatorWindow::event(QEvent *event)
 {
     if (event->type() == QEvent::WindowDeactivate) {
+        // 截图模式下不禁用失焦自动隐藏，避免截图时窗口消失
+        if (qEnvironmentVariableIntValue("ENGLISH3000_SCREENSHOT") == 1)
+            return QWidget::event(event);
         QTimer::singleShot(200, this, [this] {
             if (!isActiveWindow() && !QApplication::activePopupWidget())
                 hide();
