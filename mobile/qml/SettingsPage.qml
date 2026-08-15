@@ -64,6 +64,12 @@ Page {
             onClicked: donatePopup.open()
         }
 
+        Button {
+            text: "使用说明"
+            Layout.fillWidth: true
+            onClicked: guidePopup.open()
+        }
+
         Label {
             Layout.topMargin: 20
             color: "#888888"
@@ -117,6 +123,67 @@ Page {
                 Layout.fillWidth: true
                 onClicked: donatePopup.close()
             }
+        }
+    }
+
+    Popup {
+        id: guidePopup
+        anchors.centerIn: parent
+        width: parent.width * 0.92
+        height: parent.height * 0.9
+        modal: true
+        focus: true
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+            Label {
+                text: "使用说明"
+                font.bold: true
+                font.pixelSize: 18
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+            }
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: content.implicitHeight
+                clip: true
+                Column {
+                    id: content
+                    width: parent.width
+                    spacing: 12
+                    GuideItem { title: "快速开始"; body: "选一个词表，点「开始学习」进入卡片流；空格显示释义，认识/不认识一键切换，Esc 随时退出。" }
+                    GuideItem { title: "学习与复习"; body: "学习=没学过的词；点「不认识」的词自动进复习队列，点「开始复习」再学。没有每日上限，进度自动保存。" }
+                    GuideItem { title: "词表"; body: "每个词表独立记录未学/待复习/已掌握；AI 生成、从文章提取、导入 CSV 都可以建新词表。" }
+                    GuideItem { title: "阅读"; body: "红色=未入词表，蓝色=其他词表，绿色=当前词表，黑色=已掌握；点单词发音、加入阅读词表。" }
+                    GuideItem { title: "翻译"; body: "翻译遇到的生词会自动收集到「翻译生词」词表，之后可以在词表页选中它来学习。" }
+                    GuideItem { title: "AI 设置"; body: "本地 Ollama 或 OpenAI 兼容（DeepSeek/通义/GLM/Kimi）；默认模型 qwen2.5:1.5b，日常够用。" }
+                    GuideItem { title: "更新与数据"; body: "所有数据保存在本机；设置页可检查更新，发现新版本可一键更新。" }
+                }
+            }
+            Button {
+                text: "关闭"
+                Layout.fillWidth: true
+                onClicked: guidePopup.close()
+            }
+        }
+    }
+
+    component GuideItem: Column {
+        property string title: ""
+        property string body: ""
+        spacing: 3
+        Label {
+            text: title
+            font.bold: true
+            color: "#1565c0"
+        }
+        Label {
+            text: body
+            wrapMode: Text.Wrap
+            width: parent.width
+            color: "#cccccc"
         }
     }
 }
