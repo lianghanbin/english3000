@@ -26,6 +26,10 @@ int main(int argc, char *argv[])
     QString screenshotPath;
     int screenshotTab = 0;
     bool demoMode = args.contains(QStringLiteral("--demo"));
+    bool realScreenshot =
+        args.contains(QStringLiteral("--real"));
+    bool cardScreenshot =
+        args.contains(QStringLiteral("--card"));
     const int shotIdx = args.indexOf(QStringLiteral("--screenshot"));
     if (shotIdx >= 0 && shotIdx + 1 < args.size()) {
         screenshotPath = args.at(shotIdx + 1);
@@ -36,7 +40,7 @@ int main(int argc, char *argv[])
 
     QTemporaryDir shotDir;
     const QString dataDir =
-        screenshotPath.isEmpty()
+        (screenshotPath.isEmpty() || realScreenshot)
             ? QStandardPaths::writableLocation(
                   QStandardPaths::AppDataLocation)
             : shotDir.path();
@@ -233,9 +237,20 @@ int main(int argc, char *argv[])
                     QMetaObject::invokeMethod(
                         &window, "loadArticle", Qt::QueuedConnection,
                         Q_ARG(qint64, articles.first().id));
-                }
+                 }
             }
         });
+        if (cardScreenshot) {
+            QTimer::singleShot(1350, &window, [&window] {
+                QMetaObject::invokeMethod(
+                    &window, "startSession", Qt::QueuedConnection,
+                    Q_ARG(QString, QStringLiteral("learn")));
+            });
+            QTimer::singleShot(1700, &window, [&window] {
+                QMetaObject::invokeMethod(&window, "reveal",
+                                          Qt::QueuedConnection);
+            });
+        }
         QTimer::singleShot(2200, &window,
                            [&window, screenshotPath] {
                                window.grab().save(screenshotPath);
