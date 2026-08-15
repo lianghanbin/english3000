@@ -732,6 +732,21 @@ void MainWindow::buildSettings()
     layout->setSpacing(18);
     layout->addStretch();
 
+    auto addRow = [layout](const QString &labelText, QWidget *widget,
+                           int widgetWidth = 320) {
+        auto *row = new QHBoxLayout;
+        row->addStretch();
+        auto *label = new QLabel(labelText);
+        label->setFixedWidth(120);
+        label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        row->addWidget(label);
+        if (widgetWidth > 0)
+            widget->setFixedWidth(widgetWidth);
+        row->addWidget(widget);
+        row->addStretch();
+        layout->addLayout(row);
+    };
+
     auto *pronounceRow = new QHBoxLayout;
     pronounceRow->addStretch();
     m_autoPronounceCheck = new QCheckBox(
@@ -770,8 +785,12 @@ void MainWindow::buildSettings()
     transLayout->addWidget(m_translateEnableCheck);
 
     auto *hotkeyRow = new QHBoxLayout;
-    hotkeyRow->addWidget(new QLabel(QStringLiteral("翻译热键"), transGroup));
+    auto *hotkeyLabel1 = new QLabel(QStringLiteral("翻译热键"), transGroup);
+    hotkeyLabel1->setFixedWidth(70);
+    hotkeyLabel1->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    hotkeyRow->addWidget(hotkeyLabel1);
     m_translateHotkeyEdit = new QKeySequenceEdit(transGroup);
+    m_translateHotkeyEdit->setFixedWidth(150);
     m_translateHotkeyEdit->setKeySequence(QKeySequence(
         m_store->getSetting(QStringLiteral("translate_hotkey"),
                             QStringLiteral("Ctrl+Alt+T"))));
@@ -783,9 +802,12 @@ void MainWindow::buildSettings()
                 applyHotkeys();
             });
     hotkeyRow->addWidget(m_translateHotkeyEdit);
-    hotkeyRow->addWidget(
-        new QLabel(QStringLiteral("截图热键"), transGroup));
+    auto *hotkeyLabel2 = new QLabel(QStringLiteral("截图热键"), transGroup);
+    hotkeyLabel2->setFixedWidth(70);
+    hotkeyLabel2->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    hotkeyRow->addWidget(hotkeyLabel2);
     m_screenshotHotkeyEdit = new QKeySequenceEdit(transGroup);
+    m_screenshotHotkeyEdit->setFixedWidth(150);
     m_screenshotHotkeyEdit->setKeySequence(QKeySequence(
         m_store->getSetting(QStringLiteral("translate_screenshot_hotkey"),
                             QStringLiteral("Ctrl+Alt+O"))));
@@ -801,8 +823,12 @@ void MainWindow::buildSettings()
     transLayout->addLayout(hotkeyRow);
 
     auto *modelRow = new QHBoxLayout;
-    modelRow->addWidget(new QLabel(QStringLiteral("默认引擎"), transGroup));
+    auto *modelLabel = new QLabel(QStringLiteral("默认引擎"), transGroup);
+    modelLabel->setFixedWidth(70);
+    modelLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    modelRow->addWidget(modelLabel);
     m_translateModelCombo = new QComboBox(transGroup);
+    m_translateModelCombo->setFixedWidth(220);
     m_translateModelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
                                    QStringLiteral("qwen2.5:1.5b"));
     m_translateModelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
@@ -837,9 +863,13 @@ void MainWindow::buildSettings()
                           const QString &settingKey,
                           const QString &def) {
         auto *row = new QHBoxLayout;
-        row->addWidget(new QLabel(label, shortcutGroup));
+        auto *lbl = new QLabel(label, shortcutGroup);
+        lbl->setFixedWidth(120);
+        lbl->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        row->addWidget(lbl);
         row->addStretch();
         out = new QKeySequenceEdit(shortcutGroup);
+        out->setFixedWidth(180);
         out->setKeySequence(
             QKeySequence(m_store->getSetting(settingKey, def)));
         row->addWidget(out);
@@ -863,43 +893,28 @@ void MainWindow::buildSettings()
                QStringLiteral("hotkey_known"), QStringLiteral("2"));
     layout->addWidget(shortcutGroup);
 
-    auto *aiUrlRow = new QHBoxLayout;
-    aiUrlRow->addStretch();
-    aiUrlRow->addWidget(new QLabel(QStringLiteral("AI 服务地址"), page));
     m_aiUrlEdit = new QLineEdit(page);
     m_aiUrlEdit->setText(
         m_store->getSetting(QStringLiteral("ai_base_url"),
                             QStringLiteral("http://127.0.0.1:11434")));
-    m_aiUrlEdit->setMinimumWidth(260);
     connect(m_aiUrlEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_base_url"),
                             m_aiUrlEdit->text().trimmed());
         applyAiSettings();
     });
-    aiUrlRow->addWidget(m_aiUrlEdit);
-    aiUrlRow->addStretch();
-    layout->addLayout(aiUrlRow);
+    addRow(QStringLiteral("AI 服务地址"), m_aiUrlEdit);
 
-    auto *aiModelRow = new QHBoxLayout;
-    aiModelRow->addStretch();
-    aiModelRow->addWidget(new QLabel(QStringLiteral("AI 模型"), page));
     m_aiModelEdit = new QLineEdit(page);
     m_aiModelEdit->setText(
         m_store->getSetting(QStringLiteral("ai_model"),
                             QStringLiteral("qwen2.5:1.5b")));
-    m_aiModelEdit->setMinimumWidth(260);
     connect(m_aiModelEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_model"),
                             m_aiModelEdit->text().trimmed());
         applyAiSettings();
     });
-    aiModelRow->addWidget(m_aiModelEdit);
-    aiModelRow->addStretch();
-    layout->addLayout(aiModelRow);
+    addRow(QStringLiteral("AI 模型"), m_aiModelEdit);
 
-    auto *aiProviderRow = new QHBoxLayout;
-    aiProviderRow->addStretch();
-    aiProviderRow->addWidget(new QLabel(QStringLiteral("AI 供应商"), page));
     m_aiProviderCombo = new QComboBox(page);
     m_aiProviderCombo->addItem(
         QStringLiteral("本地 Ollama"),
@@ -918,28 +933,20 @@ void MainWindow::buildSettings()
                     m_aiProviderCombo->itemData(index).toString());
                 applyAiSettings();
             });
-    aiProviderRow->addWidget(m_aiProviderCombo);
-    aiProviderRow->addStretch();
-    layout->addLayout(aiProviderRow);
+    addRow(QStringLiteral("AI 供应商"), m_aiProviderCombo, 320);
 
-    auto *aiKeyRow = new QHBoxLayout;
-    aiKeyRow->addStretch();
-    aiKeyRow->addWidget(new QLabel(QStringLiteral("API Key"), page));
     m_aiKeyEdit = new QLineEdit(page);
     m_aiKeyEdit->setEchoMode(QLineEdit::Password);
     m_aiKeyEdit->setText(
         m_store->getSetting(QStringLiteral("ai_api_key")));
     m_aiKeyEdit->setPlaceholderText(
         QStringLiteral("云端 API 的密钥（本地 Ollama 可留空）"));
-    m_aiKeyEdit->setMinimumWidth(260);
     connect(m_aiKeyEdit, &QLineEdit::editingFinished, this, [this] {
         m_store->setSetting(QStringLiteral("ai_api_key"),
                             m_aiKeyEdit->text().trimmed());
         applyAiSettings();
     });
-    aiKeyRow->addWidget(m_aiKeyEdit);
-    aiKeyRow->addStretch();
-    layout->addLayout(aiKeyRow);
+    addRow(QStringLiteral("API Key"), m_aiKeyEdit);
 
     auto *aiHint = new QLabel(
         QStringLiteral("OpenAI 兼容示例：https://api.deepseek.com 或 "
@@ -967,14 +974,9 @@ void MainWindow::buildSettings()
     updateRow->addStretch();
     layout->addLayout(updateRow);
 
-    auto *dataRow = new QHBoxLayout;
-    dataRow->addStretch();
-    dataRow->addWidget(new QLabel(QStringLiteral("数据目录"), page));
     m_dataDirLabel = new QLabel(QFileInfo(m_store->dbPath()).absolutePath(), page);
     m_dataDirLabel->setObjectName(QStringLiteral("statCaption"));
-    dataRow->addWidget(m_dataDirLabel);
-    dataRow->addStretch();
-    layout->addLayout(dataRow);
+    addRow(QStringLiteral("数据目录"), m_dataDirLabel, 0);
 
     auto *buttonRow = new QHBoxLayout;
     buttonRow->addStretch();
