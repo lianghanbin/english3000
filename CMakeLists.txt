@@ -19,21 +19,21 @@ find_package(Qt6 QUIET COMPONENTS Widgets)
 find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
 find_package(Qt6 QUIET COMPONENTS TextToSpeech)
 if(Qt6Quick_FOUND)
-    qt_add_executable(english3000-mobile MANUAL_FINALIZATION
+    qt_add_executable(english3000_mobile MANUAL_FINALIZATION
         mobile/MobileApp.cpp
         mobile/bridge.cpp
         mobile/bridge.h
     )
-    target_include_directories(english3000-mobile PRIVATE
+    target_include_directories(english3000_mobile PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(english3000-mobile PRIVATE
+    target_link_libraries(english3000_mobile PRIVATE
         core ai Qt6::Quick Qt6::QuickControls2)
     if(Qt6TextToSpeech_FOUND)
-        target_link_libraries(english3000-mobile PRIVATE Qt6::TextToSpeech)
-        target_compile_definitions(english3000-mobile PRIVATE
+        target_link_libraries(english3000_mobile PRIVATE Qt6::TextToSpeech)
+        target_compile_definitions(english3000_mobile PRIVATE
             ENGLISH3000_HAS_TTS=1)
     endif()
-    qt_add_resources(english3000-mobile "mobile_resources"
+    qt_add_resources(english3000_mobile "mobile_resources"
         PREFIX "/"
         FILES
             mobile/qml/main.qml
@@ -47,11 +47,11 @@ if(Qt6Quick_FOUND)
             assets/donate/qr1.jpg
             assets/donate/qr2.jpg)
     if(ANDROID)
-        set_target_properties(english3000-mobile PROPERTIES
+        set_target_properties(english3000_mobile PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR
             ${CMAKE_CURRENT_SOURCE_DIR}/mobile/android)
     endif()
-    qt_finalize_executable(english3000-mobile)
+    qt_finalize_executable(english3000_mobile)
 endif()
 
 add_library(core STATIC

@@ -22,7 +22,7 @@ Qt 官方从 6.12（Beta）开始提供 HarmonyOS 支持：
 - 要求 DevEco Studio + OpenHarmony SDK API 20+（Qt 官方 wiki 提到 API 23）
 - 参考：<https://wiki.qt.io/Qt_for_HarmonyOS_development_with_6.12.0_Beta2>
 - 正式版发布后，本仓库只需在 CI 增加一个鸿蒙构建 job（类似现有 android job），
-  使用 Qt 官方 kit 交叉编译 `english3000-mobile`，再用 DevEco/hvigor 打包 HAP
+  使用 Qt 官方 kit 交叉编译 `english3000_mobile`，再用 DevEco/hvigor 打包 HAP
 
 ### 路线 B：社区 Qt for OpenHarmony（现在就能试）
 
@@ -43,7 +43,7 @@ cmake -B build-ohos \
   -DCMAKE_TOOLCHAIN_FILE=<qt-for-ohos>/toolchain.cmake \
   -DOHOS_SDK=<dev-eco-sdk>/openharmony \
   -DCMAKE_BUILD_TYPE=Release
-cmake --build build-ohos --target english3000-mobile
+cmake --build build-ohos --target english3000_mobile
 # 4. 用 hvigor / DevEco 打包成 HAP，并用华为证书签名
 ```
 
