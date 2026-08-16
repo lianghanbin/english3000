@@ -235,7 +235,7 @@ jobs:
             platform-tools
             platforms;android-34
             build-tools;34.0.0
-            ndk;25.2.9519653
+            ndk;27.2.12479018
       - name: Install host Qt 6.7.3 gcc_64 (QT_HOST_PATH)
         run: |
           sudo apt-get install -y p7zip-full
@@ -247,7 +247,7 @@ jobs:
           echo "QT_ROOT_DIR=/opt/Qt/6.7.3/android_arm64_v8a" >> $GITHUB_ENV
       - name: Configure
         run: |
-          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> $GITHUB_ENV
       - name: Keep only android-34 platform
         run: |
           find $ANDROID_SDK_ROOT/platforms -mindepth 1 -maxdepth 1 -type d \
