@@ -44,6 +44,9 @@ if(Qt6Quick_FOUND)
             mobile/qml/WordListsPage.qml
             mobile/qml/TranslatePage.qml
             mobile/qml/SettingsPage.qml
+            mobile/qml/StatsPage.qml
+            mobile/qml/Theme.qml
+            mobile/qml/qmldir
             assets/oxford3000.csv
             assets/lemma.en.txt
             assets/donate/qr1.jpg

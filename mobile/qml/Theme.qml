@@ -1,0 +1,30 @@
+pragma Singleton
+import QtQuick
+
+QtObject {
+    readonly property color bg: "#f4f7f2"
+    readonly property color card: "#ffffff"
+    readonly property color green: "#2e7d32"
+    readonly property color greenDark: "#1b5e20"
+    readonly property color greenBright: "#4caf50"
+    readonly property color greenSoft: "#e8f5e9"
+    readonly property color greenBorder: "#cfe6d1"
+    readonly property color blue: "#1565c0"
+    readonly property color blueBright: "#2f7fd6"
+    readonly property color blueSoft: "#e3f2fd"
+    readonly property color red: "#c62828"
+    readonly property color redBright: "#d64545"
+    readonly property color redSoft: "#ffebee"
+    readonly property color amber: "#f9a825"
+    readonly property color amberSoft: "#fff8e1"
+    readonly property color textDark: "#183421"
+    readonly property color textBody: "#38463c"
+    readonly property color textMuted: "#7a8a7e"
+    readonly property color track: "#e3eae2"
+    readonly property color line: "#e2ece2"
+    readonly property color navInactive: "#9aa99c"
+    readonly property color deskDark: "#142036"
+    readonly property color deskBorder: "#26395e"
+    readonly property color deskText: "#dce6f8"
+    readonly property color deskAccent: "#9be8b8"
+}

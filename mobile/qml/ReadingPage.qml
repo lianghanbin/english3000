@@ -1,10 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "."
 
 Page {
     property var articles: []
     property string html: ""
+    property string lastSource: ""
+    property bool translating: false
+
+    background: Rectangle { color: T.bg }
 
     ColumnLayout {
         anchors.fill: parent
@@ -12,107 +17,294 @@ Page {
         spacing: 8
 
         RowLayout {
-            ComboBox {
-                id: articleCombo
-                Layout.fillWidth: true
-                model: articles
-                textRole: "title"
-                onActivated: loadArticle(articles[currentIndex].id)
-            }
-            Button {
-                text: "翻译全文"
-                enabled: articleCombo.currentIndex >= 0
-                onClicked: bridge.translate(
-                    bridge.articleContent(
-                        articles[articleCombo.currentIndex].id),
-                    "qwen2.5:1.5b")
-            }
-        }
-
-        Flickable {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            contentWidth: width
-            contentHeight: textItem.height
-            clip: true
             Text {
-                id: textItem
-                width: parent.width
-                text: html
-                textFormat: Text.RichText
-                wrapMode: Text.Wrap
-                onLinkActivated: function(link) {
-                    menuPopup.word = link.replace("word://", "")
-                    menuPopup.open()
+                text: "AI 阅读"
+                font.pixelSize: 20
+                font.bold: true
+                color: T.textDark
+            }
+            Item { Layout.fillWidth: true }
+            Rectangle {
+                width: translateBtn.implicitWidth + 28
+                height: 30
+                radius: 15
+                color: translating ? T.greenSoft : T.green
+                Text {
+                    id: translateBtn
+                    anchors.centerIn: parent
+                    text: translating ? "翻译中…" : "翻译全文"
+                    font.pixelSize: 12
+                    font.bold: true
+                    color: translating ? T.green : "#ffffff"
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !translating && articleCombo.currentIndex >= 0
+                    onClicked: translateAll()
                 }
             }
         }
 
-        TextArea {
-            id: translationView
+        ComboBox {
+            id: articleCombo
             Layout.fillWidth: true
-            Layout.preferredHeight: 120
-            readOnly: true
-            placeholderText: "译文显示在这里"
+            model: articles
+            textRole: "title"
+            onActivated: loadArticle(articles[currentIndex].id)
         }
 
-        Label {
-            text: "红色=未入词表 · 蓝=其他词表 · 绿=当前词表 · 黑=已掌握"
-            color: "#888888"
-            font.pixelSize: 12
-            wrapMode: Text.Wrap
+        Rectangle {
             Layout.fillWidth: true
+            Layout.fillHeight: true
+            radius: 18
+            color: T.card
+            border.color: T.line
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
+
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: width
+                    contentHeight: articleText.height
+                    Text {
+                        id: articleText
+                        width: parent.width
+                        text: html
+                        textFormat: Text.RichText
+                        wrapMode: Text.Wrap
+                        onLinkActivated: function(link) {
+                            popupWord.word = link.replace("word://", "")
+                            popupWord.open()
+                        }
+                    }
+                }
+
+                Row {
+                    Layout.fillWidth: true
+                    spacing: 9
+                    LegendDot { dotColor: T.green; label: "当前词表" }
+                    LegendDot { dotColor: T.blue; label: "其他词表" }
+                    LegendDot { dotColor: T.red; label: "未入词表" }
+                    LegendDot { dotColor: "#333333"; label: "已掌握" }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 110
+            radius: 16
+            color: T.deskDark
+            border.color: T.deskBorder
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 5
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "AI 翻译"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: T.deskText
+                    }
+                    Item { Layout.fillWidth: true }
+                    Rectangle {
+                        width: 66
+                        height: 18
+                        radius: 9
+                        color: "transparent"
+                        border.color: T.deskAccent
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "自动收生词"
+                            font.pixelSize: 9
+                            color: T.deskAccent
+                        }
+                    }
+                }
+
+                Text {
+                    id: srcText
+                    Layout.fillWidth: true
+                    text: lastSource
+                    font.pixelSize: 12
+                    color: T.deskText
+                    elide: Text.ElideRight
+                    visible: lastSource !== ""
+                }
+
+                Row {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Row {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 4
+                        Repeater {
+                            model: 3
+                            Rectangle {
+                                width: 7
+                                height: 7
+                                radius: 4
+                                color: T.deskAccent
+                                opacity: 0.25
+                                SequentialAnimation on opacity {
+                                    running: translating
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 1; duration: 240 }
+                                    NumberAnimation { to: 0.25; duration: 240 }
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        text: translating ? "正在翻译…"
+                                          : "点文章里的词可发音/翻译/收生词"
+                        font.pixelSize: 10
+                        color: translating ? T.deskAccent : "#7b93c2"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                Text {
+                    id: resultText
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: ""
+                    font.pixelSize: 13
+                    font.bold: true
+                    color: T.deskAccent
+                    wrapMode: Text.Wrap
+                    visible: text !== ""
+                }
+            }
         }
     }
 
     Popup {
-        id: menuPopup
+        id: popupWord
         property string word: ""
         anchors.centerIn: parent
-        width: parent.width * 0.8
+        width: parent.width * 0.84
         modal: true
         focus: true
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 8
-            Label {
-                text: menuPopup.word
+        background: Rectangle {
+            radius: 18
+            color: T.deskDark
+            border.color: T.deskBorder
+        }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: popupWord.word
+                font.pixelSize: 21
                 font.bold: true
-                horizontalAlignment: Text.AlignHCenter
-                Layout.fillWidth: true
+                color: T.deskText
+                Layout.alignment: Qt.AlignHCenter
             }
-            Button {
-                text: "发音"
+            RowLayout {
                 Layout.fillWidth: true
-                onClicked: {
-                    bridge.speak(menuPopup.word)
-                    menuPopup.close()
+                spacing: 8
+                PopBtn {
+                    text: "发音"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        bridge.speak(popupWord.word)
+                        popupWord.close()
+                    }
+                }
+                PopBtn {
+                    text: "翻译"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        translateWord(popupWord.word)
+                        popupWord.close()
+                    }
                 }
             }
-            Button {
-                text: "翻译这个单词"
-                Layout.fillWidth: true
-                onClicked: {
-                    bridge.translate(menuPopup.word, "qwen2.5:1.5b")
-                    menuPopup.close()
-                }
-            }
-            Button {
+            PopBtn {
                 text: "加入阅读词表"
                 Layout.fillWidth: true
                 onClicked: {
-                    bridge.addReadingWord(menuPopup.word)
-                    menuPopup.close()
+                    bridge.addReadingWord(popupWord.word)
+                    showToast("已加入阅读词表")
+                    popupWord.close()
                 }
             }
+        }
+    }
+
+    Rectangle {
+        id: toast
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 10
+        width: toastText.implicitWidth + 28
+        height: 34
+        radius: 17
+        color: "#111827"
+        opacity: 0
+        z: 60
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            color: "#ffffff"
+            font.pixelSize: 13
+        }
+        NumberAnimation on opacity {
+            id: toastAnim
+            from: 0
+            to: 1
+            duration: 200
+        }
+        Timer {
+            id: toastTimer
+            interval: 1400
+            onTriggered: toast.opacity = 0
         }
     }
 
     Connections {
         target: bridge
         function onTranslationReady(t) {
-            translationView.text = t
+            resultText.text = t
+            translating = false
         }
+        function onTranslationFailed(m) {
+            resultText.text = "翻译失败:" + m
+            translating = false
+        }
+    }
+
+    function showToast(msg) {
+        toastText.text = msg
+        toastAnim.start()
+        toastTimer.start()
+    }
+
+    function translateAll() {
+        var a = articles[articleCombo.currentIndex]
+        if (!a) return
+        lastSource = bridge.articleContent(a.id)
+        translating = true
+        resultText.text = ""
+        bridge.translate(lastSource, bridge.aiModel())
+    }
+
+    function translateWord(w) {
+        lastSource = w
+        translating = true
+        resultText.text = ""
+        bridge.translate(w, bridge.aiModel())
     }
 
     function loadArticle(id) {
@@ -127,4 +319,44 @@ Page {
     }
 
     Component.onCompleted: load()
+
+    component LegendDot: Row {
+        id: root
+        property color dotColor: T.green
+        property string label: ""
+        spacing: 4
+        Rectangle {
+            width: 9
+            height: 9
+            radius: 5
+            color: root.dotColor
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        Text {
+            text: root.label
+            font.pixelSize: 9
+            color: T.textMuted
+            anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    component PopBtn: Rectangle {
+        id: root
+        property string text: ""
+        signal clicked()
+        height: 38
+        radius: 19
+        color: T.green
+        Text {
+            anchors.centerIn: parent
+            text: root.text
+            font.pixelSize: 13
+            font.bold: true
+            color: "#ffffff"
+        }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.clicked()
+        }
+    }
 }

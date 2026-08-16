@@ -70,7 +70,9 @@ QVariantList MobileBridge::newCards(int limit)
         QVariantMap card;
         card.insert(QStringLiteral("id"), w.itemId);
         card.insert(QStringLiteral("word"), w.word);
+        card.insert(QStringLiteral("rank"), w.rank);
         card.insert(QStringLiteral("pos"), w.pos);
+        card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
         cards.append(card);
@@ -86,7 +88,9 @@ QVariantList MobileBridge::reviewCards(int limit)
         QVariantMap card;
         card.insert(QStringLiteral("id"), w.itemId);
         card.insert(QStringLiteral("word"), w.word);
+        card.insert(QStringLiteral("rank"), w.rank);
         card.insert(QStringLiteral("pos"), w.pos);
+        card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
         cards.append(card);
@@ -107,6 +111,27 @@ QVariantList MobileBridge::wordLists()
         lists.append(m);
     }
     return lists;
+}
+
+QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
+{
+    QVariantList rows;
+    const QVector<Word> words = m_store->wordsInWordList(listId);
+    const int n = qMin(limit > 0 ? limit : 50, words.size());
+    for (int i = 0; i < n; ++i) {
+        const Word &w = words.at(i);
+        QVariantMap r;
+        r.insert(QStringLiteral("word"), w.word);
+        r.insert(QStringLiteral("pos"), w.pos);
+        r.insert(QStringLiteral("meaning"), w.meaning);
+        const QString status =
+            w.box >= 6 ? QStringLiteral("mastered")
+                       : (w.box == 0 ? QStringLiteral("new")
+                                     : QStringLiteral("learning"));
+        r.insert(QStringLiteral("status"), status);
+        rows.append(r);
+    }
+    return rows;
 }
 
 void MobileBridge::setCurrentList(qint64 listId)
