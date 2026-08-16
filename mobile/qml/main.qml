@@ -74,19 +74,42 @@ ApplicationWindow {
 
             Row {
                 anchors.fill: parent
-                Repeater {
-                    model: ["学习", "阅读", "词表", "翻译", "数据", "设置"]
-                    NavItem {
-                        label: modelData
-                        active: swipe.currentIndex === index
-                        onClicked: swipe.currentIndex = index
-                    }
+                NavItem {
+                    label: "学习"
+                    active: swipe.currentIndex === 0
+                    onClicked: swipe.currentIndex = 0
+                }
+                NavItem {
+                    label: "阅读"
+                    active: swipe.currentIndex === 1
+                    onClicked: swipe.currentIndex = 1
+                }
+                NavItem {
+                    label: "词表"
+                    active: swipe.currentIndex === 2
+                    onClicked: swipe.currentIndex = 2
+                }
+                NavItem {
+                    label: "翻译"
+                    active: swipe.currentIndex === 3
+                    onClicked: swipe.currentIndex = 3
+                }
+                NavItem {
+                    label: "数据"
+                    active: swipe.currentIndex === 4
+                    onClicked: swipe.currentIndex = 4
+                }
+                NavItem {
+                    label: "设置"
+                    active: swipe.currentIndex === 5
+                    onClicked: swipe.currentIndex = 5
                 }
             }
         }
     }
 
     component NavItem: Item {
+        id: root
         property string label: ""
         property bool active: false
         signal clicked()
@@ -100,19 +123,19 @@ ApplicationWindow {
                 width: 6
                 height: 6
                 radius: 3
-                color: active ? T.green : "transparent"
+                color: root.active ? T.green : "transparent"
                 anchors.horizontalCenter: parent.horizontalCenter
             }
             Text {
-                text: label
+                text: root.label
                 font.pixelSize: 18
-                font.bold: active
-                color: active ? T.green : T.navInactive
+                font.bold: root.active
+                color: root.active ? T.green : T.navInactive
             }
         }
         MouseArea {
             anchors.fill: parent
-            onClicked: parent.clicked()
+            onClicked: root.clicked()
         }
     }
 }
