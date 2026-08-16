@@ -236,6 +236,14 @@ jobs:
             platforms;android-34
             build-tools;34.0.0
             ndk;25.2.9519653
+      - uses: jurplel/install-qt-action@v4
+        with:
+          # 桌面版 Qt 用作 QT_HOST_PATH(跨编译必需),仓库结构 aqt 仍兼容
+          version: "6.7.3"
+          host: "linux"
+          target: "desktop"
+          arch: "gcc_64"
+          cache: true
       - name: Install Qt 6.7.3 android kits (手动组装,绕过 aqt 对新 CDN 结构的兼容问题)
         run: |
           sudo apt-get install -y p7zip-full
