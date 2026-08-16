@@ -27,7 +27,7 @@ if(Qt6Quick_FOUND)
     target_include_directories(english3000_mobile PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(english3000_mobile PRIVATE
-        core ai Qt6::Quick Qt6::QuickControls2)
+        core ai Qt6::Quick Qt6::QuickControls2 Qt6::Sql)
     # Android 打包必需:显式导入 SQLite 驱动插件(否则运行时 Driver not loaded)
     qt_import_plugins(english3000_mobile INCLUDE Qt6::QSQLiteDriverPlugin)
     if(Qt6TextToSpeech_FOUND)
