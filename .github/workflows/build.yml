@@ -242,7 +242,7 @@ jobs:
           version: "6.7.*"
           host: "linux"
           target: "android"
-          arch: "android_arm64_v8a"
+          arch: "android_arm64_v8a,android_x86_64"
           cache: true
       - name: Configure
         run: |
@@ -258,12 +258,36 @@ jobs:
             -DANDROID_ABI=arm64-v8a
       - name: Build APK
         run: cmake --build build-android --target apk
+      - name: Build x86_64 APK
+        run: |
+          X64_TC=$(find "$QT_ROOT_DIR" -name qt.toolchain.cmake -path '*x86_64*' | head -1)
+          echo "Using toolchain: $X64_TC"
+          cmake -B build-android-x86_64 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$X64_TC" \
+            -DANDROID_ABI=x86_64
+          cmake --build build-android-x86_64 --target apk
+      - name: Sign APKs (debug keystore)
+        run: |
+          keytool -genkeypair -keystore /tmp/debug.keystore -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+          for apk in build-android/android-build/*.apk build-android-x86_64/android-build/*.apk; do
+            "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" sign \
+              --ks /tmp/debug.keystore --ks-pass pass:android --key-pass pass:android \
+              --out "$apk.signed" "$apk"
+            mv "$apk.signed" "$apk"
+            echo "signed: $apk"
+          done
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: english3000-android
-          path: build-android/android-build/*.apk
+          path: |
+            build-android/android-build/*.apk
+            build-android-x86_64/android-build/*.apk
       - name: Publish Android release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
