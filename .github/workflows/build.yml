@@ -239,7 +239,8 @@ jobs:
       - id: installqt
         uses: jurplel/install-qt-action@v4
         with:
-          version: "6.7.*"
+          # 6.7.x 已被 Qt 从安卓在线仓库下架(aqt 404),改用 6.8.3
+          version: "6.8.3"
           host: "linux"
           target: "android"
           arch: "android_arm64_v8a,android_x86_64"
