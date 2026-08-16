@@ -25,6 +25,11 @@ int main(int argc, char *argv[])
         store.importWordForms(QStringLiteral(":/assets/lemma.en.txt"));
         store.seedBuiltinWordList();
     }
+    if (store.currentWordListId() < 0) {
+        const auto lists = store.listWordLists();
+        if (!lists.isEmpty())
+            store.setCurrentWordList(lists.first().id);
+    }
 
     AiClient ai;
     ai.setEndpoint(

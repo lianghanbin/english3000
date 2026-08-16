@@ -298,8 +298,13 @@ void MobileBridge::addReadingWord(const QString &word)
 void MobileBridge::speak(const QString &text)
 {
 #ifdef ENGLISH3000_HAS_TTS
-    if (!m_tts)
+    if (!m_tts) {
+        // 没有可用 TTS 引擎时不要创建对象:安卓插件在初始化失败后
+        // 会从错误线程回调并导致应用退出(Waydroid/精简系统无引擎)。
+        if (QTextToSpeech::availableEngines().isEmpty())
+            return;
         m_tts = new QTextToSpeech(this);
+    }
     m_tts->say(text);
 #else
     Q_UNUSED(text);
