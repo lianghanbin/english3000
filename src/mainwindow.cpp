@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
 #include <QGroupBox>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -42,6 +43,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSet>
@@ -176,7 +178,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
     , m_store(store)
 {
     setWindowTitle(QStringLiteral("English 3000"));
-    resize(980, 680);
+    resize(900, 620);
 
     m_tabs = new QTabWidget(this);
     m_tabs->setDocumentMode(true);
@@ -443,7 +445,7 @@ void MainWindow::buildStudy()
     overviewLayout->addWidget(m_dashboardPage);
     m_homeStack->addWidget(overview);
     m_homeStack->addWidget(m_studyStack);
-    m_tabs->addTab(m_homeStack, QStringLiteral("学习"));
+    m_tabs->addTab(makeScrollPage(m_homeStack), QStringLiteral("学习"));
 }
 
 void MainWindow::buildReading()
@@ -571,7 +573,7 @@ void MainWindow::buildReading()
     m_aiPanel->hide();
     layout->addWidget(m_aiPanel);
 
-    m_tabs->addTab(page, QStringLiteral("阅读"));
+    m_tabs->addTab(makeScrollPage(page), QStringLiteral("阅读"));
     refreshArticleList();
 }
 
@@ -682,7 +684,7 @@ void MainWindow::buildWordLists()
     m_wordListPage = new WordListPage(m_store, this);
     connect(m_wordListPage, &WordListPage::wordSpeakRequested, this,
             &MainWindow::speakText);
-    m_tabs->insertTab(TabWordLists, m_wordListPage,
+    m_tabs->insertTab(TabWordLists, makeScrollPage(m_wordListPage),
                       QStringLiteral("词表"));
 }
 
@@ -722,7 +724,7 @@ void MainWindow::buildStats()
     hint->setAlignment(Qt::AlignCenter);
     layout->addWidget(hint);
 
-    m_tabs->addTab(page, QStringLiteral("数据"));
+    m_tabs->addTab(makeScrollPage(page), QStringLiteral("数据"));
 }
 
 void MainWindow::buildSettings()
@@ -764,6 +766,42 @@ void MainWindow::buildSettings()
     pronounceRow->addWidget(m_autoPronounceCheck);
     pronounceRow->addStretch();
     layout->addLayout(pronounceRow);
+
+    auto *scaleRow = new QHBoxLayout;
+    scaleRow->addStretch();
+    auto *scaleLabel = new QLabel(QStringLiteral("界面缩放"), page);
+    scaleLabel->setFixedWidth(120);
+    scaleLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    scaleRow->addWidget(scaleLabel);
+    m_uiScaleCombo = new QComboBox(page);
+    m_uiScaleCombo->setFixedWidth(140);
+    m_uiScaleCombo->addItem(QStringLiteral("80%"), 0.8);
+    m_uiScaleCombo->addItem(QStringLiteral("90%"), 0.9);
+    m_uiScaleCombo->addItem(QStringLiteral("100%"), 1.0);
+    m_uiScaleCombo->addItem(QStringLiteral("110%"), 1.1);
+    m_uiScaleCombo->addItem(QStringLiteral("125%"), 1.25);
+    m_uiScale = qBound(
+        0.7, m_store->getSetting(QStringLiteral("ui_scale"),
+                                 QStringLiteral("1.0"))
+                  .toDouble(),
+        1.5);
+    const int scaleIndex = m_uiScaleCombo->findData(m_uiScale);
+    m_uiScaleCombo->setCurrentIndex(scaleIndex < 0 ? 2 : scaleIndex);
+    connect(m_uiScaleCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+                if (index >= 0)
+                    setUiScale(m_uiScaleCombo->itemData(index).toDouble());
+            });
+    scaleRow->addWidget(m_uiScaleCombo);
+    scaleRow->addStretch();
+    layout->addLayout(scaleRow);
+
+    auto *scaleHint = new QLabel(
+        QStringLiteral("快捷键：Ctrl++ 放大 · Ctrl+- 缩小 · Ctrl+0 恢复默认"),
+        page);
+    scaleHint->setObjectName(QStringLiteral("hintLabel"));
+    scaleHint->setAlignment(Qt::AlignCenter);
+    layout->addWidget(scaleHint);
 
     auto *transGroup = new QGroupBox(QStringLiteral("全局翻译"), page);
     auto *transLayout = new QVBoxLayout(transGroup);
@@ -1012,7 +1050,16 @@ void MainWindow::buildSettings()
     layout->addWidget(note);
     layout->addStretch();
 
-    m_tabs->addTab(page, QStringLiteral("设置"));
+    m_tabs->addTab(makeScrollPage(page), QStringLiteral("设置"));
+}
+
+QScrollArea *MainWindow::makeScrollPage(QWidget *page)
+{
+    auto *area = new QScrollArea;
+    area->setWidgetResizable(true);
+    area->setFrameShape(QFrame::NoFrame);
+    area->setWidget(page);
+    return area;
 }
 
 void MainWindow::applyStyle()
@@ -1055,7 +1102,42 @@ void MainWindow::applyStyle()
         QProgressBar::chunk { background: #2e7d32; border-radius: 7px; }
         QTabWidget::pane { border: none; }
     )");
-    qApp->setStyleSheet(qss);
+    static const QRegularExpression pxRe(QStringLiteral("(\\d+)px"));
+    QString scaled;
+    int last = 0;
+    QRegularExpressionMatchIterator it = pxRe.globalMatch(qss);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        scaled += qss.mid(last, m.capturedStart() - last);
+        scaled += QString::number(
+                     qRound(m.captured(1).toInt() * m_uiScale))
+                  + QStringLiteral("px");
+        last = m.capturedEnd();
+    }
+    scaled += qss.mid(last);
+
+    QFont f = qApp->font();
+    f.setPixelSize(qRound(14 * m_uiScale));
+    qApp->setFont(f);
+    qApp->setStyleSheet(scaled);
+    if (m_progress)
+        m_progress->setFixedWidth(qRound(520 * m_uiScale));
+}
+
+void MainWindow::setUiScale(double scale)
+{
+    scale = qBound(0.7, scale, 1.5);
+    if (qAbs(scale - m_uiScale) < 0.001)
+        return;
+    m_uiScale = scale;
+    m_store->setSetting(QStringLiteral("ui_scale"),
+                        QString::number(scale));
+    if (m_uiScaleCombo) {
+        m_uiScaleCombo->blockSignals(true);
+        m_uiScaleCombo->setCurrentIndex(m_uiScaleCombo->findData(scale));
+        m_uiScaleCombo->blockSignals(false);
+    }
+    applyStyle();
 }
 
 // ---------- 数据刷新 ----------
@@ -2034,6 +2116,18 @@ void MainWindow::applyShortcuts()
         m_reviewShortcut->deleteLater();
         m_reviewShortcut = nullptr;
     }
+    if (m_zoomInShortcut) {
+        m_zoomInShortcut->deleteLater();
+        m_zoomInShortcut = nullptr;
+    }
+    if (m_zoomOutShortcut) {
+        m_zoomOutShortcut->deleteLater();
+        m_zoomOutShortcut = nullptr;
+    }
+    if (m_zoomResetShortcut) {
+        m_zoomResetShortcut->deleteLater();
+        m_zoomResetShortcut = nullptr;
+    }
     m_learnShortcut = new QShortcut(
         QKeySequence(m_store->getSetting(QStringLiteral("hotkey_learn"),
                                          QStringLiteral("Ctrl+N"))),
@@ -2046,6 +2140,25 @@ void MainWindow::applyShortcuts()
         this);
     connect(m_reviewShortcut, &QShortcut::activated, this,
             [this] { startSession(QStringLiteral("review")); });
+
+    m_zoomInShortcut = new QShortcut(
+        QKeySequence(Qt::CTRL | Qt::Key_Plus), this);
+    connect(m_zoomInShortcut, &QShortcut::activated, this,
+            [this] { setUiScale(m_uiScale + 0.1); });
+    auto *zoomInAlt = new QShortcut(
+        QKeySequence(Qt::CTRL | Qt::Key_Equal), this);
+    connect(zoomInAlt, &QShortcut::activated, this,
+            [this] { setUiScale(m_uiScale + 0.1); });
+
+    m_zoomOutShortcut = new QShortcut(
+        QKeySequence(Qt::CTRL | Qt::Key_Minus), this);
+    connect(m_zoomOutShortcut, &QShortcut::activated, this,
+            [this] { setUiScale(m_uiScale - 0.1); });
+
+    m_zoomResetShortcut = new QShortcut(
+        QKeySequence(Qt::CTRL | Qt::Key_0), this);
+    connect(m_zoomResetShortcut, &QShortcut::activated, this,
+            [this] { setUiScale(1.0); });
 }
 
 void MainWindow::demoJumpToList(qint64 listId)
