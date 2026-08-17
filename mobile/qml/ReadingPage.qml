@@ -136,9 +136,27 @@ Page {
                         text: html
                         textFormat: Text.RichText
                         wrapMode: Text.Wrap
-                        onLinkActivated: function(link) {
-                            popupWord.word = link.replace("word://", "")
-                            popupWord.open()
+                        TapHandler {
+                            acceptedButtons: Qt.LeftButton
+                            longPressThreshold: 600
+                            onTapped: function(eventPoint) {
+                                var link = articleText.linkAt(
+                                    eventPoint.position.x,
+                                    eventPoint.position.y)
+                                if (link !== "") {
+                                    var w = link.replace("word://", "")
+                                    bridge.speak(w)
+                                }
+                            }
+                            onLongPressed: function(eventPoint) {
+                                var link = articleText.linkAt(
+                                    eventPoint.position.x,
+                                    eventPoint.position.y)
+                                if (link !== "") {
+                                    popupWord.word = link.replace("word://", "")
+                                    popupWord.open()
+                                }
+                            }
                         }
                     }
                 }
@@ -226,7 +244,7 @@ Page {
                     }
                     Text {
                         text: translating ? "正在翻译…"
-                                          : "点文章里的词可发音/翻译/收生词"
+                                          : "单击单词发音 · 长按单词出菜单"
                         font.pixelSize: 10
                         color: translating ? T.deskAccent : "#7b93c2"
                         anchors.verticalCenter: parent.verticalCenter
