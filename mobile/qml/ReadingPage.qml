@@ -28,25 +28,6 @@ Page {
             }
             Item { Layout.fillWidth: true }
             Rectangle {
-                width: genBtn.implicitWidth + 24
-                height: 30
-                radius: 15
-                color: genBusy ? T.greenSoft : T.green
-                Text {
-                    id: genBtn
-                    anchors.centerIn: parent
-                    text: genBusy ? "生成中…" : "AI 生成"
-                    font.pixelSize: 12
-                    font.bold: true
-                    color: genBusy ? T.green : "#ffffff"
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: !genBusy
-                    onClicked: genPopup.open()
-                }
-            }
-            Rectangle {
                 width: readBtn.implicitWidth + 24
                 height: 30
                 radius: 15
@@ -88,6 +69,12 @@ Page {
         RowLayout {
             Layout.fillWidth: true
             spacing: 6
+            ChipBtn {
+                text: genBusy ? "生成中…" : "✦ AI 生成"
+                Layout.fillWidth: true
+                enabled: !genBusy
+                onClicked: genPopup.open()
+            }
             ChipBtn {
                 text: "💬 对话练习"
                 Layout.fillWidth: true
@@ -492,6 +479,25 @@ Page {
                     popupWord.close()
                 }
             }
+            PopBtn {
+                text: "翻译本句"
+                Layout.fillWidth: true
+                onClicked: {
+                    var a = articles[articleCombo.currentIndex]
+                    if (!a) {
+                        showToast("没有当前文章")
+                        return
+                    }
+                    var s = bridge.sentenceForArticle(a.id,
+                                                       popupWord.word)
+                    if (s === "") {
+                        showToast("没找到所在句子")
+                        return
+                    }
+                    translateWord(s)
+                    popupWord.close()
+                }
+            }
         }
     }
 
@@ -806,12 +812,14 @@ Page {
     component ChipBtn: Rectangle {
         id: root
         property string text: ""
+        property bool enabled: true
         signal clicked()
         height: 32
         radius: 16
         color: T.greenSoft
         border.color: T.greenBorder
         border.width: 1
+        opacity: root.enabled ? 1 : 0.5
         Text {
             anchors.centerIn: parent
             text: root.text
@@ -821,6 +829,7 @@ Page {
         }
         MouseArea {
             anchors.fill: parent
+            enabled: root.enabled
             onClicked: root.clicked()
         }
     }

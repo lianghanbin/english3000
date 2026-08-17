@@ -96,13 +96,6 @@ Page {
                         aiPopup.open()
                     }
                 }
-                Text {
-                    text: "词表即书\n进度独立记录"
-                    font.pixelSize: 10
-                    color: T.textMuted
-                    horizontalAlignment: Text.AlignHCenter
-                    Layout.fillWidth: true
-                }
             }
         }
 

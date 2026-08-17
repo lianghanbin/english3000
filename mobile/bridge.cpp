@@ -139,16 +139,6 @@ int MobileBridge::streak() const
     return m_store->streak();
 }
 
-int MobileBridge::todayNew() const
-{
-    return m_store->dailySummary().newCount;
-}
-
-int MobileBridge::todayReview() const
-{
-    return m_store->dailySummary().reviewCount;
-}
-
 QString MobileBridge::currentListName() const
 {
     return m_store->currentWordListName();
@@ -373,6 +363,7 @@ QString MobileBridge::articleHtml(qint64 articleId)
     };
 
     QString html = QStringLiteral(
+        "<style>a { text-decoration: none; }</style>"
         "<div style='font-size:18px; line-height:1.7;'>");
     QString word;
     const QString content = article->content;
@@ -406,6 +397,15 @@ QString MobileBridge::articleContent(qint64 articleId)
 {
     const std::optional<Article> article = m_store->getArticle(articleId);
     return article ? article->content : QString();
+}
+
+QString MobileBridge::sentenceForArticle(qint64 articleId,
+                                         const QString &word)
+{
+    const std::optional<Article> article = m_store->getArticle(articleId);
+    if (!article)
+        return {};
+    return WordStore::sentenceContaining(article->content, word.trimmed());
 }
 
 void MobileBridge::addReadingWord(const QString &word)

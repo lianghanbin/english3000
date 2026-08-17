@@ -140,10 +140,6 @@ Page {
                         label: "核心 3000 掌握"
                         pct: total === 0 ? 0 : bridge.masteredCount / total
                     }
-                    ProgressRow {
-                        label: "连续学习(30 天目标)"
-                        pct: Math.min(bridge.streak / 30, 1)
-                    }
                 }
             }
         }

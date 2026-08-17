@@ -65,13 +65,6 @@ Page {
                 Layout.fillWidth: true
                 onClicked: load("review")
             }
-            Text {
-                text: "今日 新学 " + bridge.todayNew()
-                      + " · 复习 " + bridge.todayReview()
-                font.pixelSize: 11
-                color: T.textMuted
-                Layout.alignment: Qt.AlignVCenter
-            }
         }
 
         Rectangle {
