@@ -11,11 +11,6 @@
 #include <QSet>
 #include <QUrl>
 
-#if defined(Q_OS_ANDROID)
-#include <QMediaPlayer>
-#include <QDebug>
-#endif
-
 #ifdef ENGLISH3000_HAS_TTS
 #include <QTextToSpeech>
 #endif
@@ -381,22 +376,14 @@ void MobileBridge::speak(const QString &text)
 {
 #ifdef ENGLISH3000_HAS_TTS
 #if defined(Q_OS_ANDROID)
-    // Waydroid 精简系统的安卓 TTS 框架绑定不上引擎,改用电脑上的
-    // espeak-ng 合成(经本机 AI 中继 /tts 接口),播放稳定性高。
+    // Waydroid 的安卓 TTS/音频栈不可靠:直接让本机中继用 espeak-ng
+    // 合成并在电脑上播放(/play 接口),声音从宿主机扬声器出来。
     const QString t = text.trimmed();
     if (t.isEmpty())
         return;
-    if (!m_player) {
-        m_player = new QMediaPlayer(this);
-        connect(m_player, &QMediaPlayer::errorOccurred, this,
-                [](QMediaPlayer::Error error, const QString &msg) {
-                    qWarning() << "TTS player error" << error << msg;
-                });
-    }
-    const QUrl url(QStringLiteral("http://192.168.240.1:8099/tts?text=")
+    const QUrl url(QStringLiteral("http://192.168.240.1:8099/play?text=")
                    + QString::fromLatin1(QUrl::toPercentEncoding(t)));
-    m_player->setSource(url);
-    m_player->play();
+    m_net->get(QNetworkRequest(url));
 #else
     if (!m_tts) {
         // 没有可用 TTS 引擎时不要创建对象:安卓插件在初始化失败后

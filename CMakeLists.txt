@@ -18,7 +18,6 @@ find_package(Qt6 QUIET COMPONENTS Widgets)
 
 find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
 find_package(Qt6 QUIET COMPONENTS TextToSpeech)
-find_package(Qt6 QUIET COMPONENTS Multimedia)
 if(Qt6Quick_FOUND)
     qt_add_executable(english3000_mobile MANUAL_FINALIZATION
         mobile/MobileApp.cpp
@@ -31,9 +30,6 @@ if(Qt6Quick_FOUND)
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(english3000_mobile PRIVATE
         core ai Qt6::Quick Qt6::QuickControls2 Qt6::Sql)
-    if(Qt6Multimedia_FOUND)
-        target_link_libraries(english3000_mobile PRIVATE Qt6::Multimedia)
-    endif()
     # Android 打包必需:显式导入 SQLite 驱动插件(否则运行时 Driver not loaded)
     qt_import_plugins(english3000_mobile INCLUDE Qt6::QSQLiteDriverPlugin)
     if(Qt6TextToSpeech_FOUND)

@@ -7,9 +7,6 @@ class AiClient;
 class AiProbe;
 class QNetworkAccessManager;
 class QNetworkReply;
-#if defined(Q_OS_ANDROID)
-class QMediaPlayer;
-#endif
 class QTextToSpeech;
 class WordStore;
 
@@ -104,10 +101,6 @@ private:
     QStringList m_chatHistory;
     bool m_pendingChat = false;
 #ifdef ENGLISH3000_HAS_TTS
-#if defined(Q_OS_ANDROID)
-    QMediaPlayer *m_player = nullptr;
-#else
     QTextToSpeech *m_tts = nullptr;
-#endif
 #endif
 };
