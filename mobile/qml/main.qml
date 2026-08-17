@@ -15,47 +15,10 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
-            width: parent.width
-            height: 32
-            color: T.bg
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                Text {
-                    id: clockText
-                    font.pixelSize: 19
-                    font.bold: true
-                    color: "#1a1a1a"
-                    function update() {
-                        var d = new Date()
-                        var h = d.getHours()
-                        var m = d.getMinutes()
-                        text = (h < 10 ? "0" : "") + h + ":"
-                               + (m < 10 ? "0" : "") + m
-                    }
-                    Timer {
-                        interval: 15000
-                        repeat: true
-                        running: true
-                        onTriggered: clockText.update()
-                    }
-                    Component.onCompleted: update()
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: "▮▮▮ 100%"
-                    font.pixelSize: 17
-                    color: "#333333"
-                }
-            }
-        }
-
         SwipeView {
             id: swipe
             width: parent.width
-            height: parent.height - 32 - 56
+            height: parent.height - 56
             interactive: true
 
             StudyPage {}
