@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/x86_64-android-apk]
   workflow_dispatch:
 
 jobs:
@@ -267,18 +267,39 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$X64_TC" \
             -DANDROID_ABI=x86_64
           cmake --build build-android-x86_64 --target apk
-      - name: Sign APKs (debug keystore)
+      - name: Inject OpenSSL + Sign APKs (debug keystore)
         run: |
+          set -eux
+          sudo apt-get install -y zip unzip
+          mkdir -p /tmp/openssl/arm64-v8a /tmp/openssl/x86_64
+          for abi in arm64-v8a x86_64; do
+            for lib in libcrypto_3.so libssl_3.so; do
+              curl -fsSL --retry 3 --connect-timeout 30 \
+                -o "/tmp/openssl/$abi/$lib" \
+                "https://raw.githubusercontent.com/KDAB/android_openssl/master/ssl_3/$abi/$lib"
+            done
+          done
           keytool -genkeypair -keystore /tmp/debug.keystore -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
           for apk in build-android/android-build/*.apk build-android-x86_64/android-build/*.apk; do
+            case "$apk" in
+              *x86_64*) abi=x86_64 ;;
+              *) abi=arm64-v8a ;;
+            esac
+            base=$(pwd)
+            work=$(mktemp -d)
+            unzip -q "$apk" -d "$work"
+            mkdir -p "$work/lib/$abi"
+            cp /tmp/openssl/$abi/libcrypto_3.so /tmp/openssl/$abi/libssl_3.so "$work/lib/$abi/"
+            (cd "$work" && zip -qr "$base/$apk.unsigned" .)
+            "$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign" -f -p 4 "$apk.unsigned" "$apk.aligned"
             "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" sign \
               --ks /tmp/debug.keystore --ks-pass pass:android --key-pass pass:android \
-              --out "$apk.signed" "$apk"
-            mv "$apk.signed" "$apk"
-            echo "signed: $apk"
+              --out "$apk" "$apk.aligned"
+            rm -rf "$work" "$apk.unsigned" "$apk.aligned"
+            echo "injected openssl and signed: $apk"
           done
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -287,6 +308,26 @@ jobs:
           path: |
             build-android/android-build/*.apk
             build-android-x86_64/android-build/*.apk
+      - name: Store APK in android-artifacts branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin android-artifacts || true
+          if git show-ref --verify --quiet refs/remotes/origin/android-artifacts; then
+            git checkout -B android-artifacts origin/android-artifacts
+          else
+            git checkout -B android-artifacts
+          fi
+          rm -f english3000-arm64-v8a.apk english3000-x86_64.apk
+          cp build-android/android-build/*.apk english3000-arm64-v8a.apk
+          cp build-android-x86_64/android-build/*.apk english3000-x86_64.apk
+          git add english3000-arm64-v8a.apk english3000-x86_64.apk
+          git commit -m "android apk $(date -u +%Y%m%d%H%M%S)" || true
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin android-artifacts
       - name: Publish Android release
         if: github.ref == 'refs/heads/main'
         env:
