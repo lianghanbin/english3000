@@ -8,6 +8,7 @@ Page {
     property var rows: []
     property int currentId: -1
     property string currentName: ""
+    property bool aiBusy: false
 
     background: Rectangle { color: T.bg }
 
@@ -76,11 +77,19 @@ Page {
 
                 SideBtn {
                     text: "✦ AI 生成词表"
-                    onClicked: showToast("AI 生成词表请先在桌面版使用,手机版稍后支持")
+                    onClicked: {
+                        aiPopup.mode = "new"
+                        domainField.text = ""
+                        aiPopup.open()
+                    }
                 }
                 SideBtn {
                     text: "＋ AI 补充词表"
-                    onClicked: showToast("AI 补充词表请先在桌面版使用,手机版稍后支持")
+                    onClicked: {
+                        aiPopup.mode = "supplement"
+                        domainField.text = ""
+                        aiPopup.open()
+                    }
                 }
                 Text {
                     text: "词表即书\n进度独立记录"
@@ -177,6 +186,15 @@ Page {
     Connections {
         target: bridge
         function onCountsChanged() { refresh() }
+        function onWordListReady(name, count) {
+            aiBusy = false
+            refresh()
+            showToast("词表已生成:「" + name + "」共 " + count + " 词")
+        }
+        function onAiFailed(message) {
+            aiBusy = false
+            showToast("AI 失败:" + message)
+        }
     }
 
     function showToast(msg) {
@@ -198,7 +216,118 @@ Page {
         rows = currentId >= 0 ? bridge.wordListRows(currentId, 40) : []
     }
 
+    function startAi() {
+        var d = domainField.text.trim()
+        if (d === "") {
+            showToast("请先输入领域")
+            return
+        }
+        aiBusy = true
+        aiPopup.close()
+        if (aiPopup.mode === "supplement")
+            bridge.aiSupplementWordList(d, countSpin.value)
+        else
+            bridge.aiGenerateWordList(d, countSpin.value)
+    }
+
+    Popup {
+        id: aiPopup
+        property string mode: "new"
+        anchors.centerIn: parent
+        width: parent.width * 0.88
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: aiPopup.mode === "supplement"
+                      ? "AI 补充当前词表" : "AI 生成领域词表"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            TextField {
+                id: domainField
+                Layout.fillWidth: true
+                placeholderText: "领域,如:编程、医学、日常口语"
+                font.pixelSize: 14
+                color: T.textDark
+                background: Rectangle {
+                    radius: 10
+                    color: "#f7faf7"
+                    border.color: T.line
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "词数"
+                    font.pixelSize: 12
+                    color: T.textMuted
+                }
+                SpinBox {
+                    id: countSpin
+                    from: 20
+                    to: 300
+                    stepSize: 20
+                    value: 60
+                    editable: true
+                }
+                Item { Layout.fillWidth: true }
+            }
+            Text {
+                text: aiBusy ? "AI 生成中,请稍候…"
+                             : "提示:本地模型生成较慢,请耐心等待"
+                font.pixelSize: 11
+                color: T.textMuted
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                AiBtn {
+                    text: "取消"
+                    Layout.fillWidth: true
+                    enabled: !aiBusy
+                    onClicked: aiPopup.close()
+                }
+                AiBtn {
+                    text: "开始生成"
+                    Layout.fillWidth: true
+                    enabled: !aiBusy
+                    onClicked: startAi()
+                }
+            }
+        }
+    }
+
     Component.onCompleted: refresh()
+
+    component AiBtn: Rectangle {
+        id: root
+        property string text: ""
+        property bool enabled: true
+        signal clicked()
+        height: 38
+        radius: 19
+        color: root.enabled ? T.green : "#cfd8cf"
+        opacity: root.enabled ? 1 : 0.7
+        Text {
+            anchors.centerIn: parent
+            text: root.text
+            font.pixelSize: 13
+            font.bold: true
+            color: "#ffffff"
+        }
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.enabled
+            onClicked: root.clicked()
+        }
+    }
 
     component SideBtn: Rectangle {
         id: root

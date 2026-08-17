@@ -1,4 +1,5 @@
 #include <QDir>
+#include <QFile>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -30,6 +31,27 @@ int main(int argc, char *argv[])
         if (!lists.isEmpty())
             store.setCurrentWordList(lists.first().id);
     }
+    if (store.listArticles().isEmpty()) {
+        struct SampleArticle {
+            const char *path;
+            const char *title;
+            int level;
+        };
+        const SampleArticle samples[] = {
+            {"assets/samples/linux-files.txt", "The Linux File System", 2},
+            {"assets/samples/morning-routine.txt", "My Morning Routine", 1},
+            {"assets/samples/coffee.txt", "A Cup of Coffee", 2},
+        };
+        for (const SampleArticle &sample : samples) {
+            QFile file(QStringLiteral(":/") + QString::fromLatin1(sample.path));
+            if (!file.open(QIODevice::ReadOnly))
+                continue;
+            store.saveArticle(QString::fromLatin1(sample.title),
+                              QString::fromUtf8(file.readAll()),
+                              QStringLiteral("sample"), sample.level);
+        }
+    }
+    store.seedExamplesFromArticles();
 
     AiClient ai;
     ai.setEndpoint(

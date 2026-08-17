@@ -3,9 +3,61 @@
 #include "ai_client.h"
 #include "core.h"
 
+#include <QRegularExpression>
+#include <QSet>
+
 #ifdef ENGLISH3000_HAS_TTS
 #include <QTextToSpeech>
 #endif
+
+namespace {
+
+const QSet<QString> kNoiseWords = {
+    "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
+    "to", "for", "with", "from", "by", "as", "is", "are", "was", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "shall", "should", "can", "could", "may", "might",
+    "must", "not", "no", "yes", "this", "that", "these", "those", "it",
+    "its", "he", "she", "they", "we", "you", "i", "me", "him", "her",
+    "them", "us", "my", "your", "his", "their", "our", "what", "which",
+    "who", "whom", "when", "where", "why", "how", "all", "any", "some",
+    "each", "every", "both", "few", "more", "most", "other", "such",
+    "there", "here", "then", "than", "so", "very", "just", "also", "too",
+    "into", "about", "after", "before", "between", "under", "over",
+    "again", "once", "only", "own", "same", "through", "during",
+    "list", "words", "word", "example", "please", "include", "output",
+    "one", "per", "line", "lowercase", "numbers", "explanations",
+    "duplicates", "important", "nouns", "verbs", "adjectives", "field",
+    "domain", "common", "commonly", "used", "exactly", "often",
+    "related", "following", "below", "above", "see", "etc", "like",
+};
+
+QStringList splitWordList(const QString &raw)
+{
+    QString normalized = raw;
+    normalized.replace(QLatin1Char(','), QLatin1Char(' '));
+    const QStringList parts =
+        normalized.split(QRegularExpression(QStringLiteral("\\s+")),
+                         Qt::SkipEmptyParts);
+    QStringList result;
+    for (const QString &part : parts) {
+        QString word = part.toLower();
+        bool lettersOnly = true;
+        for (const QChar c : word) {
+            if (!c.isLetter() && c != QLatin1Char('-')
+                && c != QLatin1Char('\'')) {
+                lettersOnly = false;
+                break;
+            }
+        }
+        if (lettersOnly && word.size() >= 2 && !result.contains(word))
+            if (!kNoiseWords.contains(word))
+                result << word;
+    }
+    return result;
+}
+
+} // namespace
 
 MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
     : QObject(parent)
@@ -16,6 +68,8 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
             [this](const QString &t) { emit translationReady(t); });
     connect(m_ai, &AiClient::failed, this,
             [this](const QString &m) { emit translationFailed(m); });
+    connect(m_ai, &AiClient::failed, this,
+            [this](const QString &m) { emit aiFailed(m); });
     connect(m_ai, &AiClient::chatFinished, this,
             [this](const QString &text) {
                 if (m_pendingExampleId <= 0)
@@ -24,6 +78,10 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
                 m_pendingExampleId = -1;
                 emit exampleReady(id, text.trimmed().simplified());
             });
+    connect(m_ai, &AiClient::wordListFinished, this,
+            &MobileBridge::onWordListFinished);
+    connect(m_ai, &AiClient::finished, this,
+            &MobileBridge::onArticleFinished);
 }
 
 int MobileBridge::newCount() const
@@ -309,6 +367,138 @@ void MobileBridge::speak(const QString &text)
 #else
     Q_UNUSED(text);
 #endif
+}
+
+void MobileBridge::onWordListFinished(const QString &rawText)
+{
+    const QStringList words = splitWordList(rawText);
+    const QString name = m_pendingListName;
+    const qint64 listId = m_pendingListId;
+    m_pendingListId = -1;
+    if (words.isEmpty()) {
+        emit aiFailed(QStringLiteral("AI 没有返回有效单词"));
+        return;
+    }
+    if (listId > 0) {
+        QSet<QString> existing;
+        const QVector<Word> current = m_store->wordsInWordList(listId);
+        for (const Word &w : current)
+            existing.insert(w.word);
+        int added = 0;
+        int order = current.size();
+        for (const QString &word : words) {
+            if (existing.contains(word))
+                continue;
+            QString pos;
+            QString meaning;
+            const std::optional<Word> found = m_store->findWordByText(word);
+            if (found) {
+                pos = found->pos;
+                meaning = found->meaning;
+            } else {
+                const std::optional<Word> dict = m_store->lookupDict(word);
+                if (dict) {
+                    pos = dict->pos;
+                    meaning = dict->meaning;
+                }
+            }
+            if (m_store->addWordToList(listId, word, pos, meaning, order)) {
+                existing.insert(word);
+                ++added;
+                ++order;
+            }
+        }
+        emit wordListReady(name, added);
+        return;
+    }
+    const qint64 newId = m_store->createWordList(
+        name, QStringLiteral("AI 生成领域词表"), QStringLiteral("ai"));
+    if (newId < 0) {
+        emit aiFailed(QStringLiteral("创建失败:同名词表可能已存在"));
+        return;
+    }
+    for (int i = 0; i < words.size(); ++i) {
+        const QString &word = words[i];
+        QString pos;
+        QString meaning;
+        const std::optional<Word> found = m_store->findWordByText(word);
+        if (found) {
+            pos = found->pos;
+            meaning = found->meaning;
+        } else {
+            const std::optional<Word> dict = m_store->lookupDict(word);
+            if (dict) {
+                pos = dict->pos;
+                meaning = dict->meaning;
+            }
+        }
+        m_store->addWordToList(newId, word, pos, meaning, i);
+    }
+    emit wordListReady(name, words.size());
+}
+
+void MobileBridge::onArticleFinished(const QString &articleText)
+{
+    QString title = m_pendingArticleTitle.trimmed();
+    m_pendingArticleTitle.clear();
+    if (title.isEmpty())
+        title = QStringLiteral("AI 生成文章");
+    const qint64 id = m_store->saveArticle(
+        title, articleText, QStringLiteral("ai"), 1);
+    emit articleReady(id, title);
+}
+
+void MobileBridge::aiGenerateWordList(const QString &domain, int count)
+{
+    const QString d = domain.trimmed();
+    if (d.isEmpty()) {
+        emit aiFailed(QStringLiteral("请先输入领域"));
+        return;
+    }
+    m_pendingListId = -1;
+    m_pendingListName = d;
+    m_ai->generateWordList(d, qBound(20, count, 300));
+}
+
+void MobileBridge::aiSupplementWordList(const QString &domain, int count)
+{
+    const qint64 listId = m_store->currentWordListId();
+    if (listId <= 0) {
+        emit aiFailed(QStringLiteral("请先选择一个词表"));
+        return;
+    }
+    const QString name = m_store->currentWordListName();
+    const QString d = domain.trimmed().isEmpty() ? name : domain.trimmed();
+    m_pendingListId = listId;
+    m_pendingListName = name;
+    m_ai->generateWordList(d, qBound(20, count, 200));
+}
+
+void MobileBridge::aiGenerateArticle(const QString &topic)
+{
+    const qint64 listId = m_store->currentWordListId();
+    QString t = topic.trimmed();
+    if (t.isEmpty())
+        t = m_store->currentWordListName();
+    if (t.isEmpty())
+        t = QStringLiteral("英语学习");
+    m_pendingArticleTitle = t;
+    if (listId > 0) {
+        QStringList preferred;
+        const QVector<Word> words = m_store->wordsInWordList(listId);
+        for (const Word &w : words)
+            preferred << w.word;
+        if (preferred.size() > 200)
+            preferred = preferred.mid(0, 200);
+        m_ai->generateArticle(t, 1, 300, preferred);
+    } else {
+        m_ai->generateArticle(t, 1, 300);
+    }
+}
+
+void MobileBridge::aiCancel()
+{
+    m_ai->cancel();
 }
 
 QString MobileBridge::aiUrl() const

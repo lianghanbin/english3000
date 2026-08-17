@@ -42,6 +42,10 @@ public:
     Q_INVOKABLE QString articleContent(qint64 articleId);
     Q_INVOKABLE void addReadingWord(const QString &word);
     Q_INVOKABLE void speak(const QString &text);
+    Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
+    Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
+    Q_INVOKABLE void aiGenerateArticle(const QString &topic);
+    Q_INVOKABLE void aiCancel();
 
     Q_INVOKABLE QString aiUrl() const;
     Q_INVOKABLE void setAiUrl(const QString &url);
@@ -55,13 +59,22 @@ signals:
     void translationReady(const QString &translation);
     void translationFailed(const QString &message);
     void exampleReady(qint64 wordId, const QString &sentence);
+    void wordListReady(const QString &name, int count);
+    void articleReady(qint64 articleId, const QString &title);
+    void aiFailed(const QString &message);
 
 private:
+    void onWordListFinished(const QString &rawText);
+    void onArticleFinished(const QString &articleText);
+
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
     qint64 m_pendingExampleId = -1;
     qint64 m_currentArticleId = -1;
     QString m_currentArticleContent;
+    QString m_pendingListName;
+    qint64 m_pendingListId = -1;
+    QString m_pendingArticleTitle;
 #ifdef ENGLISH3000_HAS_TTS
     QTextToSpeech *m_tts = nullptr;
 #endif

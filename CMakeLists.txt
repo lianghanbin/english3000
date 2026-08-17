@@ -50,7 +50,10 @@ if(Qt6Quick_FOUND)
             assets/oxford3000.csv
             assets/lemma.en.txt
             assets/donate/qr1.jpg
-            assets/donate/qr2.jpg)
+            assets/donate/qr2.jpg
+            assets/samples/coffee.txt
+            assets/samples/linux-files.txt
+            assets/samples/morning-routine.txt)
     if(ANDROID)
         set_target_properties(english3000_mobile PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR
