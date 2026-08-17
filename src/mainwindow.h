@@ -14,6 +14,7 @@ class QCheckBox;
 class QComboBox;
 class CoverageChart;
 class ConversationWindow;
+class QGroupBox;
 class QKeySequenceEdit;
 class QLabel;
 class QLineEdit;
@@ -158,6 +159,9 @@ private:
     QComboBox *m_aiProviderCombo = nullptr;
     QComboBox *m_aiPresetCombo = nullptr;
     QLineEdit *m_aiKeyEdit = nullptr;
+    QWidget *m_aiKeyContainer = nullptr;
+    QLabel *m_aiKeyHint = nullptr;
+    QGroupBox *m_aiAdvancedGroup = nullptr;
     QCheckBox *m_aiAutoCheck = nullptr;
     QLabel *m_aiEngineLabel = nullptr;
     QPushButton *m_aiProbeButton = nullptr;
