@@ -169,11 +169,33 @@ Page {
                             spacing: 8
                             Text {
                                 id: exampleText
-                                width: parent.width - 44
+                                width: parent.width - 82
                                 anchors.verticalCenter: parent.verticalCenter
                                 wrapMode: Text.Wrap
                                 font.pixelSize: 14
                                 color: T.textBody
+                            }
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 30
+                                height: 24
+                                radius: 12
+                                color: T.green
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "译"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    color: "#ffffff"
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        bridge.translate(currentExample,
+                                                         bridge.aiModel())
+                                        showToast("翻译例句中…")
+                                    }
+                                }
                             }
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -343,6 +365,10 @@ Page {
                     speakTimer.restart()
                 }
             }
+        }
+        function onTranslationReady(t) {
+            var s = t.length > 60 ? t.substring(0, 60) + "…" : t
+            showToast(s)
         }
     }
 
