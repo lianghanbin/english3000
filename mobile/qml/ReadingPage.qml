@@ -172,98 +172,6 @@ Page {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 110
-            radius: 16
-            color: T.deskDark
-            border.color: T.deskBorder
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 5
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Text {
-                        text: "AI 翻译"
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: T.deskText
-                    }
-                    Item { Layout.fillWidth: true }
-                    Rectangle {
-                        width: 66
-                        height: 18
-                        radius: 9
-                        color: "transparent"
-                        border.color: T.deskAccent
-                        border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: "自动收生词"
-                            font.pixelSize: 9
-                            color: T.deskAccent
-                        }
-                    }
-                }
-
-                Text {
-                    id: srcText
-                    Layout.fillWidth: true
-                    text: lastSource
-                    font.pixelSize: 12
-                    color: T.deskText
-                    elide: Text.ElideRight
-                    visible: lastSource !== ""
-                }
-
-                Row {
-                    Layout.fillWidth: true
-                    spacing: 8
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 4
-                        Repeater {
-                            model: 3
-                            Rectangle {
-                                width: 7
-                                height: 7
-                                radius: 4
-                                color: T.deskAccent
-                                opacity: 0.25
-                                SequentialAnimation on opacity {
-                                    running: translating
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 1; duration: 240 }
-                                    NumberAnimation { to: 0.25; duration: 240 }
-                                }
-                            }
-                        }
-                    }
-                    Text {
-                        text: translating ? "正在翻译…"
-                                          : "单击单词发音 · 长按单词出菜单"
-                        font.pixelSize: 10
-                        color: translating ? T.deskAccent : "#7b93c2"
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
-
-                Text {
-                    id: resultText
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    text: ""
-                    font.pixelSize: 13
-                    font.bold: true
-                    color: T.deskAccent
-                    wrapMode: Text.Wrap
-                    visible: text !== ""
-                }
-            }
-        }
     }
 
     Popup {
@@ -440,6 +348,67 @@ Page {
     }
 
     Popup {
+        id: translatePopup
+        x: 8
+        y: 8
+        width: parent.width - 16
+        height: parent.height - 16
+        modal: true
+        focus: true
+        background: Rectangle {
+            radius: 20
+            color: T.deskDark
+            border.color: T.deskBorder
+        }
+        contentItem: ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 10
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: translating ? "翻译中…" : "翻译结果"
+                    font.pixelSize: 16
+                    font.bold: true
+                    color: T.deskText
+                }
+                Item { Layout.fillWidth: true }
+                Rectangle {
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: "transparent"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        font.pixelSize: 15
+                        color: T.deskText
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: translatePopup.close()
+                    }
+                }
+            }
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: width
+                contentHeight: translateText.height
+                Text {
+                    id: translateText
+                    width: parent.width
+                    text: ""
+                    wrapMode: Text.Wrap
+                    font.pixelSize: 14
+                    color: T.deskText
+                }
+            }
+        }
+    }
+
+    Popup {
         id: popupWord
         property string word: ""
         anchors.centerIn: parent
@@ -591,12 +560,14 @@ Page {
     Connections {
         target: bridge
         function onTranslationReady(t) {
-            resultText.text = t
+            translateText.text = t
             translating = false
+            translatePopup.open()
         }
         function onTranslationFailed(m) {
-            resultText.text = "翻译失败:" + m
+            translateText.text = "翻译失败:" + m
             translating = false
+            translatePopup.open()
         }
         function onArticleReady(id, title) {
             genBusy = false
