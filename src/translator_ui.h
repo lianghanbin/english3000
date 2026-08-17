@@ -101,14 +101,11 @@ private slots:
     void onOcrFinished(int exitCode);
 
 private:
-    QString currentModel() const;
-    QString defaultModel() const;
     void runOcr(const QPixmap &pixmap, const QRect &screenRect);
 
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
     QPlainTextEdit *m_sourceEdit = nullptr;
-    QComboBox *m_modelCombo = nullptr;
     QTextBrowser *m_resultView = nullptr;
     QLabel *m_statusLabel = nullptr;
     QPushButton *m_translateButton = nullptr;

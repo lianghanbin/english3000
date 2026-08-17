@@ -349,15 +349,6 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
     auto *title = new QLabel(QStringLiteral("翻译"), this);
     title->setObjectName(QStringLiteral("wordLabel"));
     titleRow->addWidget(title);
-    m_modelCombo = new QComboBox(this);
-    m_modelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
-                          QStringLiteral("qwen2.5:1.5b"));
-    m_modelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
-                          QStringLiteral("qwen3:14b"));
-    const QString defModel = defaultModel();
-    const int defIdx = m_modelCombo->findData(defModel);
-    m_modelCombo->setCurrentIndex(defIdx >= 0 ? defIdx : 0);
-    titleRow->addWidget(m_modelCombo);
     titleRow->addStretch();
     auto *shotButton = new QPushButton(QStringLiteral("截图翻译"), this);
     connect(shotButton, &QPushButton::clicked, this,
@@ -428,19 +419,6 @@ TranslatorWindow::~TranslatorWindow()
     }
 }
 
-QString TranslatorWindow::defaultModel() const
-{
-    const QString model = m_store->getSetting(
-        QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:1.5b"));
-    return model.isEmpty() ? QStringLiteral("qwen2.5:1.5b") : model;
-}
-
-QString TranslatorWindow::currentModel() const
-{
-    return m_modelCombo->currentData().toString();
-}
-
 void TranslatorWindow::openWithText(const QString &text)
 {
     if (!text.isEmpty()) {
@@ -493,7 +471,7 @@ void TranslatorWindow::translate()
     m_translateButton->setEnabled(false);
     m_resultView->setPlainText(QStringLiteral("翻译中…"));
     m_statusLabel->setText(QStringLiteral("翻译中（本地模型需要几秒）"));
-    m_ai->translateText(text, currentModel(), toChinese);
+    m_ai->translateText(text, {}, toChinese);
 }
 
 void TranslatorWindow::copyResult()
@@ -736,10 +714,7 @@ ScreenshotResultWindow::ScreenshotResultWindow(WordStore *store,
 
     layout->addStretch(1);
 
-    const QString model = store->getSetting(
-        QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:1.5b"));
-    m_ai->translateText(m_ocrText, model, true);
+    m_ai->translateText(m_ocrText, {}, true);
 }
 
 ScreenshotResultWindow::~ScreenshotResultWindow()

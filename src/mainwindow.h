@@ -205,7 +205,6 @@ private:
     QCheckBox *m_autoPronounceCheck = nullptr;
     QKeySequenceEdit *m_translateHotkeyEdit = nullptr;
     QKeySequenceEdit *m_screenshotHotkeyEdit = nullptr;
-    QComboBox *m_translateModelCombo = nullptr;
 
     // 领域词表
     WordListPage *m_wordListPage = nullptr;

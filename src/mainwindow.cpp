@@ -896,32 +896,6 @@ void MainWindow::buildSettings()
     hotkeyRow->addStretch();
     transLayout->addLayout(hotkeyRow);
 
-    auto *modelRow = new QHBoxLayout;
-    auto *modelLabel = new QLabel(QStringLiteral("默认引擎"), transGroup);
-    modelLabel->setFixedWidth(70);
-    modelLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    modelRow->addWidget(modelLabel);
-    m_translateModelCombo = new QComboBox(transGroup);
-    m_translateModelCombo->setFixedWidth(220);
-    m_translateModelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
-                                   QStringLiteral("qwen2.5:1.5b"));
-    m_translateModelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
-                                   QStringLiteral("qwen3:14b"));
-    const QString defModel = m_store->getSetting(
-        QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:1.5b"));
-    const int defIdx = m_translateModelCombo->findData(defModel);
-    m_translateModelCombo->setCurrentIndex(defIdx >= 0 ? defIdx : 0);
-    connect(m_translateModelCombo, &QComboBox::currentIndexChanged, this,
-            [this](int index) {
-                m_store->setSetting(
-                    QStringLiteral("translate_default_model"),
-                    m_translateModelCombo->itemData(index).toString());
-            });
-    modelRow->addWidget(m_translateModelCombo);
-    modelRow->addStretch();
-    transLayout->addLayout(modelRow);
-
     auto *transHint = new QLabel(
         QStringLiteral("应用常驻托盘时生效；关闭应用后热键自动解绑。"),
         transGroup);
