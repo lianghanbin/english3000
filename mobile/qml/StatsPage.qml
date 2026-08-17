@@ -30,83 +30,6 @@ Page {
                 Layout.topMargin: 10
             }
 
-            Item {
-                Layout.preferredWidth: 230
-                Layout.preferredHeight: 230
-                Layout.alignment: Qt.AlignHCenter
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 200
-                    height: 200
-                    radius: 100
-                    color: "transparent"
-                    border.color: T.green
-                    border.width: 3
-                    opacity: 0.3
-                }
-                Item {
-                    id: ringSpin
-                    anchors.centerIn: parent
-                    width: 200
-                    height: 200
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top
-                        y: -8
-                        width: 34
-                        height: 34
-                        radius: 17
-                        color: T.green
-                        Text {
-                            anchors.centerIn: parent
-                            text: "→"
-                            color: "#ffffff"
-                            font.pixelSize: 16
-                            font.bold: true
-                        }
-                    }
-                    NumberAnimation on rotation {
-                        from: 0
-                        to: 360
-                        duration: 14000
-                        loops: Animation.Infinite
-                    }
-                }
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 88
-                    height: 88
-                    radius: 44
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: T.greenBright }
-                        GradientStop { position: 1.0; color: T.greenDark }
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "AI"
-                        font.pixelSize: 26
-                        font.bold: true
-                        color: "#ffffff"
-                    }
-                }
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 112
-                    height: 112
-                    radius: 56
-                    color: "transparent"
-                    border.color: T.greenBright
-                    border.width: 3
-                    opacity: 0.5
-                    SequentialAnimation on rotation {
-                        running: true
-                        loops: Animation.Infinite
-                        PropertyAnimation { to: 360; duration: 2200 }
-                    }
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -164,15 +87,6 @@ Page {
                     ProgressRow {
                         label: "连续学习(30 天目标)"
                         pct: Math.min(bridge.streak / 30, 1)
-                    }
-                    Text {
-                        text: "单词,原来如此简单\n完全免费 · 开源"
-                        font.pixelSize: 13
-                        font.bold: true
-                        color: T.green
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.fillWidth: true
-                        Layout.topMargin: 4
                     }
                 }
             }
