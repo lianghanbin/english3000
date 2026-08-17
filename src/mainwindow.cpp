@@ -975,6 +975,118 @@ void MainWindow::buildSettings()
     });
     addRow(QStringLiteral("AI 服务地址"), m_aiUrlEdit);
 
+    m_aiPresetCombo = new QComboBox(page);
+    m_aiPresetCombo->addItem(QStringLiteral("自动检测（推荐）"),
+                             QStringLiteral("auto"));
+    m_aiPresetCombo->addItem(QStringLiteral("本地小模型（Qwen2.5 1.5B）"),
+                             QStringLiteral("local"));
+    m_aiPresetCombo->addItem(QStringLiteral("本地 Ollama"),
+                             QStringLiteral("ollama"));
+    m_aiPresetCombo->addItem(QStringLiteral("DeepSeek"),
+                             QStringLiteral("deepseek"));
+    m_aiPresetCombo->addItem(QStringLiteral("通义千问"),
+                             QStringLiteral("dashscope"));
+    m_aiPresetCombo->addItem(QStringLiteral("智谱 GLM"),
+                             QStringLiteral("glm"));
+    m_aiPresetCombo->addItem(QStringLiteral("月之暗面 Kimi"),
+                             QStringLiteral("moonshot"));
+    m_aiPresetCombo->addItem(QStringLiteral("OpenAI"),
+                             QStringLiteral("openai"));
+    m_aiPresetCombo->addItem(QStringLiteral("自定义"),
+                             QStringLiteral("custom"));
+    const QString curBase =
+        m_store->getSetting(QStringLiteral("ai_base_url"));
+    const QString curProvider =
+        m_store->getSetting(QStringLiteral("ai_provider"));
+    const bool autoMode =
+        m_store->getSetting(QStringLiteral("ai_mode"),
+                            QStringLiteral("auto"))
+        == QLatin1String("auto");
+    int presetIdx = autoMode ? 0 : 8;
+    if (curBase.contains(QStringLiteral("127.0.0.1:8080")))
+        presetIdx = 1;
+    else if (curProvider == QLatin1String("ollama"))
+        presetIdx = 2;
+    else if (curBase.contains(QStringLiteral("deepseek.com")))
+        presetIdx = 3;
+    else if (curBase.contains(QStringLiteral("dashscope")))
+        presetIdx = 4;
+    else if (curBase.contains(QStringLiteral("bigmodel.cn")))
+        presetIdx = 5;
+    else if (curBase.contains(QStringLiteral("moonshot.cn")))
+        presetIdx = 6;
+    else if (curBase.contains(QStringLiteral("openai.com")))
+        presetIdx = 7;
+    m_aiPresetCombo->setCurrentIndex(presetIdx);
+    connect(m_aiPresetCombo, &QComboBox::currentIndexChanged, this,
+            [this](int index) {
+                const QString preset =
+                    m_aiPresetCombo->itemData(index).toString();
+                if (preset == QLatin1String("auto")) {
+                    m_store->setSetting(QStringLiteral("ai_mode"),
+                                        QStringLiteral("auto"));
+                    if (m_aiAutoCheck)
+                        m_aiAutoCheck->setChecked(true);
+                    if (m_aiProbeButton)
+                        m_aiProbeButton->setEnabled(false);
+                    if (m_aiEngineLabel)
+                        m_aiEngineLabel->setText(
+                            QStringLiteral("当前 AI：检测中…"));
+                    if (m_aiProbe)
+                        m_aiProbe->start();
+                    return;
+                }
+                m_store->setSetting(QStringLiteral("ai_mode"),
+                                    QStringLiteral("manual"));
+                if (m_aiAutoCheck)
+                    m_aiAutoCheck->setChecked(false);
+                QString base = m_aiUrlEdit->text().trimmed();
+                QString model = m_aiModelEdit->text().trimmed();
+                QString provider =
+                    m_aiProviderCombo->currentData().toString();
+                if (preset == QLatin1String("local")) {
+                    base = QStringLiteral("http://127.0.0.1:8080");
+                    model = QStringLiteral("qwen2.5:1.5b");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("ollama")) {
+                    base = QStringLiteral("http://127.0.0.1:11434");
+                    provider = QStringLiteral("ollama");
+                } else if (preset == QLatin1String("deepseek")) {
+                    base = QStringLiteral("https://api.deepseek.com");
+                    model = QStringLiteral("deepseek-chat");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("dashscope")) {
+                    base = QStringLiteral(
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1");
+                    model = QStringLiteral("qwen-plus");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("glm")) {
+                    base = QStringLiteral(
+                        "https://open.bigmodel.cn/api/paas/v4");
+                    model = QStringLiteral("glm-4-flash");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("moonshot")) {
+                    base = QStringLiteral("https://api.moonshot.cn/v1");
+                    model = QStringLiteral("moonshot-v1-8k");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("openai")) {
+                    base = QStringLiteral("https://api.openai.com/v1");
+                    model = QStringLiteral("gpt-4o-mini");
+                    provider = QStringLiteral("openai");
+                }
+                m_store->setSetting(QStringLiteral("ai_base_url"), base);
+                m_store->setSetting(QStringLiteral("ai_model"), model);
+                m_store->setSetting(QStringLiteral("ai_provider"),
+                                   provider);
+                m_aiUrlEdit->setText(base);
+                m_aiModelEdit->setText(model);
+                const int pi = m_aiProviderCombo->findData(provider);
+                if (pi >= 0)
+                    m_aiProviderCombo->setCurrentIndex(pi);
+                applyAiSettings();
+            });
+    addRow(QStringLiteral("快速选择模型"), m_aiPresetCombo, 320);
+
     m_aiModelEdit = new QLineEdit(page);
     m_aiModelEdit->setText(
         m_store->getSetting(QStringLiteral("ai_model"),

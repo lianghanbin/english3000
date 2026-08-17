@@ -156,6 +156,7 @@ private:
     QLineEdit *m_aiUrlEdit = nullptr;
     QLineEdit *m_aiModelEdit = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
+    QComboBox *m_aiPresetCombo = nullptr;
     QLineEdit *m_aiKeyEdit = nullptr;
     QCheckBox *m_aiAutoCheck = nullptr;
     QLabel *m_aiEngineLabel = nullptr;
