@@ -335,19 +335,7 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
     resize(440, 420);
 
     m_ai = new AiClient(this);
-    m_ai->setEndpoint(
-        store->getSetting(QStringLiteral("ai_base_url"),
-                          QStringLiteral("http://127.0.0.1:11434")),
-        store->getSetting(QStringLiteral("ai_model"),
-                          QStringLiteral("qwen2.5:1.5b")));
-    const bool openAi =
-        store->getSetting(QStringLiteral("ai_provider"),
-                          QStringLiteral("ollama"))
-        == QLatin1String("openai");
-    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
-                             : AiClient::Provider::Ollama);
-    m_ai->setApiKey(
-        store->getSetting(QStringLiteral("ai_api_key")));
+    applyAiSettings();
     connect(m_ai, &AiClient::translationFinished, this,
             &TranslatorWindow::onTranslationFinished);
     connect(m_ai, &AiClient::failed, this,
@@ -413,6 +401,23 @@ TranslatorWindow::TranslatorWindow(WordStore *store, QWidget *parent)
     m_statusLabel->setObjectName(QStringLiteral("hintLabel"));
     layout->addWidget(m_statusLabel);
 
+}
+
+void TranslatorWindow::applyAiSettings()
+{
+    m_ai->setEndpoint(
+        m_store->getSetting(QStringLiteral("ai_base_url"),
+                            QStringLiteral("http://127.0.0.1:11434")),
+        m_store->getSetting(QStringLiteral("ai_model"),
+                            QStringLiteral("qwen2.5:1.5b")));
+    const bool openAi =
+        m_store->getSetting(QStringLiteral("ai_provider"),
+                            QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        m_store->getSetting(QStringLiteral("ai_api_key")));
 }
 
 TranslatorWindow::~TranslatorWindow()

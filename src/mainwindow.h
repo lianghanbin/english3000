@@ -8,6 +8,7 @@
 #include "core.h"
 
 class AiClient;
+class AiProbe;
 class GlobalHotkey;
 class QCheckBox;
 class QComboBox;
@@ -156,6 +157,10 @@ private:
     QLineEdit *m_aiModelEdit = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
     QLineEdit *m_aiKeyEdit = nullptr;
+    QCheckBox *m_aiAutoCheck = nullptr;
+    QLabel *m_aiEngineLabel = nullptr;
+    QPushButton *m_aiProbeButton = nullptr;
+    AiProbe *m_aiProbe = nullptr;
     QCheckBox *m_updateCheckEnabledCheck = nullptr;
     QPushButton *m_checkUpdateButton = nullptr;
     UpdateChecker *m_updateChecker = nullptr;

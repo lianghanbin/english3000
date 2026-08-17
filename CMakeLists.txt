@@ -83,6 +83,8 @@ if(Qt6Widgets_FOUND)
         src/mainwindow.h
         src/update_checker.cpp
         src/update_checker.h
+        src/ai_probe.cpp
+        src/ai_probe.h
         src/translator_ui.cpp
         src/translator_ui.h
         src/conversation_ui.cpp
