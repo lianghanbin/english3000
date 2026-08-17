@@ -36,13 +36,13 @@ void AiProbe::probeNext()
 {
     switch (m_step) {
     case 0:
-        checkLlama();
+        checkCloud();
         break;
     case 1:
-        checkOllama();
+        checkLlama();
         break;
     case 2:
-        checkCloud();
+        checkOllama();
         break;
     default:
         emit finished(QString(), QString(), QString(),
@@ -132,16 +132,22 @@ void AiProbe::checkCloud()
         m_store->getSetting(QStringLiteral("ai_model"));
     if (key.isEmpty() || base.isEmpty() || model.isEmpty()
         || base.startsWith(QStringLiteral("http://127.0.0.1"))) {
+        qWarning("probe: cloud skipped (key=%d base=%s model=%s)",
+                 key.isEmpty() ? 0 : 1, qPrintable(base),
+                 qPrintable(model));
         probeNext();
         return;
     }
     QString chatUrl = base;
-    if (chatUrl.endsWith(QLatin1String("/v1"))
-        || chatUrl.endsWith(QLatin1String("/v1/"))) {
+    if (!chatUrl.endsWith(QLatin1Char('/')))
+        chatUrl += QLatin1Char('/');
+    if (chatUrl.endsWith(QLatin1String("/v1/"))) {
         chatUrl += QStringLiteral("chat/completions");
     } else {
         chatUrl += QStringLiteral("v1/chat/completions");
     }
+    qWarning("probe: cloud -> %s model=%s", qPrintable(chatUrl),
+             qPrintable(model));
     QJsonObject body;
     body.insert(QStringLiteral("model"), model);
     QJsonArray messages;
@@ -161,6 +167,9 @@ void AiProbe::checkCloud()
     m_reply = m_manager->post(request, QJsonDocument(body).toJson());
     connect(m_reply, &QNetworkReply::finished, this, [this] {
         const bool ok = m_reply->error() == QNetworkReply::NoError;
+        qWarning("probe: cloud finished ok=%d err=%s",
+                 ok ? 1 : 0,
+                 qPrintable(m_reply->errorString()));
         if (ok) {
             const QUrl url = m_reply->url();
             m_provider = QStringLiteral("openai");
