@@ -224,7 +224,7 @@ Page {
                         }
                     }
                     Text {
-                        text: "重新导入会更新词库和读音;重置会把所有词条退回未学状态。"
+                        text: "重新导入会更新词库和读音，重置会把所有词条退回未学状态。"
                         font.pixelSize: 11
                         color: T.textMuted
                         wrapMode: Text.Wrap
@@ -249,6 +249,7 @@ Page {
 
     Rectangle {
         id: toast
+        visible: false
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
@@ -273,7 +274,11 @@ Page {
         Timer {
             id: toastTimer
             interval: 1400
-            onTriggered: toast.opacity = 0
+            onTriggered: {
+                toastAnim.stop()
+                toast.opacity = 0
+                toast.visible = false
+            }
         }
     }
 
@@ -454,14 +459,19 @@ Page {
         }
     }
 
+    function showToast(msg) {
+        toastText.text = msg
+        toast.visible = true
+        toastAnim.start()
+        toastTimer.start()
+    }
+
     function save() {
         bridge.setAiUrl(url)
         bridge.setAiModel(model)
         bridge.setAiProvider(provider)
         bridge.setAiApiKey(key)
-        toastText.text = "已保存"
-        toastAnim.start()
-        toastTimer.start()
+        showToast("已保存")
     }
 
     component Field: ColumnLayout {

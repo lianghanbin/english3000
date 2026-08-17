@@ -303,6 +303,7 @@ Page {
 
     Rectangle {
         id: toast
+        visible: false
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
@@ -327,7 +328,11 @@ Page {
         Timer {
             id: toastTimer
             interval: 1400
-            onTriggered: toast.opacity = 0
+            onTriggered: {
+                toastAnim.stop()
+                toast.opacity = 0
+                toast.visible = false
+            }
         }
     }
 
@@ -374,6 +379,7 @@ Page {
 
     function showToast(msg) {
         toastText.text = msg
+        toast.visible = true
         toastAnim.start()
         toastTimer.start()
     }
