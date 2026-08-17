@@ -247,6 +247,10 @@ Page {
                                          bridge.aiModel())
                     }
                 }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
                 AiBtn {
                     text: "重置为未学"
                     Layout.fillWidth: true
@@ -258,6 +262,15 @@ Page {
                         showToast("已重置为未学")
                         wordAction.close()
                     }
+                }
+            }
+            AiBtn {
+                text: "加入阅读词表"
+                Layout.fillWidth: true
+                onClicked: {
+                    bridge.addToReadingList(wordAction.word)
+                    showToast("已加入阅读词表")
+                    wordAction.close()
                 }
             }
             Rectangle {

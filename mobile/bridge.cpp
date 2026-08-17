@@ -137,6 +137,16 @@ int MobileBridge::streak() const
     return m_store->streak();
 }
 
+int MobileBridge::todayNew() const
+{
+    return m_store->dailySummary().newCount;
+}
+
+int MobileBridge::todayReview() const
+{
+    return m_store->dailySummary().reviewCount;
+}
+
 QString MobileBridge::currentListName() const
 {
     return m_store->currentWordListName();
@@ -386,6 +396,39 @@ void MobileBridge::addReadingWord(const QString &word)
         w, meaning,
         WordStore::sentenceContaining(m_currentArticleContent, w));
     emit countsChanged();
+}
+
+void MobileBridge::addToReadingList(const QString &word)
+{
+    const QString w = word.trimmed();
+    if (w.isEmpty())
+        return;
+    QString meaning;
+    const std::optional<Word> found = m_store->findWordByText(w);
+    if (found) {
+        meaning = found->meaning;
+    } else {
+        const std::optional<Word> dict = m_store->lookupDict(w);
+        if (dict)
+            meaning = dict->meaning;
+    }
+    m_store->queueWordToReadingList(w, meaning, {});
+    emit countsChanged();
+}
+
+QVariantList MobileBridge::coverageHistory(int days)
+{
+    QVariantList out;
+    const QVector<CoveragePoint> points =
+        m_store->coverageHistory(qBound(7, days, 30));
+    for (const CoveragePoint &p : points) {
+        QVariantMap m;
+        m.insert(QStringLiteral("date"), p.date);
+        m.insert(QStringLiteral("coverage"), p.coverage);
+        m.insert(QStringLiteral("articles"), p.articles);
+        out.append(m);
+    }
+    return out;
 }
 
 void MobileBridge::speak(const QString &text)

@@ -52,6 +52,28 @@ Page {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            ModeBtn {
+                text: "开始学习"
+                Layout.fillWidth: true
+                onClicked: load("learn")
+            }
+            ModeBtn {
+                text: "开始复习"
+                Layout.fillWidth: true
+                onClicked: load("review")
+            }
+            Text {
+                text: "今日 新学 " + bridge.todayNew()
+                      + " · 复习 " + bridge.todayReview()
+                font.pixelSize: 11
+                color: T.textMuted
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+
         Rectangle {
             Layout.fillWidth: true
             height: 20
@@ -482,6 +504,29 @@ Page {
         MouseArea {
             anchors.fill: parent
             enabled: root.enabled
+            onClicked: root.clicked()
+        }
+    }
+
+    component ModeBtn: Rectangle {
+        id: root
+        property string text: ""
+        signal clicked()
+        Layout.fillWidth: true
+        height: 34
+        radius: 17
+        color: T.greenSoft
+        border.color: T.greenBorder
+        border.width: 1
+        Text {
+            anchors.centerIn: parent
+            text: root.text
+            font.pixelSize: 13
+            font.bold: true
+            color: T.greenDark
+        }
+        MouseArea {
+            anchors.fill: parent
             onClicked: root.clicked()
         }
     }

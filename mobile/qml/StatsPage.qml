@@ -7,6 +7,7 @@ Page {
     property int total: bridge.newCount + bridge.dueCount + bridge.masteredCount
     property int articlesCount: bridge.articles().length
     property int listsCount: bridge.wordLists().length
+    property var coverage: []
 
     background: Rectangle { color: T.bg }
 
@@ -68,6 +69,61 @@ Page {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
+                radius: 18
+                color: T.card
+                border.color: T.line
+                implicitHeight: coverCol.implicitHeight + 28
+
+                ColumnLayout {
+                    id: coverCol
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 8
+
+                    Text {
+                        text: "近 7 天覆盖率"
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: T.textDark
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Repeater {
+                            model: coverage
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 60
+                                    radius: 4
+                                    color: T.track
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width
+                                        height: parent.height
+                                                * (modelData.coverage / 100)
+                                        radius: 4
+                                        color: T.green
+                                    }
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: modelData.date
+                                    font.pixelSize: 9
+                                    color: T.textMuted
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
                 Layout.bottomMargin: 16
                 radius: 18
                 color: T.card
@@ -90,6 +146,19 @@ Page {
                     }
                 }
             }
+        }
+    }
+
+    function refreshCoverage() {
+        coverage = bridge.coverageHistory(7)
+    }
+
+    Component.onCompleted: refreshCoverage()
+
+    Connections {
+        target: bridge
+        function onCountsChanged() {
+            refreshCoverage()
         }
     }
 

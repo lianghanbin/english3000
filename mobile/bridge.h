@@ -27,6 +27,8 @@ public:
     int dueCount() const;
     int masteredCount() const;
     int streak() const;
+    Q_INVOKABLE int todayNew() const;
+    Q_INVOKABLE int todayReview() const;
     QString currentListName() const;
     QString aiProvider() const;
     QString aiApiKey() const;
@@ -44,7 +46,9 @@ public:
     Q_INVOKABLE QString articleHtml(qint64 articleId);
     Q_INVOKABLE QString articleContent(qint64 articleId);
     Q_INVOKABLE void addReadingWord(const QString &word);
+    Q_INVOKABLE void addToReadingList(const QString &word);
     Q_INVOKABLE void speak(const QString &text);
+    Q_INVOKABLE QVariantList coverageHistory(int days);
     Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
     Q_INVOKABLE void aiGenerateArticle(const QString &topic);
