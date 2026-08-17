@@ -22,7 +22,7 @@ Page {
             spacing: 14
 
             Text {
-                text: "数据成长"
+                text: "学习循环 · 你的成长"
                 font.pixelSize: 20
                 font.bold: true
                 color: T.textDark
@@ -113,19 +113,21 @@ Page {
                 Layout.rightMargin: 16
                 spacing: 8
                 NodeCard {
-                    label: "核心学习"
+                    label: "已掌握单词"
                     value: bridge.masteredCount + ""
-                    sub: "已掌握"
+                    sub: "累计掌握"
                 }
                 NodeCard {
-                    label: "阅读积累"
+                    label: "3000 覆盖率"
+                    value: (total === 0 ? 0
+                            : Math.round(bridge.masteredCount / total * 100))
+                           + "%"
+                    sub: "核心 3000"
+                }
+                NodeCard {
+                    label: "阅读篇数"
                     value: articlesCount + ""
-                    sub: "篇文章"
-                }
-                NodeCard {
-                    label: "连续学习"
-                    value: bridge.streak + ""
-                    sub: "天"
+                    sub: "篇"
                 }
             }
 

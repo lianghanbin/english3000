@@ -195,6 +195,87 @@ Page {
             aiBusy = false
             showToast("AI 失败:" + message)
         }
+        function onTranslationReady(t) {
+            wordAction.resultText = t
+        }
+        function onTranslationFailed(m) {
+            wordAction.resultText = "翻译失败:" + m
+        }
+    }
+
+    Popup {
+        id: wordAction
+        property string word: ""
+        property int itemId: -1
+        property string resultText: ""
+        anchors.centerIn: parent
+        width: parent.width * 0.86
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 10
+            Text {
+                text: wordAction.word
+                font.pixelSize: 19
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                AiBtn {
+                    text: "发音"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        bridge.speak(wordAction.word)
+                        wordAction.close()
+                    }
+                }
+                AiBtn {
+                    text: "翻译"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        wordAction.resultText = "翻译中…"
+                        bridge.translate(wordAction.word,
+                                         bridge.aiModel())
+                    }
+                }
+                AiBtn {
+                    text: "重置为未学"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        if (wordAction.itemId > 0) {
+                            bridge.resetListItem(wordAction.itemId)
+                            refresh()
+                        }
+                        showToast("已重置为未学")
+                        wordAction.close()
+                    }
+                }
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 46
+                radius: 10
+                color: T.greenSoft
+                visible: wordAction.resultText !== ""
+                Text {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    text: wordAction.resultText
+                    wrapMode: Text.Wrap
+                    font.pixelSize: 12
+                    color: T.textBody
+                }
+            }
+            AiBtn {
+                text: "关闭"
+                Layout.fillWidth: true
+                onClicked: wordAction.close()
+            }
+        }
     }
 
     function showToast(msg) {
@@ -438,6 +519,12 @@ Page {
                 bridge.speak(modelData.word)
                 rowPop.start()
                 rowTapTimer.restart()
+            }
+            onPressAndHold: {
+                wordAction.word = modelData.word
+                wordAction.itemId = modelData.id
+                wordAction.resultText = ""
+                wordAction.open()
             }
         }
         SequentialAnimation {

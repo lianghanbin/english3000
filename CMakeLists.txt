@@ -23,6 +23,8 @@ if(Qt6Quick_FOUND)
         mobile/MobileApp.cpp
         mobile/bridge.cpp
         mobile/bridge.h
+        src/ai_probe.cpp
+        src/ai_probe.h
     )
     target_include_directories(english3000_mobile PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)

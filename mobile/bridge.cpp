@@ -1,10 +1,15 @@
 #include "bridge.h"
 
+#include "ai_probe.h"
 #include "ai_client.h"
 #include "core.h"
 
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QSet>
+#include <QUrl>
 
 #ifdef ENGLISH3000_HAS_TTS
 #include <QTextToSpeech>
@@ -67,21 +72,34 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
     connect(m_ai, &AiClient::translationFinished, this,
             [this](const QString &t) { emit translationReady(t); });
     connect(m_ai, &AiClient::failed, this,
-            [this](const QString &m) { emit translationFailed(m); });
-    connect(m_ai, &AiClient::failed, this,
-            [this](const QString &m) { emit aiFailed(m); });
+            [this](const QString &m) {
+                if (m_pendingChat) {
+                    m_pendingChat = false;
+                    emit chatFailed(m);
+                }
+                emit translationFailed(m);
+                emit aiFailed(m);
+            });
     connect(m_ai, &AiClient::chatFinished, this,
             [this](const QString &text) {
-                if (m_pendingExampleId <= 0)
+                if (m_pendingExampleId > 0) {
+                    const qint64 id = m_pendingExampleId;
+                    m_pendingExampleId = -1;
+                    emit exampleReady(id, text.trimmed().simplified());
                     return;
-                const qint64 id = m_pendingExampleId;
-                m_pendingExampleId = -1;
-                emit exampleReady(id, text.trimmed().simplified());
+                }
+                if (m_pendingChat) {
+                    m_pendingChat = false;
+                    const QString reply = text.trimmed();
+                    m_chatHistory << QStringLiteral("AI: %1").arg(reply);
+                    emit chatReady(reply);
+                }
             });
     connect(m_ai, &AiClient::wordListFinished, this,
             &MobileBridge::onWordListFinished);
     connect(m_ai, &AiClient::finished, this,
             &MobileBridge::onArticleFinished);
+    m_net = new QNetworkAccessManager(this);
 }
 
 int MobileBridge::newCount() const
@@ -179,6 +197,7 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
     for (int i = 0; i < n; ++i) {
         const Word &w = words.at(i);
         QVariantMap r;
+        r.insert(QStringLiteral("id"), w.itemId);
         r.insert(QStringLiteral("word"), w.word);
         r.insert(QStringLiteral("pos"), w.pos);
         r.insert(QStringLiteral("meaning"), w.meaning);
@@ -507,6 +526,199 @@ void MobileBridge::aiGenerateArticle(const QString &topic)
 void MobileBridge::aiCancel()
 {
     m_ai->cancel();
+}
+
+void MobileBridge::chatOpen(const QString &title, const QString &content)
+{
+    m_chatTitle = title;
+    m_chatContext = content.simplified();
+    if (m_chatContext.size() > 2000)
+        m_chatContext = m_chatContext.left(2000) + QStringLiteral("…");
+    m_chatHistory.clear();
+    m_pendingChat = true;
+    m_ai->chat(chatBuildPrompt());
+}
+
+void MobileBridge::chatSend(const QString &message)
+{
+    const QString text = message.trimmed();
+    if (text.isEmpty() || m_pendingChat)
+        return;
+    m_chatHistory << QStringLiteral("Student: %1").arg(text);
+    m_pendingChat = true;
+    m_ai->chat(chatBuildPrompt());
+}
+
+void MobileBridge::chatClear()
+{
+    m_chatHistory.clear();
+    m_chatTitle.clear();
+    m_chatContext.clear();
+    m_pendingChat = false;
+    m_ai->cancel();
+}
+
+QString MobileBridge::chatBuildPrompt() const
+{
+    QString prompt;
+    if (m_chatContext.isEmpty()) {
+        prompt = QStringLiteral(
+            "You are an English conversation partner for a Chinese learner.\n"
+            "Rules:\n"
+            "- Ask ONE short English question at a time.\n"
+            "- After the student answers, praise first, then gently correct "
+            "any mistakes with the correct sentence, then ask a follow-up.\n"
+            "- Keep every reply under 80 words.\n\n");
+    } else {
+        prompt = QStringLiteral(
+            "You are an English conversation partner for a Chinese learner.\n"
+            "We are discussing this article (title: %1):\n%2\n\n"
+            "Rules:\n"
+            "- Ask ONE short English question about the article at a time.\n"
+            "- After the student answers, praise first, then gently correct "
+            "any mistakes with the correct sentence, then ask a follow-up.\n"
+            "- Keep every reply under 80 words.\n\n")
+                     .arg(m_chatTitle, m_chatContext);
+    }
+    for (const QString &line : m_chatHistory)
+        prompt += line + QLatin1Char('\n');
+    prompt += QStringLiteral("AI:");
+    return prompt;
+}
+
+void MobileBridge::importUrl(const QString &url)
+{
+    if (m_importReply)
+        return;
+    const QUrl u = QUrl::fromUserInput(url.trimmed());
+    if (!u.isValid() || u.scheme().isEmpty()) {
+        emit aiFailed(QStringLiteral("网址格式不正确"));
+        return;
+    }
+    QNetworkRequest request(u);
+    request.setTransferTimeout(20000);
+    m_importReply = m_net->get(request);
+    connect(m_importReply, &QNetworkReply::finished, this,
+            &MobileBridge::onImportFinished);
+}
+
+void MobileBridge::onImportFinished()
+{
+    QNetworkReply *reply = m_importReply;
+    m_importReply = nullptr;
+    if (!reply)
+        return;
+    const QUrl url = reply->url();
+    if (reply->error() != QNetworkReply::NoError) {
+        emit aiFailed(QStringLiteral("导入失败：%1").arg(reply->errorString()));
+        reply->deleteLater();
+        return;
+    }
+    QString html = QString::fromUtf8(reply->readAll());
+    reply->deleteLater();
+    QString title = url.host();
+    const QRegularExpression titleRe(
+        QStringLiteral("<title[^>]*>(.*?)</title>"),
+        QRegularExpression::CaseInsensitiveOption
+            | QRegularExpression::DotMatchesEverythingOption);
+    const QRegularExpressionMatch m = titleRe.match(html);
+    if (m.hasMatch()) {
+        QString t = m.captured(1).trimmed();
+        t.remove(QRegularExpression(QStringLiteral("\\s+")));
+        if (!t.isEmpty() && t.size() < 120)
+            title = t;
+    }
+    // 粗略去标签，保留段落
+    html.remove(QRegularExpression(
+        QStringLiteral("<script[^>]*>.*?</script>"),
+        QRegularExpression::CaseInsensitiveOption
+            | QRegularExpression::DotMatchesEverythingOption));
+    html.remove(QRegularExpression(
+        QStringLiteral("<style[^>]*>.*?</style>"),
+        QRegularExpression::CaseInsensitiveOption
+            | QRegularExpression::DotMatchesEverythingOption));
+    html.replace(QRegularExpression(QStringLiteral("<br\\s*/?>")),
+                 QStringLiteral("\n"));
+    html.replace(QRegularExpression(QStringLiteral("</p>")),
+                 QStringLiteral("\n"));
+    html.remove(QRegularExpression(QStringLiteral("<[^>]+>")));
+    html.replace(QRegularExpression(QStringLiteral("&nbsp;")),
+                 QStringLiteral(" "));
+    html.replace(QRegularExpression(QStringLiteral("&amp;")),
+                 QStringLiteral("&"));
+    html.replace(QRegularExpression(QStringLiteral("&lt;")),
+                 QStringLiteral("<"));
+    html.replace(QRegularExpression(QStringLiteral("&gt;")),
+                 QStringLiteral(">"));
+    html = html.simplified();
+    if (html.size() < 40) {
+        emit aiFailed(QStringLiteral("导入失败：网页没有可用正文"));
+        return;
+    }
+    const qint64 id = m_store->saveArticle(
+        title, html, url.toString(), 0);
+    emit articleImported(id, title);
+}
+
+void MobileBridge::deleteArticle(qint64 articleId)
+{
+    m_store->deleteArticle(articleId);
+}
+
+void MobileBridge::reimportBuiltin()
+{
+    m_store->importCsv(QStringLiteral(":/assets/oxford3000.csv"), false);
+    m_store->importWordForms(QStringLiteral(":/assets/lemma.en.txt"));
+    m_store->seedBuiltinWordList();
+    m_store->seedExamplesFromArticles();
+    m_store->seedWordPhonetics();
+    emit countsChanged();
+}
+
+void MobileBridge::resetAllProgress()
+{
+    m_store->resetAllLists();
+    emit countsChanged();
+}
+
+void MobileBridge::resetListItem(qint64 itemId)
+{
+    m_store->resetItem(itemId);
+    emit countsChanged();
+}
+
+void MobileBridge::aiProbe()
+{
+    if (m_probe)
+        return;
+    m_probe = new AiProbe(m_store, this);
+    connect(m_probe, &AiProbe::finished, this,
+            [this](const QString &provider, const QString &baseUrl,
+                   const QString &model, const QString &label) {
+                m_probe->deleteLater();
+                m_probe = nullptr;
+                const bool autoMode =
+                    m_store->getSetting(QStringLiteral("ai_mode"),
+                                        QStringLiteral("auto"))
+                    == QLatin1String("auto");
+                if (autoMode && !provider.isEmpty()) {
+                    m_store->setSetting(QStringLiteral("ai_provider"),
+                                        provider);
+                    m_store->setSetting(QStringLiteral("ai_base_url"),
+                                        baseUrl);
+                    m_store->setSetting(QStringLiteral("ai_model"), model);
+                    m_store->setSetting(QStringLiteral("ai_engine_label"),
+                                        label);
+                    m_ai->setEndpoint(baseUrl, model);
+                    m_ai->setProvider(
+                        provider == QLatin1String("openai")
+                            ? AiClient::Provider::OpenAI
+                            : AiClient::Provider::Ollama);
+                    emit countsChanged();
+                }
+                emit aiProbeFinished(label);
+            });
+    m_probe->start();
 }
 
 QString MobileBridge::aiUrl() const

@@ -4,6 +4,9 @@
 #include <QVariantList>
 
 class AiClient;
+class AiProbe;
+class QNetworkAccessManager;
+class QNetworkReply;
 class QTextToSpeech;
 class WordStore;
 
@@ -46,6 +49,15 @@ public:
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
     Q_INVOKABLE void aiGenerateArticle(const QString &topic);
     Q_INVOKABLE void aiCancel();
+    Q_INVOKABLE void chatOpen(const QString &title, const QString &content);
+    Q_INVOKABLE void chatSend(const QString &message);
+    Q_INVOKABLE void chatClear();
+    Q_INVOKABLE void importUrl(const QString &url);
+    Q_INVOKABLE void deleteArticle(qint64 articleId);
+    Q_INVOKABLE void reimportBuiltin();
+    Q_INVOKABLE void resetAllProgress();
+    Q_INVOKABLE void resetListItem(qint64 itemId);
+    Q_INVOKABLE void aiProbe();
 
     Q_INVOKABLE QString aiUrl() const;
     Q_INVOKABLE void setAiUrl(const QString &url);
@@ -61,20 +73,33 @@ signals:
     void exampleReady(qint64 wordId, const QString &sentence);
     void wordListReady(const QString &name, int count);
     void articleReady(qint64 articleId, const QString &title);
+    void articleImported(qint64 articleId, const QString &title);
+    void chatReady(const QString &text);
+    void chatFailed(const QString &message);
+    void aiProbeFinished(const QString &label);
     void aiFailed(const QString &message);
 
 private:
     void onWordListFinished(const QString &rawText);
     void onArticleFinished(const QString &articleText);
+    QString chatBuildPrompt() const;
+    void onImportFinished();
 
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
+    AiProbe *m_probe = nullptr;
+    QNetworkAccessManager *m_net = nullptr;
+    QNetworkReply *m_importReply = nullptr;
     qint64 m_pendingExampleId = -1;
     qint64 m_currentArticleId = -1;
     QString m_currentArticleContent;
     QString m_pendingListName;
     qint64 m_pendingListId = -1;
     QString m_pendingArticleTitle;
+    QString m_chatTitle;
+    QString m_chatContext;
+    QStringList m_chatHistory;
+    bool m_pendingChat = false;
 #ifdef ENGLISH3000_HAS_TTS
     QTextToSpeech *m_tts = nullptr;
 #endif

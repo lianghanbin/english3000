@@ -84,6 +84,26 @@ Page {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+            ChipBtn {
+                text: "💬 对话练习"
+                Layout.fillWidth: true
+                onClicked: openChat()
+            }
+            ChipBtn {
+                text: "🌐 导入网址"
+                Layout.fillWidth: true
+                onClicked: importPopup.open()
+            }
+            ChipBtn {
+                text: "🗑 删除"
+                Layout.fillWidth: true
+                onClicked: deleteCurrent()
+            }
+        }
+
         ComboBox {
             id: articleCombo
             Layout.fillWidth: true
@@ -223,6 +243,179 @@ Page {
                     color: T.deskAccent
                     wrapMode: Text.Wrap
                     visible: text !== ""
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: chatPopup
+        x: 8
+        y: 8
+        width: parent.width - 16
+        height: parent.height - 16
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        background: Rectangle {
+            radius: 20
+            color: T.deskDark
+            border.color: T.deskBorder
+        }
+        contentItem: ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "对话练习"
+                    font.pixelSize: 17
+                    font.bold: true
+                    color: T.deskText
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: chatStatus
+                    font.pixelSize: 10
+                    color: chatBusy ? T.deskAccent : "#7b93c2"
+                }
+                Rectangle {
+                    width: 30
+                    height: 30
+                    radius: 15
+                    color: "transparent"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        font.pixelSize: 15
+                        color: T.deskText
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: chatPopup.close()
+                    }
+                }
+            }
+
+            ListView {
+                id: chatView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 8
+                model: chatModel
+                delegate: Item {
+                    width: chatView.width
+                    height: bubble.implicitHeight + 10
+                    Rectangle {
+                        id: bubble
+                        anchors.right: from === "me" ? parent.right : undefined
+                        anchors.left: from === "me" ? undefined : parent.left
+                        width: Math.min(chatView.width * 0.82,
+                                        body.implicitWidth + 24)
+                        implicitHeight: body.implicitHeight + 16
+                        radius: 14
+                        color: from === "me" ? T.green : "#26395e"
+                        Text {
+                            id: body
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            text: model.text
+                            wrapMode: Text.Wrap
+                            font.pixelSize: 13
+                            color: from === "me" ? "#ffffff" : T.deskText
+                        }
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 42
+                    radius: 21
+                    color: "#1c2b49"
+                    border.color: T.deskBorder
+                    TextField {
+                        id: chatInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 8
+                        background: Rectangle { color: "transparent" }
+                        placeholderText: "用英文回答…"
+                        placeholderTextColor: "#5f7398"
+                        font.pixelSize: 14
+                        color: T.deskText
+                        onAccepted: sendChat()
+                    }
+                }
+                Rectangle {
+                    width: 68
+                    height: 42
+                    radius: 21
+                    color: chatBusy ? "#2c3b58" : T.green
+                    Text {
+                        anchors.centerIn: parent
+                        text: "发送"
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: "#ffffff"
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: !chatBusy
+                        onClicked: sendChat()
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: importPopup
+        anchors.centerIn: parent
+        width: parent.width * 0.88
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: "导入网页文章"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            TextField {
+                id: urlField
+                Layout.fillWidth: true
+                placeholderText: "https://example.com/article"
+                font.pixelSize: 14
+                color: T.textDark
+                background: Rectangle {
+                    radius: 10
+                    color: "#f7faf7"
+                    border.color: T.line
+                }
+                onAccepted: startImport()
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                GenBtn {
+                    text: "取消"
+                    Layout.fillWidth: true
+                    onClicked: importPopup.close()
+                }
+                GenBtn {
+                    text: "导入"
+                    Layout.fillWidth: true
+                    onClicked: startImport()
                 }
             }
         }
@@ -391,12 +584,78 @@ Page {
             genBusy = false
             showToast("AI 失败:" + message)
         }
+        function onChatReady(text) {
+            chatBusy = false
+            chatStatus = "已回复"
+            chatModel.append({ from: "ai", text: text })
+            chatView.positionViewAtEnd()
+        }
+        function onChatFailed(message) {
+            chatBusy = false
+            chatStatus = "失败"
+            chatModel.append({ from: "ai", text: "⚠ " + message })
+            chatView.positionViewAtEnd()
+        }
+        function onArticleImported(id, title) {
+            load(id)
+            showToast("已导入:" + title)
+            importPopup.close()
+        }
     }
+
+    ListModel { id: chatModel }
+    property bool chatBusy: false
+    property string chatStatus: ""
 
     function showToast(msg) {
         toastText.text = msg
         toastAnim.start()
         toastTimer.start()
+    }
+
+    function openChat() {
+        var a = articles[articleCombo.currentIndex]
+        if (!a) {
+            showToast("请先选择一篇文章")
+            return
+        }
+        chatModel.clear()
+        chatStatus = "AI 准备第一个问题…"
+        chatBusy = true
+        bridge.chatOpen(a.title, bridge.articleContent(a.id))
+        chatPopup.open()
+    }
+
+    function sendChat() {
+        var t = chatInput.text.trim()
+        if (t === "" || chatBusy)
+            return
+        chatModel.append({ from: "me", text: t })
+        chatInput.text = ""
+        chatBusy = true
+        chatStatus = "AI 思考中…"
+        bridge.chatSend(t)
+        chatView.positionViewAtEnd()
+    }
+
+    function startImport() {
+        var u = urlField.text.trim()
+        if (u === "") {
+            showToast("请输入网址")
+            return
+        }
+        bridge.importUrl(u)
+    }
+
+    function deleteCurrent() {
+        var a = articles[articleCombo.currentIndex]
+        if (!a) {
+            showToast("没有可删除的文章")
+            return
+        }
+        bridge.deleteArticle(a.id)
+        load()
+        showToast("已删除文章")
     }
 
     function translateAll() {
@@ -511,6 +770,28 @@ Page {
         MouseArea {
             anchors.fill: parent
             enabled: root.enabled
+            onClicked: root.clicked()
+        }
+    }
+
+    component ChipBtn: Rectangle {
+        id: root
+        property string text: ""
+        signal clicked()
+        height: 32
+        radius: 16
+        color: T.greenSoft
+        border.color: T.greenBorder
+        border.width: 1
+        Text {
+            anchors.centerIn: parent
+            text: root.text
+            font.pixelSize: 12
+            font.bold: true
+            color: T.greenDark
+        }
+        MouseArea {
+            anchors.fill: parent
             onClicked: root.clicked()
         }
     }

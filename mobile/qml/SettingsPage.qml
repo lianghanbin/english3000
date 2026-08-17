@@ -8,6 +8,8 @@ Page {
     property string model: bridge.aiModel()
     property string provider: bridge.aiProvider
     property string key: bridge.aiApiKey
+    property string engineLabel: provider === "openai"
+                                 ? model : "本地 " + model
 
     background: Rectangle { color: T.bg }
 
@@ -49,6 +51,38 @@ Page {
                         font.pixelSize: 14
                         font.bold: true
                         color: T.textDark
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "当前引擎: " + engineLabel
+                            font.pixelSize: 12
+                            color: T.textMuted
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Rectangle {
+                            width: 84
+                            height: 30
+                            radius: 15
+                            color: T.greenSoft
+                            border.color: T.greenBorder
+                            border.width: 1
+                            Text {
+                                anchors.centerIn: parent
+                                text: "重新检测"
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: T.greenDark
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    engineLabel = "检测中…"
+                                    bridge.aiProbe()
+                                }
+                            }
+                        }
                     }
                     Field {
                         label: "服务地址"
@@ -152,6 +186,49 @@ Page {
                 }
             }
 
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                radius: 18
+                color: T.card
+                border.color: T.line
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Text {
+                        text: "数据管理"
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: T.textDark
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        ChipBtn {
+                            text: "重新导入内置词表"
+                            Layout.fillWidth: true
+                            onClicked: confirmPopup.mode = "reimport"
+                        }
+                        ChipBtn {
+                            text: "重置全部进度"
+                            Layout.fillWidth: true
+                            onClicked: confirmPopup.mode = "reset"
+                        }
+                    }
+                    Text {
+                        text: "重新导入会更新词库和读音;重置会把所有词条退回未学状态。"
+                        font.pixelSize: 11
+                        color: T.textMuted
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
             Text {
                 text: "提示:安卓端 AI 需要连接电脑或服务器的 ollama 地址,"
                       + "例如 http://192.168.1.100:11434"
@@ -193,6 +270,58 @@ Page {
             id: toastTimer
             interval: 1400
             onTriggered: toast.opacity = 0
+        }
+    }
+
+    Popup {
+        id: confirmPopup
+        property string mode: ""
+        anchors.centerIn: parent
+        width: parent.width * 0.86
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: confirmPopup.mode === "reimport"
+                      ? "重新导入内置词表?" : "重置全部进度?"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                text: confirmPopup.mode === "reimport"
+                      ? "会重新导入核心 3000 词库、词形和音标,不会清空学习记录。"
+                      : "所有词条将退回「未学」状态,此操作不可恢复。"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+                font.pixelSize: 12
+                color: T.textBody
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                ChipBtn {
+                    text: "取消"
+                    Layout.fillWidth: true
+                    onClicked: confirmPopup.close()
+                }
+                ChipBtn {
+                    text: "确认"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        if (confirmPopup.mode === "reimport")
+                            bridge.reimportBuiltin()
+                        else
+                            bridge.resetAllProgress()
+                        confirmPopup.close()
+                        showToast("完成")
+                    }
+                }
+            }
         }
     }
 
@@ -277,7 +406,7 @@ Page {
                     spacing: 12
                     GuideItem {
                         title: "快速开始"
-                        body: "选一个词表,点「开始学习」进入卡片流;空格显示释义,认识/不认识一键切换,Esc 随时退出。"
+                        body: "选一个词表,学习页自动进入卡片流;点卡片显示释义,认识/不认识一键记录。"
                     }
                     GuideItem {
                         title: "学习与复习"
@@ -301,7 +430,7 @@ Page {
                     }
                     GuideItem {
                         title: "更新与数据"
-                        body: "所有数据保存在本机;设置页可检查更新,发现新版本可一键更新。"
+                        body: "所有数据保存在本机;设置页可重新导入内置词表或重置学习进度。"
                     }
                 }
             }
@@ -310,6 +439,14 @@ Page {
                 Layout.fillWidth: true
                 onClicked: guidePopup.close()
             }
+        }
+    }
+
+    Connections {
+        target: bridge
+        function onAiProbeFinished(label) {
+            engineLabel = label
+            showToast("AI 检测完成")
         }
     }
 
