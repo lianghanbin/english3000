@@ -375,13 +375,6 @@ void MobileBridge::addReadingWord(const QString &word)
 void MobileBridge::speak(const QString &text)
 {
 #ifdef ENGLISH3000_HAS_TTS
-#if defined(Q_OS_ANDROID)
-    // Waydroid/无 TTS 引擎的安卓:Qt 安卓插件误报有引擎,创建后第二次
-    // say() 会触发错误线程回调并把整个 app 带退出。真机 TTS 后续接入
-    // 绑定检测后再启用。
-    Q_UNUSED(text);
-    return;
-#else
     if (!m_tts) {
         // 没有可用 TTS 引擎时不要创建对象:安卓插件在初始化失败后
         // 会从错误线程回调并导致应用退出(Waydroid/精简系统无引擎)。
@@ -390,7 +383,6 @@ void MobileBridge::speak(const QString &text)
         m_tts = new QTextToSpeech(this);
     }
     m_tts->say(text);
-#endif
 #else
     Q_UNUSED(text);
 #endif
