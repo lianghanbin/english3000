@@ -290,15 +290,14 @@ jobs:
             esac
             base=$(pwd)
             work=$(mktemp -d)
-            unzip -q "$apk" -d "$work"
             mkdir -p "$work/lib/$abi"
             cp /tmp/openssl/$abi/libcrypto_3.so /tmp/openssl/$abi/libssl_3.so "$work/lib/$abi/"
-            (cd "$work" && zip -qr "$base/$apk.unsigned" .)
-            "$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign" -f -p 4 "$apk.unsigned" "$apk.aligned"
+            (cd "$work" && zip -0 -q "$base/$apk" "lib/$abi/libcrypto_3.so" "lib/$abi/libssl_3.so")
+            "$ANDROID_SDK_ROOT/build-tools/34.0.0/zipalign" -f -p 4 "$apk" "$apk.aligned"
             "$ANDROID_SDK_ROOT/build-tools/34.0.0/apksigner" sign \
               --ks /tmp/debug.keystore --ks-pass pass:android --key-pass pass:android \
               --out "$apk" "$apk.aligned"
-            rm -rf "$work" "$apk.unsigned" "$apk.aligned"
+            rm -rf "$work" "$apk.aligned"
             echo "injected openssl and signed: $apk"
           done
       - name: Upload APK
