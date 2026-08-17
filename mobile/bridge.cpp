@@ -7,6 +7,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
@@ -236,9 +238,37 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
     return rows;
 }
 
+QVariantMap MobileBridge::wordInfo(const QString &word)
+{
+    QVariantMap out;
+    const QString w = word.trimmed();
+    if (w.isEmpty())
+        return out;
+    std::optional<Word> found = m_store->findWordByText(w);
+    if (!found)
+        found = m_store->lookupDict(w);
+    if (found) {
+        out.insert(QStringLiteral("word"), found->word);
+        out.insert(QStringLiteral("phonetic"), found->phonetic);
+        out.insert(QStringLiteral("pos"), found->pos);
+        out.insert(QStringLiteral("meaning"), found->meaning);
+    } else {
+        out.insert(QStringLiteral("word"), w);
+        out.insert(QStringLiteral("meaning"),
+                   QStringLiteral("（词库中暂无释义，可点翻译查询）"));
+    }
+    return out;
+}
+
 void MobileBridge::setCurrentList(qint64 listId)
 {
     m_store->setCurrentWordList(listId);
+    emit countsChanged();
+}
+
+void MobileBridge::deleteWordList(qint64 listId)
+{
+    m_store->deleteWordList(listId);
     emit countsChanged();
 }
 
@@ -729,6 +759,28 @@ void MobileBridge::onImportFinished()
     }
     const qint64 id = m_store->saveArticle(
         title, html, url.toString(), 0);
+    emit articleImported(id, title);
+}
+
+void MobileBridge::importArticleFile(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        emit aiFailed(QStringLiteral("导入失败：无法读取文件"));
+        return;
+    }
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+    if (content.simplified().size() < 40) {
+        emit aiFailed(QStringLiteral("导入失败：文件内容太少"));
+        return;
+    }
+    QFileInfo info(path);
+    QString title = info.completeBaseName();
+    if (title.isEmpty())
+        title = QStringLiteral("导入文章");
+    const qint64 id = m_store->saveArticle(
+        title, content, QStringLiteral("file"), 0);
     emit articleImported(id, title);
 }
 

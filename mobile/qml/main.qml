@@ -22,8 +22,8 @@ ApplicationWindow {
             interactive: true
 
             StudyPage {}
-            ReadingPage {}
             WordListsPage {}
+            ReadingPage {}
             TranslatePage {}
             StatsPage {}
             SettingsPage {}
@@ -43,12 +43,12 @@ ApplicationWindow {
                     onClicked: swipe.currentIndex = 0
                 }
                 NavItem {
-                    label: "阅读"
+                    label: "词表"
                     active: swipe.currentIndex === 1
                     onClicked: swipe.currentIndex = 1
                 }
                 NavItem {
-                    label: "词表"
+                    label: "阅读"
                     active: swipe.currentIndex === 2
                     onClicked: swipe.currentIndex = 2
                 }

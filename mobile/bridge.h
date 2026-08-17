@@ -37,7 +37,9 @@ public:
     Q_INVOKABLE QVariantList reviewCards(int limit);
     Q_INVOKABLE QVariantList wordLists();
     Q_INVOKABLE QVariantList wordListRows(qint64 listId, int limit);
+    Q_INVOKABLE QVariantMap wordInfo(const QString &word);
     Q_INVOKABLE void setCurrentList(qint64 listId);
+    Q_INVOKABLE void deleteWordList(qint64 listId);
     Q_INVOKABLE void answer(qint64 wordId, bool known);
     Q_INVOKABLE void translate(const QString &text, const QString &model);
     Q_INVOKABLE void requestExample(qint64 wordId, const QString &word);
@@ -57,6 +59,7 @@ public:
     Q_INVOKABLE void chatSend(const QString &message);
     Q_INVOKABLE void chatClear();
     Q_INVOKABLE void importUrl(const QString &url);
+    Q_INVOKABLE void importArticleFile(const QString &path);
     Q_INVOKABLE void deleteArticle(qint64 articleId);
     Q_INVOKABLE void reimportBuiltin();
     Q_INVOKABLE void resetAllProgress();

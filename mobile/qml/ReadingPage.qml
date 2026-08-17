@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "."
 
@@ -311,7 +312,7 @@ Page {
         contentItem: ColumnLayout {
             spacing: 12
             Text {
-                text: "导入网页文章"
+                text: "导入文章"
                 font.pixelSize: 16
                 font.bold: true
                 color: T.textDark
@@ -330,6 +331,11 @@ Page {
                 }
                 onAccepted: startImport()
             }
+            GenBtn {
+                text: "选择本地文件…"
+                Layout.fillWidth: true
+                onClicked: fileDialog.open()
+            }
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 10
@@ -344,6 +350,17 @@ Page {
                     onClicked: startImport()
                 }
             }
+        }
+    }
+
+    FileDialog {
+        id: fileDialog
+        title: "选择文章文件"
+        nameFilters: ["文本文件 (*.txt *.md *.html)", "所有文件 (*)"]
+        onAccepted: {
+            bridge.importArticleFile(
+                selectedFile.toString().replace("file://", ""))
+            importPopup.close()
         }
     }
 
@@ -428,6 +445,23 @@ Page {
                 font.bold: true
                 color: T.deskText
                 Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    var i = bridge.wordInfo(popupWord.word)
+                    var s = ""
+                    if (i.phonetic)
+                        s += i.phonetic + "  "
+                    if (i.pos)
+                        s += i.pos + "  "
+                    s += i.meaning
+                    return s
+                }
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 12
+                color: "#9fd9b4"
             }
             RowLayout {
                 Layout.fillWidth: true

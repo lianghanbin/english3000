@@ -71,6 +71,11 @@ Page {
                                 bridge.refresh()
                                 refresh()
                             }
+                            onPressAndHold: {
+                                delList.id = modelData.id
+                                delList.name = modelData.name
+                                delList.open()
+                            }
                         }
                     }
                 }
@@ -226,6 +231,23 @@ Page {
                 font.bold: true
                 color: T.textDark
                 Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                Layout.fillWidth: true
+                text: {
+                    var i = bridge.wordInfo(wordAction.word)
+                    var s = ""
+                    if (i.phonetic)
+                        s += i.phonetic + "  "
+                    if (i.pos)
+                        s += i.pos + "  "
+                    s += i.meaning
+                    return s
+                }
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                font.pixelSize: 12
+                color: T.textMuted
             }
             RowLayout {
                 Layout.fillWidth: true
@@ -399,6 +421,55 @@ Page {
                     Layout.fillWidth: true
                     enabled: !aiBusy
                     onClicked: startAi()
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: delList
+        property int id: -1
+        property string name: ""
+        anchors.centerIn: parent
+        width: parent.width * 0.86
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: "删除词表?"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                text: "确定删除「" + delList.name
+                      + "」?词表内学习记录将一并删除。"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+                font.pixelSize: 12
+                color: T.textBody
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                AiBtn {
+                    text: "取消"
+                    Layout.fillWidth: true
+                    onClicked: delList.close()
+                }
+                AiBtn {
+                    text: "删除"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        bridge.deleteWordList(delList.id)
+                        delList.close()
+                        refresh()
+                        showToast("已删除词表")
+                    }
                 }
             }
         }
