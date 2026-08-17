@@ -11,6 +11,10 @@
 #include <QSet>
 #include <QUrl>
 
+#if defined(Q_OS_ANDROID)
+#include <QMediaPlayer>
+#endif
+
 #ifdef ENGLISH3000_HAS_TTS
 #include <QTextToSpeech>
 #endif
@@ -375,6 +379,20 @@ void MobileBridge::addReadingWord(const QString &word)
 void MobileBridge::speak(const QString &text)
 {
 #ifdef ENGLISH3000_HAS_TTS
+#if defined(Q_OS_ANDROID)
+    // Waydroid 精简系统的安卓 TTS 框架绑定不上引擎,改用电脑上的
+    // espeak-ng 合成(经本机 AI 中继 /tts 接口),播放稳定性高。
+    const QString t = text.trimmed();
+    if (t.isEmpty())
+        return;
+    if (!m_player) {
+        m_player = new QMediaPlayer(this);
+    }
+    const QUrl url(QStringLiteral("http://192.168.240.1:8099/tts?text=")
+                   + QString::fromLatin1(QUrl::toPercentEncoding(t)));
+    m_player->setSource(url);
+    m_player->play();
+#else
     if (!m_tts) {
         // 没有可用 TTS 引擎时不要创建对象:安卓插件在初始化失败后
         // 会从错误线程回调并导致应用退出(Waydroid/精简系统无引擎)。
@@ -383,6 +401,7 @@ void MobileBridge::speak(const QString &text)
         m_tts = new QTextToSpeech(this);
     }
     m_tts->say(text);
+#endif
 #else
     Q_UNUSED(text);
 #endif
