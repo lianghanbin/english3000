@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrl>
@@ -16,6 +17,18 @@
 #endif
 
 namespace {
+
+#if defined(Q_OS_ANDROID)
+bool isWaydroidContainer()
+{
+    QProcess proc;
+    proc.start(QStringLiteral("getprop"),
+               {QStringLiteral("ro.product.manufacturer")});
+    if (!proc.waitForFinished(1500))
+        return false;
+    return proc.readAll().contains(QStringLiteral("Waydroid"));
+}
+#endif
 
 const QSet<QString> kNoiseWords = {
     "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
@@ -379,23 +392,33 @@ void MobileBridge::speak(const QString &text)
 {
 #ifdef ENGLISH3000_HAS_TTS
 #if defined(Q_OS_ANDROID)
-    // Waydroid 的安卓 TTS/音频栈不可靠:直接让本机中继用 espeak-ng
-    // 合成并在电脑上播放(/play 接口),声音从宿主机扬声器出来。
+    const QString t = text.trimmed();
+    if (t.isEmpty())
+        return;
+    if (isWaydroidContainer()) {
+        // Waydroid 的安卓 TTS/音频栈不可靠:
+        // 让本机中继用 Piper 合成并在电脑上播放(/play 接口)。
+        const QUrl url(
+            QStringLiteral("http://192.168.240.1:8099/play?text=")
+            + QString::fromLatin1(QUrl::toPercentEncoding(t)));
+        m_net->get(QNetworkRequest(url));
+        return;
+    }
+    // 真机: 用系统 TTS(谷歌/讯飞等,声音自然),没有引擎才放弃。
+    if (!m_tts) {
+        if (QTextToSpeech::availableEngines().isEmpty())
+            return;
+        m_tts = new QTextToSpeech(this);
+    }
+    m_tts->say(t);
+#else
+    // 桌面端也走本机中继的 Piper 合成,声音比系统 speechd/espeak 自然。
     const QString t = text.trimmed();
     if (t.isEmpty())
         return;
     const QUrl url(QStringLiteral("http://192.168.240.1:8099/play?text=")
                    + QString::fromLatin1(QUrl::toPercentEncoding(t)));
     m_net->get(QNetworkRequest(url));
-#else
-    if (!m_tts) {
-        // 没有可用 TTS 引擎时不要创建对象:安卓插件在初始化失败后
-        // 会从错误线程回调并导致应用退出(Waydroid/精简系统无引擎)。
-        if (QTextToSpeech::availableEngines().isEmpty())
-            return;
-        m_tts = new QTextToSpeech(this);
-    }
-    m_tts->say(text);
 #endif
 #else
     Q_UNUSED(text);
