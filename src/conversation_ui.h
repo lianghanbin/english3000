@@ -18,6 +18,7 @@ public:
     explicit ConversationWindow(WordStore *store, QWidget *parent = nullptr);
     ~ConversationWindow() override;
 
+    void applyAiSettings();
     void openWithArticle(const QString &title, const QString &content);
 
 protected:

@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 
 #include "ai_client.h"
+#include "ai_probe.h"
 #include "conversation_ui.h"
 #include "translator_ui.h"
 #include "update_checker.h"
@@ -215,6 +216,37 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
     connect(m_updateChecker, &UpdateChecker::failed, this,
             &MainWindow::onUpdateFailed);
 
+    m_aiProbe = new AiProbe(m_store, this);
+    connect(m_aiProbe, &AiProbe::finished, this,
+            [this](const QString &provider, const QString &baseUrl,
+                   const QString &model, const QString &label) {
+                if (m_aiProbeButton)
+                    m_aiProbeButton->setEnabled(true);
+                const bool autoMode =
+                    m_store->getSetting(QStringLiteral("ai_mode"),
+                                        QStringLiteral("auto"))
+                    == QLatin1String("auto");
+                if (autoMode && !provider.isEmpty()) {
+                    m_store->setSetting(QStringLiteral("ai_provider"),
+                                        provider);
+                    m_store->setSetting(QStringLiteral("ai_base_url"),
+                                        baseUrl);
+                    m_store->setSetting(QStringLiteral("ai_model"), model);
+                    m_store->setSetting(QStringLiteral("ai_engine_label"),
+                                        label);
+                    applyAiSettings();
+                    if (m_wordListPage)
+                        m_wordListPage->applyAiSettings();
+                    if (m_translator)
+                        m_translator->applyAiSettings();
+                    if (m_conversation)
+                        m_conversation->applyAiSettings();
+                }
+                if (m_aiEngineLabel)
+                    m_aiEngineLabel->setText(
+                        QStringLiteral("当前 AI：%1").arg(label));
+            });
+
     m_webManager = new QNetworkAccessManager(this);
 
     m_tray = new QSystemTrayIcon(
@@ -249,6 +281,7 @@ MainWindow::MainWindow(WordStore *store, QWidget *parent)
             checkForUpdates(true);
         }
     });
+    QTimer::singleShot(1000, m_aiProbe, &AiProbe::start);
 }
 
 void MainWindow::buildDashboard()
@@ -985,6 +1018,33 @@ void MainWindow::buildSettings()
         applyAiSettings();
     });
     addRow(QStringLiteral("API Key"), m_aiKeyEdit);
+
+    auto *aiEngineRow = new QHBoxLayout;
+    aiEngineRow->addStretch();
+    m_aiAutoCheck = new QCheckBox(
+        QStringLiteral("自动检测可用模型"), page);
+    m_aiAutoCheck->setChecked(
+        m_store->getSetting(QStringLiteral("ai_mode"),
+                            QStringLiteral("auto"))
+        == QLatin1String("auto"));
+    connect(m_aiAutoCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        m_store->setSetting(
+            QStringLiteral("ai_mode"),
+            checked ? QStringLiteral("auto") : QStringLiteral("manual"));
+    });
+    aiEngineRow->addWidget(m_aiAutoCheck);
+    m_aiEngineLabel = new QLabel(QStringLiteral("当前 AI：待检测"), page);
+    m_aiEngineLabel->setObjectName(QStringLiteral("hintLabel"));
+    aiEngineRow->addWidget(m_aiEngineLabel);
+    m_aiProbeButton = new QPushButton(QStringLiteral("重新检测"), page);
+    connect(m_aiProbeButton, &QPushButton::clicked, this, [this] {
+        m_aiProbeButton->setEnabled(false);
+        m_aiEngineLabel->setText(QStringLiteral("当前 AI：检测中…"));
+        m_aiProbe->start();
+    });
+    aiEngineRow->addWidget(m_aiProbeButton);
+    aiEngineRow->addStretch();
+    layout->addLayout(aiEngineRow);
 
     auto *aiHint = new QLabel(
         QStringLiteral("OpenAI 兼容示例：https://api.deepseek.com 或 "

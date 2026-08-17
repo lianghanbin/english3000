@@ -79,18 +79,7 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     , m_store(store)
 {
     m_ai = new AiClient(this);
-    m_ai->setEndpoint(
-        store->getSetting(QStringLiteral("ai_base_url"),
-                          QStringLiteral("http://127.0.0.1:11434")),
-        QStringLiteral("qwen2.5:1.5b")); // 词表生成用快模型
-    const bool openAi =
-        store->getSetting(QStringLiteral("ai_provider"),
-                          QStringLiteral("ollama"))
-        == QLatin1String("openai");
-    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
-                             : AiClient::Provider::Ollama);
-    m_ai->setApiKey(
-        store->getSetting(QStringLiteral("ai_api_key")));
+    applyAiSettings();
     connect(m_ai, &AiClient::wordListFinished, this,
             &WordListPage::onWordListFinished);
     connect(m_ai, &AiClient::failed, this, &WordListPage::onAiFailed);
@@ -220,6 +209,23 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     m_listButtons->hide();
     m_globalButtons->hide();
     refresh();
+}
+
+void WordListPage::applyAiSettings()
+{
+    m_ai->setEndpoint(
+        m_store->getSetting(QStringLiteral("ai_base_url"),
+                            QStringLiteral("http://127.0.0.1:11434")),
+        m_store->getSetting(QStringLiteral("ai_model"),
+                            QStringLiteral("qwen2.5:1.5b")));
+    const bool openAi =
+        m_store->getSetting(QStringLiteral("ai_provider"),
+                            QStringLiteral("ollama"))
+        == QLatin1String("openai");
+    m_ai->setProvider(openAi ? AiClient::Provider::OpenAI
+                             : AiClient::Provider::Ollama);
+    m_ai->setApiKey(
+        m_store->getSetting(QStringLiteral("ai_api_key")));
 }
 
 void WordListPage::refresh()

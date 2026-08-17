@@ -17,6 +17,7 @@ class WordListPage : public QWidget {
 
 public:
     explicit WordListPage(WordStore *store, QWidget *parent = nullptr);
+    void applyAiSettings();
 
 public slots:
     void refresh();

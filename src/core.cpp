@@ -231,6 +231,7 @@ WordStore::WordStore(const QString &dbPath)
          QStringLiteral("Ctrl+Alt+O")},
         {QStringLiteral("translate_default_model"),
          QStringLiteral("qwen2.5:1.5b")},
+        {QStringLiteral("ai_mode"), QStringLiteral("auto")},
         {QStringLiteral("current_word_list"), QStringLiteral("-1")},
         {QStringLiteral("auto_pronounce"), QStringLiteral("1")},
     };
