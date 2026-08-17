@@ -13,6 +13,11 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+#if defined(Q_OS_ANDROID)
+    // Waydroid 下 Qt 的 androidmedia 后端与系统集成有问题
+    // (QtAudioDeviceManager setActivity 缺失),强制用 ffmpeg 后端播放。
+    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
+#endif
     QCoreApplication::setApplicationName(QStringLiteral("english3000"));
     QCoreApplication::setOrganizationName(QStringLiteral("liang"));
 

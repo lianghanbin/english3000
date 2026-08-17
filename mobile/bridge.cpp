@@ -13,6 +13,7 @@
 
 #if defined(Q_OS_ANDROID)
 #include <QMediaPlayer>
+#include <QDebug>
 #endif
 
 #ifdef ENGLISH3000_HAS_TTS
@@ -387,6 +388,10 @@ void MobileBridge::speak(const QString &text)
         return;
     if (!m_player) {
         m_player = new QMediaPlayer(this);
+        connect(m_player, &QMediaPlayer::errorOccurred, this,
+                [](QMediaPlayer::Error error, const QString &msg) {
+                    qWarning() << "TTS player error" << error << msg;
+                });
     }
     const QUrl url(QStringLiteral("http://192.168.240.1:8099/tts?text=")
                    + QString::fromLatin1(QUrl::toPercentEncoding(t)));
