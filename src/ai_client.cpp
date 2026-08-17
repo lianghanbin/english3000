@@ -239,6 +239,10 @@ void AiClient::start(const QString &prompt)
         request = QNetworkRequest(
             QUrl(m_baseUrl + QStringLiteral("api/generate")));
     }
+    // Waydroid/部分容器网络下 keep-alive 连接容易半死:
+    // 连接看似 ESTABLISHED 但数据不通,复用会让请求一直挂起。
+    // 每次请求强制新建连接,代价可忽略。
+    request.setRawHeader("Connection", "close");
     request.setHeader(QNetworkRequest::ContentTypeHeader,
                       QStringLiteral("application/json"));
     m_reply = m_manager->post(request, QJsonDocument(body).toJson());

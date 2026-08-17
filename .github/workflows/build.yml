@@ -236,14 +236,28 @@ jobs:
             platforms;android-34
             build-tools;34.0.0
             ndk;27.2.12479018
+      - name: Cache Qt host
+        uses: actions/cache@v4
+        with:
+          path: /opt/Qt-host
+          key: qt-host-6.7.3-${{ hashFiles('tools/install-qt-host.sh') }}
+      - name: Cache Qt android kits
+        uses: actions/cache@v4
+        with:
+          path: /opt/Qt
+          key: qt-android-6.7.3-${{ hashFiles('tools/install-qt-android.sh') }}
       - name: Install host Qt 6.7.3 gcc_64 (QT_HOST_PATH)
         run: |
           sudo apt-get install -y p7zip-full
-          ./tools/install-qt-host.sh /opt/Qt-host
+          if [ ! -f /opt/Qt-host/6.7.3/gcc_64/lib/cmake/Qt6/Qt6Config.cmake ]; then
+            ./tools/install-qt-host.sh /opt/Qt-host
+          fi
           echo "QT_HOST_PATH=/opt/Qt-host/6.7.3/gcc_64" >> $GITHUB_ENV
       - name: Install Qt 6.7.3 android kits (手动组装,绕过 aqt 对新 CDN 结构的兼容问题)
         run: |
-          ./tools/install-qt-android.sh /opt/Qt
+          if [ ! -f /opt/Qt/6.7.3/android_arm64_v8a/lib/cmake/Qt6/qt.toolchain.cmake ]; then
+            ./tools/install-qt-android.sh /opt/Qt
+          fi
           echo "QT_ROOT_DIR=/opt/Qt/6.7.3/android_arm64_v8a" >> $GITHUB_ENV
       - name: Configure
         run: |
