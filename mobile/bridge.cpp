@@ -73,6 +73,8 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
             [this](const QString &t) { emit translationReady(t); });
     connect(m_ai, &AiClient::failed, this,
             [this](const QString &m) {
+                // 例句请求失败也要释放挂起标记,否则以后不会再请求例句
+                m_pendingExampleId = -1;
                 if (m_pendingChat) {
                     m_pendingChat = false;
                     emit chatFailed(m);
@@ -264,7 +266,8 @@ void MobileBridge::requestExample(qint64 wordId, const QString &word)
             "Write one short, simple English sentence using the word "
             "\"%1\". Use the exact word. Output only the sentence.")
             .arg(word);
-    m_ai->chat(prompt, 120, QStringLiteral("qwen2.5:1.5b"));
+    // 用当前配置的模型(不要写死小模型名,DeepSeek 等云端不认识它)
+    m_ai->chat(prompt, 120, m_ai->model());
 }
 
 void MobileBridge::refresh()
