@@ -149,8 +149,10 @@ Page {
                 radius: 18
                 color: T.card
                 border.color: T.line
+                implicitHeight: progressCol.implicitHeight + 28
 
                 ColumnLayout {
+                    id: progressCol
                     anchors.fill: parent
                     anchors.margins: 14
                     spacing: 10

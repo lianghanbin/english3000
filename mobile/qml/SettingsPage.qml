@@ -40,8 +40,10 @@ Page {
                 radius: 18
                 color: T.card
                 border.color: T.line
+                implicitHeight: aiCardCol.implicitHeight + 28
 
                 ColumnLayout {
+                    id: aiCardCol
                     anchors.fill: parent
                     anchors.margins: 14
                     spacing: 10
@@ -193,8 +195,10 @@ Page {
                 radius: 18
                 color: T.card
                 border.color: T.line
+                implicitHeight: dataCardCol.implicitHeight + 28
 
                 ColumnLayout {
+                    id: dataCardCol
                     anchors.fill: parent
                     anchors.margins: 14
                     spacing: 10
