@@ -169,6 +169,7 @@ Page {
                             spacing: 8
                             Text {
                                 id: exampleText
+                                text: currentExample
                                 width: parent.width - 82
                                 anchors.verticalCenter: parent.verticalCenter
                                 wrapMode: Text.Wrap
