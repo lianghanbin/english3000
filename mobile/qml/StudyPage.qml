@@ -105,8 +105,10 @@ Page {
 
             Rectangle {
                 id: cardBody
-                anchors.fill: parent
-                anchors.margins: 2
+                x: 2
+                y: 2
+                width: parent.width - 4
+                height: parent.height - 4
                 radius: 26
                 color: T.card
                 border.color: "#eaf0ea"
@@ -241,20 +243,22 @@ Page {
                 }
             }
 
-            TapHandler {
-                acceptedButtons: Qt.LeftButton
-                onTapped: reveal()
-            }
-            DragHandler {
-                id: cardDrag
-                target: cardBody
-                acceptedButtons: Qt.LeftButton
-                xAxis.enabled: true
-                yAxis.enabled: false
-                onActiveChanged: {
-                    if (!active
-                            && (translation.x < -50 || translation.x > 50)) {
-                        swipeAnswer(translation.x > 0)
+            MouseArea {
+                id: cardMouse
+                anchors.fill: parent
+                drag.target: cardBody
+                drag.axis: Drag.XAxis
+                drag.threshold: 8
+                drag.minimumX: -260
+                drag.maximumX: 260
+                onClicked: reveal()
+                onReleased: {
+                    if (cardBody.x <= -60) {
+                        swipeAnswer(false)
+                    } else if (cardBody.x >= 60) {
+                        swipeAnswer(true)
+                    } else {
+                        backX.start()
                     }
                 }
             }
@@ -362,6 +366,15 @@ Page {
                 answer(k)
             }
         }
+    }
+
+    NumberAnimation {
+        id: backX
+        target: cardBody
+        property: "x"
+        to: 0
+        duration: 180
+        easing.type: Easing.OutCubic
     }
 
     Timer {
