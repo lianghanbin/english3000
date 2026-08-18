@@ -10,6 +10,7 @@ Page {
     property string currentExample: ""
     property string mode: "learn"
     property bool speaking: false
+    property bool pendingKnown: false
     property int total: bridge.newCount + bridge.dueCount + bridge.masteredCount
 
     background: Rectangle { color: T.bg }
@@ -56,14 +57,14 @@ Page {
             Layout.fillWidth: true
             spacing: 8
             ModeBtn {
-                text: "开始学习"
-                Layout.fillWidth: true
-                onClicked: load("learn")
-            }
-            ModeBtn {
                 text: "开始复习"
                 Layout.fillWidth: true
                 onClicked: load("review")
+            }
+            ModeBtn {
+                text: "开始学习"
+                Layout.fillWidth: true
+                onClicked: load("learn")
             }
         }
 
@@ -236,49 +237,25 @@ Page {
                         }
                     }
                     Item { Layout.fillHeight: true }
-                    Item {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: 46
-                        height: 46
-                        Rectangle {
-                            id: pulseRing
-                            anchors.fill: parent
-                            radius: width / 2
-                            color: "transparent"
-                            border.color: T.green
-                            border.width: 2
-                            scale: 0.55
-                            opacity: 0
-                            SequentialAnimation {
-                                running: speaking
-                                loops: Animation.Infinite
-                                ParallelAnimation {
-                                    NumberAnimation {
-                                        target: pulseRing
-                                        property: "scale"
-                                        from: 0.55
-                                        to: 1.25
-                                        duration: 850
-                                    }
-                                    NumberAnimation {
-                                        target: pulseRing
-                                        property: "opacity"
-                                        from: 0.85
-                                        to: 0
-                                        duration: 850
-                                    }
-                                }
-                            }
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            text: "发音"
-                            font.pixelSize: 11
-                            font.bold: true
-                            color: T.green
-                        }
-                    }
                     Item { Layout.fillHeight: true }
+                }
+            }
+
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onTapped: reveal()
+            }
+            DragHandler {
+                id: cardDrag
+                target: cardBody
+                acceptedButtons: Qt.LeftButton
+                xAxis.enabled: true
+                yAxis.enabled: false
+                onActiveChanged: {
+                    if (!active
+                            && (translation.x < -50 || translation.x > 50)) {
+                        swipeAnswer(translation.x > 0)
+                    }
                 }
             }
         }
@@ -310,7 +287,7 @@ Page {
         }
 
         Text {
-            text: "点卡片显示释义 · 认识/不认识自动记录 · AI 随时可问"
+            text: "点击翻牌 · 左甩不认识 · 右甩认识 · AI 随时可问"
             font.pixelSize: 12
             color: T.textMuted
             horizontalAlignment: Text.AlignHCenter
@@ -367,6 +344,24 @@ Page {
             easing.type: Easing.OutCubic
         }
         PropertyAnimation { target: cardBody; property: "opacity"; to: 1; duration: 170 }
+    }
+
+    SequentialAnimation {
+        id: flyX
+        PropertyAnimation {
+            id: flyXAnim
+            target: cardBody
+            property: "x"
+            duration: 170
+            easing.type: Easing.InQuad
+        }
+        ScriptAction {
+            script: {
+                var k = pendingKnown
+                pendingKnown = false
+                answer(k)
+            }
+        }
     }
 
     Timer {
@@ -456,6 +451,13 @@ Page {
         } else {
             load(mode)
         }
+    }
+
+    function swipeAnswer(known) {
+        if (cardIndex < 0) return
+        pendingKnown = known
+        flyXAnim.to = known ? 340 : -340
+        flyX.start()
     }
 
     function load(modeArg) {
