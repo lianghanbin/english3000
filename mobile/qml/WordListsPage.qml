@@ -552,13 +552,6 @@ Page {
                         font.bold: true
                         color: T.greenDark
                     }
-                    Text {
-                        visible: rowTapTimer.running
-                        text: "♪"
-                        font.pixelSize: 12
-                        color: T.green
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
                 }
             }
             Item {
@@ -601,7 +594,6 @@ Page {
             onClicked: {
                 bridge.speak(modelData.word)
                 rowPop.start()
-                rowTapTimer.restart()
             }
             onPressAndHold: {
                 wordAction.word = modelData.word
@@ -624,10 +616,6 @@ Page {
                 to: 1
                 duration: 140
             }
-        }
-        Timer {
-            id: rowTapTimer
-            interval: 1300
         }
     }
 

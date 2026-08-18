@@ -272,8 +272,9 @@ Page {
                         }
                         Text {
                             anchors.centerIn: parent
-                            text: "♪"
-                            font.pixelSize: 22
+                            text: "发音"
+                            font.pixelSize: 11
+                            font.bold: true
                             color: T.green
                         }
                     }
