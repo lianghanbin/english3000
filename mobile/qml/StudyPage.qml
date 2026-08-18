@@ -421,9 +421,8 @@ Page {
             revealed = false
             return
         }
-        rankText.text = c.rank > 0 ? "高频词 #" + c.rank
-                                   : "第 " + (cardIndex + 1) + " / "
-                                     + cards.length + " 词"
+        rankText.text = c.rank > 0 ? "高频词 #" + c.rank : ""
+        rankText.visible = rankText.text !== ""
         wordText.text = c.word
         ipaText.text = c.phonetic !== undefined ? (c.phonetic || "") : ""
         posText.text = c.pos || ""
