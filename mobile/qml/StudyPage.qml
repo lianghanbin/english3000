@@ -253,7 +253,9 @@ Page {
                 drag.maximumX: 260
                 onClicked: reveal()
                 onReleased: {
-                    if (cardBody.x <= -60) {
+                    if (!revealed) {
+                        backX.start()
+                    } else if (cardBody.x <= -60) {
                         swipeAnswer(false)
                     } else if (cardBody.x >= 60) {
                         swipeAnswer(true)
