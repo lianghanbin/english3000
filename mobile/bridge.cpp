@@ -389,6 +389,19 @@ void MobileBridge::translate(const QString &text, const QString &model)
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty())
         return;
+#if defined(Q_OS_ANDROID)
+    // 手机上的 127.0.0.1/localhost 是手机自己，不是电脑；
+    // 直接给出可操作的提示，避免白白等超时。
+    const QString base = aiUrl().toLower();
+    if (base.contains(QStringLiteral("127.0.0.1"))
+        || base.contains(QStringLiteral("localhost"))) {
+        emit translationFailed(QStringLiteral(
+            "手机连不上本机 AI。请到设置页选择云端模型"
+            "（DeepSeek/通义/GLM/Kimi/OpenAI）并填写 API Key，"
+            "或把地址改成电脑的局域网 IP。"));
+        return;
+    }
+#endif
     // 翻译完成后再收生词（避免点击瞬间卡顿；原句当例句）
     m_lastTranslateSource = trimmed;
     int cjk = 0;

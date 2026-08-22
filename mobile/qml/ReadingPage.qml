@@ -696,10 +696,15 @@ Page {
     function translateAll() {
         var a = articles[articleCombo.currentIndex]
         if (!a) return
-        lastSource = bridge.articleContent(a.id)
+        var content = bridge.articleContent(a.id)
+        if (content.length > 4000) {
+            content = content.substring(0, 4000)
+            showToast("文章较长，只翻译前 4000 字符")
+        }
+        lastSource = content
         translating = true
         resultText.text = ""
-        bridge.translate(lastSource, "")
+        bridge.translate(content, "")
     }
 
     function translateWord(w) {
