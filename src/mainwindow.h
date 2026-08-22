@@ -14,6 +14,7 @@ class QCheckBox;
 class QComboBox;
 class CoverageChart;
 class ConversationWindow;
+class QGroupBox;
 class QKeySequenceEdit;
 class QLabel;
 class QLineEdit;
@@ -156,7 +157,11 @@ private:
     QLineEdit *m_aiUrlEdit = nullptr;
     QLineEdit *m_aiModelEdit = nullptr;
     QComboBox *m_aiProviderCombo = nullptr;
+    QComboBox *m_aiPresetCombo = nullptr;
     QLineEdit *m_aiKeyEdit = nullptr;
+    QWidget *m_aiKeyContainer = nullptr;
+    QLabel *m_aiKeyHint = nullptr;
+    QGroupBox *m_aiAdvancedGroup = nullptr;
     QCheckBox *m_aiAutoCheck = nullptr;
     QLabel *m_aiEngineLabel = nullptr;
     QPushButton *m_aiProbeButton = nullptr;
@@ -200,7 +205,6 @@ private:
     QCheckBox *m_autoPronounceCheck = nullptr;
     QKeySequenceEdit *m_translateHotkeyEdit = nullptr;
     QKeySequenceEdit *m_screenshotHotkeyEdit = nullptr;
-    QComboBox *m_translateModelCombo = nullptr;
 
     // 领域词表
     WordListPage *m_wordListPage = nullptr;

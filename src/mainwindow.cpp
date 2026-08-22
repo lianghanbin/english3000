@@ -769,7 +769,9 @@ void MainWindow::buildSettings()
 
     auto addRow = [layout](const QString &labelText, QWidget *widget,
                            int widgetWidth = 320) {
-        auto *row = new QHBoxLayout;
+        auto *container = new QWidget;
+        auto *row = new QHBoxLayout(container);
+        row->setContentsMargins(0, 0, 0, 0);
         row->addStretch();
         auto *label = new QLabel(labelText);
         label->setFixedWidth(120);
@@ -779,7 +781,8 @@ void MainWindow::buildSettings()
             widget->setFixedWidth(widgetWidth);
         row->addWidget(widget);
         row->addStretch();
-        layout->addLayout(row);
+        layout->addWidget(container);
+        return container;
     };
 
     auto *pronounceRow = new QHBoxLayout;
@@ -893,32 +896,6 @@ void MainWindow::buildSettings()
     hotkeyRow->addStretch();
     transLayout->addLayout(hotkeyRow);
 
-    auto *modelRow = new QHBoxLayout;
-    auto *modelLabel = new QLabel(QStringLiteral("默认引擎"), transGroup);
-    modelLabel->setFixedWidth(70);
-    modelLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    modelRow->addWidget(modelLabel);
-    m_translateModelCombo = new QComboBox(transGroup);
-    m_translateModelCombo->setFixedWidth(220);
-    m_translateModelCombo->addItem(QStringLiteral("快译 qwen2.5:1.5b"),
-                                   QStringLiteral("qwen2.5:1.5b"));
-    m_translateModelCombo->addItem(QStringLiteral("精译 qwen3:14b"),
-                                   QStringLiteral("qwen3:14b"));
-    const QString defModel = m_store->getSetting(
-        QStringLiteral("translate_default_model"),
-        QStringLiteral("qwen2.5:1.5b"));
-    const int defIdx = m_translateModelCombo->findData(defModel);
-    m_translateModelCombo->setCurrentIndex(defIdx >= 0 ? defIdx : 0);
-    connect(m_translateModelCombo, &QComboBox::currentIndexChanged, this,
-            [this](int index) {
-                m_store->setSetting(
-                    QStringLiteral("translate_default_model"),
-                    m_translateModelCombo->itemData(index).toString());
-            });
-    modelRow->addWidget(m_translateModelCombo);
-    modelRow->addStretch();
-    transLayout->addLayout(modelRow);
-
     auto *transHint = new QLabel(
         QStringLiteral("应用常驻托盘时生效；关闭应用后热键自动解绑。"),
         transGroup);
@@ -964,7 +941,85 @@ void MainWindow::buildSettings()
                QStringLiteral("hotkey_known"), QStringLiteral("2"));
     layout->addWidget(shortcutGroup);
 
-    m_aiUrlEdit = new QLineEdit(page);
+    // ===== AI 设置（通俗版）=====
+    auto *aiStatusGroup = new QGroupBox(QStringLiteral("当前 AI"), page);
+    auto *aiStatusLayout = new QVBoxLayout(aiStatusGroup);
+    m_aiEngineLabel = new QLabel(QStringLiteral("检测中…"), aiStatusGroup);
+    m_aiEngineLabel->setObjectName(QStringLiteral("meaningLabel"));
+    m_aiEngineLabel->setAlignment(Qt::AlignCenter);
+    aiStatusLayout->addWidget(m_aiEngineLabel);
+    auto *aiStatusHint = new QLabel(
+        QStringLiteral("翻译、例句、文章生成都会用它；不好用就换下面这个。"),
+        aiStatusGroup);
+    aiStatusHint->setObjectName(QStringLiteral("hintLabel"));
+    aiStatusHint->setAlignment(Qt::AlignCenter);
+    aiStatusLayout->addWidget(aiStatusHint);
+    layout->addWidget(aiStatusGroup);
+
+    m_aiPresetCombo = new QComboBox(page);
+    m_aiPresetCombo->addItem(QStringLiteral("自动选择（推荐）"),
+                             QStringLiteral("auto"));
+    m_aiPresetCombo->addItem(QStringLiteral("本地小模型（免费离线）"),
+                             QStringLiteral("local"));
+    m_aiPresetCombo->addItem(QStringLiteral("本地 Ollama"),
+                             QStringLiteral("ollama"));
+    m_aiPresetCombo->addItem(QStringLiteral("DeepSeek（云端）"),
+                             QStringLiteral("deepseek"));
+    m_aiPresetCombo->addItem(QStringLiteral("通义千问（云端）"),
+                             QStringLiteral("dashscope"));
+    m_aiPresetCombo->addItem(QStringLiteral("智谱 GLM（云端）"),
+                             QStringLiteral("glm"));
+    m_aiPresetCombo->addItem(QStringLiteral("Kimi（云端）"),
+                             QStringLiteral("moonshot"));
+    m_aiPresetCombo->addItem(QStringLiteral("OpenAI（云端）"),
+                             QStringLiteral("openai"));
+    m_aiPresetCombo->addItem(QStringLiteral("自定义…"),
+                             QStringLiteral("custom"));
+    addRow(QStringLiteral("选择 AI"), m_aiPresetCombo, 320);
+
+    m_aiKeyEdit = new QLineEdit(page);
+    m_aiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiKeyEdit->setText(
+        m_store->getSetting(QStringLiteral("ai_api_key")));
+    m_aiKeyEdit->setPlaceholderText(
+        QStringLiteral("粘贴云端密钥（没有就去对应官网申请）"));
+    connect(m_aiKeyEdit, &QLineEdit::editingFinished, this, [this] {
+        m_store->setSetting(QStringLiteral("ai_api_key"),
+                            m_aiKeyEdit->text().trimmed());
+        applyAiSettings();
+    });
+    m_aiKeyContainer = addRow(QStringLiteral("密钥（Key）"), m_aiKeyEdit);
+    m_aiKeyHint = new QLabel(
+        QStringLiteral("云端 AI 需要密钥：DeepSeek 在 platform.deepseek.com "
+                       "申请，通义在阿里云百炼，GLM 在 open.bigmodel.cn，"
+                       "Kimi 在 platform.moonshot.cn，OpenAI 在 "
+                       "platform.openai.com。"),
+        page);
+    m_aiKeyHint->setObjectName(QStringLiteral("hintLabel"));
+    m_aiKeyHint->setWordWrap(true);
+    m_aiKeyHint->setAlignment(Qt::AlignCenter);
+    layout->addWidget(m_aiKeyHint);
+
+    m_aiAdvancedGroup = new QGroupBox(
+        QStringLiteral("高级设置（地址 / 模型名 / 自动检测）"), page);
+    m_aiAdvancedGroup->setCheckable(true);
+    auto *advLayout = new QVBoxLayout(m_aiAdvancedGroup);
+    auto addAdvRow = [advLayout](const QString &labelText,
+                                 QWidget *widget, int widgetWidth = 320) {
+        auto *row = new QHBoxLayout;
+        row->addStretch();
+        auto *label = new QLabel(labelText);
+        label->setFixedWidth(120);
+        label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        row->addWidget(label);
+        if (widgetWidth > 0)
+            widget->setFixedWidth(widgetWidth);
+        row->addWidget(widget);
+        row->addStretch();
+        advLayout->addLayout(row);
+    };
+
+    m_aiUrlEdit = new QLineEdit(m_aiAdvancedGroup);
     m_aiUrlEdit->setText(
         m_store->getSetting(QStringLiteral("ai_base_url"),
                             QStringLiteral("http://127.0.0.1:11434")));
@@ -973,9 +1028,9 @@ void MainWindow::buildSettings()
                             m_aiUrlEdit->text().trimmed());
         applyAiSettings();
     });
-    addRow(QStringLiteral("AI 服务地址"), m_aiUrlEdit);
+    addAdvRow(QStringLiteral("AI 服务地址"), m_aiUrlEdit);
 
-    m_aiModelEdit = new QLineEdit(page);
+    m_aiModelEdit = new QLineEdit(m_aiAdvancedGroup);
     m_aiModelEdit->setText(
         m_store->getSetting(QStringLiteral("ai_model"),
                             QStringLiteral("qwen2.5:1.5b")));
@@ -984,9 +1039,9 @@ void MainWindow::buildSettings()
                             m_aiModelEdit->text().trimmed());
         applyAiSettings();
     });
-    addRow(QStringLiteral("AI 模型"), m_aiModelEdit);
+    addAdvRow(QStringLiteral("AI 模型"), m_aiModelEdit);
 
-    m_aiProviderCombo = new QComboBox(page);
+    m_aiProviderCombo = new QComboBox(m_aiAdvancedGroup);
     m_aiProviderCombo->addItem(
         QStringLiteral("本地 Ollama"),
         QStringLiteral("ollama"));
@@ -1004,25 +1059,10 @@ void MainWindow::buildSettings()
                     m_aiProviderCombo->itemData(index).toString());
                 applyAiSettings();
             });
-    addRow(QStringLiteral("AI 供应商"), m_aiProviderCombo, 320);
+    addAdvRow(QStringLiteral("AI 供应商"), m_aiProviderCombo, 320);
 
-    m_aiKeyEdit = new QLineEdit(page);
-    m_aiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_aiKeyEdit->setText(
-        m_store->getSetting(QStringLiteral("ai_api_key")));
-    m_aiKeyEdit->setPlaceholderText(
-        QStringLiteral("云端 API 的密钥（本地 Ollama 可留空）"));
-    connect(m_aiKeyEdit, &QLineEdit::editingFinished, this, [this] {
-        m_store->setSetting(QStringLiteral("ai_api_key"),
-                            m_aiKeyEdit->text().trimmed());
-        applyAiSettings();
-    });
-    addRow(QStringLiteral("API Key"), m_aiKeyEdit);
-
-    auto *aiEngineRow = new QHBoxLayout;
-    aiEngineRow->addStretch();
     m_aiAutoCheck = new QCheckBox(
-        QStringLiteral("自动检测可用模型"), page);
+        QStringLiteral("自动检测可用模型"), m_aiAdvancedGroup);
     m_aiAutoCheck->setChecked(
         m_store->getSetting(QStringLiteral("ai_mode"),
                             QStringLiteral("auto"))
@@ -1032,27 +1072,130 @@ void MainWindow::buildSettings()
             QStringLiteral("ai_mode"),
             checked ? QStringLiteral("auto") : QStringLiteral("manual"));
     });
-    aiEngineRow->addWidget(m_aiAutoCheck);
-    m_aiEngineLabel = new QLabel(QStringLiteral("当前 AI：待检测"), page);
-    m_aiEngineLabel->setObjectName(QStringLiteral("hintLabel"));
-    aiEngineRow->addWidget(m_aiEngineLabel);
-    m_aiProbeButton = new QPushButton(QStringLiteral("重新检测"), page);
+    m_aiProbeButton = new QPushButton(QStringLiteral("重新检测"),
+                                      m_aiAdvancedGroup);
     connect(m_aiProbeButton, &QPushButton::clicked, this, [this] {
         m_aiProbeButton->setEnabled(false);
-        m_aiEngineLabel->setText(QStringLiteral("当前 AI：检测中…"));
+        m_aiEngineLabel->setText(QStringLiteral("检测中…"));
         m_aiProbe->start();
     });
-    aiEngineRow->addWidget(m_aiProbeButton);
-    aiEngineRow->addStretch();
-    layout->addLayout(aiEngineRow);
+    auto *advAutoRow = new QHBoxLayout;
+    advAutoRow->addStretch();
+    advAutoRow->addWidget(m_aiAutoCheck);
+    advAutoRow->addWidget(m_aiProbeButton);
+    advAutoRow->addStretch();
+    advLayout->addLayout(advAutoRow);
+    layout->addWidget(m_aiAdvancedGroup);
 
-    auto *aiHint = new QLabel(
-        QStringLiteral("OpenAI 兼容示例：https://api.deepseek.com 或 "
-                       "https://api.openai.com/v1；模型填 deepseek-chat / gpt-4o-mini 等"),
-        page);
-    aiHint->setObjectName(QStringLiteral("hintLabel"));
-    aiHint->setAlignment(Qt::AlignCenter);
-    layout->addWidget(aiHint);
+    const auto updateAiVisibility = [this](const QString &preset) {
+        const bool cloud =
+            preset == QLatin1String("deepseek")
+            || preset == QLatin1String("dashscope")
+            || preset == QLatin1String("glm")
+            || preset == QLatin1String("moonshot")
+            || preset == QLatin1String("openai");
+        if (m_aiKeyContainer)
+            m_aiKeyContainer->setVisible(cloud);
+        if (m_aiKeyHint)
+            m_aiKeyHint->setVisible(cloud);
+        if (m_aiAdvancedGroup)
+            m_aiAdvancedGroup->setChecked(preset == QLatin1String("custom"));
+    };
+
+    const QString curBase =
+        m_store->getSetting(QStringLiteral("ai_base_url"));
+    const QString curProvider =
+        m_store->getSetting(QStringLiteral("ai_provider"));
+    const bool autoMode =
+        m_store->getSetting(QStringLiteral("ai_mode"),
+                            QStringLiteral("auto"))
+        == QLatin1String("auto");
+    int presetIdx = autoMode ? 0 : 8;
+    if (curBase.contains(QStringLiteral("127.0.0.1:8080")))
+        presetIdx = 1;
+    else if (curProvider == QLatin1String("ollama"))
+        presetIdx = 2;
+    else if (curBase.contains(QStringLiteral("deepseek.com")))
+        presetIdx = 3;
+    else if (curBase.contains(QStringLiteral("dashscope")))
+        presetIdx = 4;
+    else if (curBase.contains(QStringLiteral("bigmodel.cn")))
+        presetIdx = 5;
+    else if (curBase.contains(QStringLiteral("moonshot.cn")))
+        presetIdx = 6;
+    else if (curBase.contains(QStringLiteral("openai.com")))
+        presetIdx = 7;
+    m_aiPresetCombo->setCurrentIndex(presetIdx);
+    connect(m_aiPresetCombo, &QComboBox::currentIndexChanged, this,
+            [this, updateAiVisibility](int index) {
+                const QString preset =
+                    m_aiPresetCombo->itemData(index).toString();
+                updateAiVisibility(preset);
+                if (preset == QLatin1String("auto")) {
+                    m_store->setSetting(QStringLiteral("ai_mode"),
+                                        QStringLiteral("auto"));
+                    if (m_aiAutoCheck)
+                        m_aiAutoCheck->setChecked(true);
+                    if (m_aiProbeButton)
+                        m_aiProbeButton->setEnabled(false);
+                    if (m_aiEngineLabel)
+                        m_aiEngineLabel->setText(
+                            QStringLiteral("检测中…"));
+                    if (m_aiProbe)
+                        m_aiProbe->start();
+                    return;
+                }
+                m_store->setSetting(QStringLiteral("ai_mode"),
+                                    QStringLiteral("manual"));
+                if (m_aiAutoCheck)
+                    m_aiAutoCheck->setChecked(false);
+                QString base = m_aiUrlEdit->text().trimmed();
+                QString model = m_aiModelEdit->text().trimmed();
+                QString provider =
+                    m_aiProviderCombo->currentData().toString();
+                if (preset == QLatin1String("local")) {
+                    base = QStringLiteral("http://127.0.0.1:8080");
+                    model = QStringLiteral("qwen2.5:1.5b");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("ollama")) {
+                    base = QStringLiteral("http://127.0.0.1:11434");
+                    provider = QStringLiteral("ollama");
+                } else if (preset == QLatin1String("deepseek")) {
+                    base = QStringLiteral("https://api.deepseek.com");
+                    model = QStringLiteral("deepseek-chat");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("dashscope")) {
+                    base = QStringLiteral(
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1");
+                    model = QStringLiteral("qwen-plus");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("glm")) {
+                    base = QStringLiteral(
+                        "https://open.bigmodel.cn/api/paas/v4");
+                    model = QStringLiteral("glm-4-flash");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("moonshot")) {
+                    base = QStringLiteral("https://api.moonshot.cn/v1");
+                    model = QStringLiteral("moonshot-v1-8k");
+                    provider = QStringLiteral("openai");
+                } else if (preset == QLatin1String("openai")) {
+                    base = QStringLiteral("https://api.openai.com/v1");
+                    model = QStringLiteral("gpt-4o-mini");
+                    provider = QStringLiteral("openai");
+                }
+                m_store->setSetting(QStringLiteral("ai_base_url"), base);
+                m_store->setSetting(QStringLiteral("ai_model"), model);
+                m_store->setSetting(QStringLiteral("ai_provider"),
+                                   provider);
+                m_aiUrlEdit->setText(base);
+                m_aiModelEdit->setText(model);
+                const int pi = m_aiProviderCombo->findData(provider);
+                if (pi >= 0)
+                    m_aiProviderCombo->setCurrentIndex(pi);
+                applyAiSettings();
+            });
+    updateAiVisibility(
+        m_aiPresetCombo->currentData().toString());
 
     auto *updateRow = new QHBoxLayout;
     updateRow->addStretch();
