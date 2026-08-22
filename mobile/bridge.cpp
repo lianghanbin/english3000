@@ -37,6 +37,22 @@
 
 namespace {
 
+// 学习卡片优先使用离线词典的完整释义;查不到原词时尝试词形还原
+void enrichCardFromDict(WordStore *store, QVariantMap &card, const Word &w)
+{
+    std::optional<Word> dict = store->lookupDict(w.word);
+    if (!dict && !w.word.isEmpty()) {
+        const QString lemma = store->lookupLemma(w.word);
+        if (!lemma.isEmpty())
+            dict = store->lookupDict(lemma);
+    }
+    if (dict && !dict->meaning.isEmpty()) {
+        card.insert(QStringLiteral("pos"), dict->pos);
+        card.insert(QStringLiteral("phonetic"), dict->phonetic);
+        card.insert(QStringLiteral("meaning"), dict->meaning);
+    }
+}
+
 #if defined(Q_OS_ANDROID)
 bool isWaydroidContainer()
 {
@@ -257,12 +273,7 @@ QVariantList MobileBridge::newCards(int limit)
         card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
-        const std::optional<Word> dict = m_store->lookupDict(w.word);
-        if (dict && !dict->meaning.isEmpty()) {
-            card.insert(QStringLiteral("pos"), dict->pos);
-            card.insert(QStringLiteral("phonetic"), dict->phonetic);
-            card.insert(QStringLiteral("meaning"), dict->meaning);
-        }
+        enrichCardFromDict(m_store, card, w);
         cards.append(card);
     }
     return cards;
@@ -281,12 +292,7 @@ QVariantList MobileBridge::reviewCards(int limit)
         card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
-        const std::optional<Word> dict = m_store->lookupDict(w.word);
-        if (dict && !dict->meaning.isEmpty()) {
-            card.insert(QStringLiteral("pos"), dict->pos);
-            card.insert(QStringLiteral("phonetic"), dict->phonetic);
-            card.insert(QStringLiteral("meaning"), dict->meaning);
-        }
+        enrichCardFromDict(m_store, card, w);
         cards.append(card);
     }
     return cards;
@@ -320,6 +326,16 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
         r.insert(QStringLiteral("word"), w.word);
         r.insert(QStringLiteral("pos"), w.pos);
         r.insert(QStringLiteral("meaning"), w.meaning);
+        std::optional<Word> dict = m_store->lookupDict(w.word);
+        if (!dict && !w.word.isEmpty()) {
+            const QString lemma = m_store->lookupLemma(w.word);
+            if (!lemma.isEmpty())
+                dict = m_store->lookupDict(lemma);
+        }
+        if (dict && !dict->meaning.isEmpty()) {
+            r.insert(QStringLiteral("pos"), dict->pos);
+            r.insert(QStringLiteral("meaning"), dict->meaning);
+        }
         const QString status =
             w.box >= 6 ? QStringLiteral("mastered")
                        : (w.box == 0 ? QStringLiteral("new")
@@ -337,8 +353,15 @@ QVariantMap MobileBridge::wordInfo(const QString &word)
     if (w.isEmpty())
         return out;
     std::optional<Word> found = m_store->findWordByText(w);
-    if (!found)
-        found = m_store->lookupDict(w);
+    std::optional<Word> dict = m_store->lookupDict(w);
+    if (!dict && !w.isEmpty()) {
+        const QString lemma = m_store->lookupLemma(w);
+        if (!lemma.isEmpty())
+            dict = m_store->lookupDict(lemma);
+    }
+    // 优先完整离线词典释义,词表释义兜底
+    if (dict && !dict->meaning.isEmpty())
+        found = dict;
     if (found) {
         out.insert(QStringLiteral("word"), found->word);
         out.insert(QStringLiteral("phonetic"), found->phonetic);

@@ -525,7 +525,7 @@ Page {
     component RowItem: Rectangle {
         id: row
         width: rowsView.width
-        height: 42
+        height: Math.max(42, meaningText.implicitHeight + 14)
         color: index % 2 === 0 ? "#fbfdfb" : "#ffffff"
         border.color: T.line
         border.width: 0
@@ -552,13 +552,14 @@ Page {
                 width: parent.width * 0.5
                 height: parent.height
                 Text {
+                    id: meaningText
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     anchors.leftMargin: 4
                     width: parent.width - 8
-                    elide: Text.ElideRight
+                    wrapMode: Text.Wrap
                     text: modelData.meaning === ""
-                          ? "（暂无释义，可点 AI 补全）" : modelData.meaning
+                          ? "（暂无释义，点按查词典）" : modelData.meaning
                     font.pixelSize: 12
                     color: T.textBody
                 }

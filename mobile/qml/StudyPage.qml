@@ -436,8 +436,10 @@ Page {
         wordText.text = c.word
         ipaText.text = c.phonetic !== undefined ? (c.phonetic || "") : ""
         posText.text = c.pos || ""
-        meaningText.text = (c.pos ? c.pos + "  " : "")
-                           + (c.meaning ? c.meaning : "（暂无释义）")
+        var m = c.meaning ? c.meaning : "（暂无释义）"
+        meaningText.font.pixelSize = m.length > 60 ? 15
+                                   : (m.length > 28 ? 17 : 21)
+        meaningText.text = (c.pos ? c.pos + "  " : "") + m
         currentExample = c.example || ""
         if (currentExample === "")
             bridge.requestExample(c.id, c.word)
@@ -487,7 +489,7 @@ Page {
         if (modeArg !== undefined)
             mode = modeArg
         cards = mode === "review" ? bridge.reviewCards(10)
-                                  : bridge.newCards(10)
+                                  : bridge.newCards(20)
         cardIndex = cards.length > 0 ? 0 : -1
         if (cardIndex >= 0) {
             cardSeq.start()
