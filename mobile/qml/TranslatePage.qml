@@ -141,6 +141,6 @@ Page {
         if (t === "") return
         result.text = ""
         translating = true
-        bridge.translate(t, bridge.aiModel())
+        bridge.translate(t, "")
     }
 }

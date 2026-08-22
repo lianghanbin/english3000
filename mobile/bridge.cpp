@@ -1012,3 +1012,94 @@ void MobileBridge::setAiApiKey(const QString &key)
     m_ai->setApiKey(key.trimmed());
     emit countsChanged();
 }
+
+QString MobileBridge::aiMode() const
+{
+    return m_store->getSetting(QStringLiteral("ai_mode"),
+                               QStringLiteral("auto"));
+}
+
+void MobileBridge::setAiMode(const QString &mode)
+{
+    m_store->setSetting(QStringLiteral("ai_mode"), mode.trimmed());
+    emit countsChanged();
+}
+
+QString MobileBridge::aiPreset() const
+{
+    const QString base =
+        m_store->getSetting(QStringLiteral("ai_base_url"));
+    const QString provider =
+        m_store->getSetting(QStringLiteral("ai_provider"));
+    if (aiMode() == QLatin1String("auto"))
+        return QStringLiteral("auto");
+    if (base.contains(QStringLiteral("127.0.0.1:8080")))
+        return QStringLiteral("local");
+    if (provider == QLatin1String("ollama"))
+        return QStringLiteral("ollama");
+    if (base.contains(QStringLiteral("deepseek.com")))
+        return QStringLiteral("deepseek");
+    if (base.contains(QStringLiteral("dashscope")))
+        return QStringLiteral("dashscope");
+    if (base.contains(QStringLiteral("bigmodel.cn")))
+        return QStringLiteral("glm");
+    if (base.contains(QStringLiteral("moonshot.cn")))
+        return QStringLiteral("moonshot");
+    if (base.contains(QStringLiteral("openai.com")))
+        return QStringLiteral("openai");
+    return QStringLiteral("custom");
+}
+
+void MobileBridge::setAiPreset(const QString &preset)
+{
+    const QString key = preset.trimmed();
+    if (key == QLatin1String("auto")) {
+        m_store->setSetting(QStringLiteral("ai_mode"),
+                            QStringLiteral("auto"));
+        aiProbe();
+        emit countsChanged();
+        return;
+    }
+    m_store->setSetting(QStringLiteral("ai_mode"),
+                        QStringLiteral("manual"));
+    QString base = aiUrl();
+    QString model = aiModel();
+    QString provider = aiProvider();
+    if (key == QLatin1String("local")) {
+        base = QStringLiteral("http://127.0.0.1:8080");
+        model = QStringLiteral("qwen2.5:1.5b");
+        provider = QStringLiteral("openai");
+    } else if (key == QLatin1String("ollama")) {
+        base = QStringLiteral("http://127.0.0.1:11434");
+        provider = QStringLiteral("ollama");
+    } else if (key == QLatin1String("deepseek")) {
+        base = QStringLiteral("https://api.deepseek.com");
+        model = QStringLiteral("deepseek-chat");
+        provider = QStringLiteral("openai");
+    } else if (key == QLatin1String("dashscope")) {
+        base = QStringLiteral(
+            "https://dashscope.aliyuncs.com/compatible-mode/v1");
+        model = QStringLiteral("qwen-plus");
+        provider = QStringLiteral("openai");
+    } else if (key == QLatin1String("glm")) {
+        base = QStringLiteral("https://open.bigmodel.cn/api/paas/v4");
+        model = QStringLiteral("glm-4-flash");
+        provider = QStringLiteral("openai");
+    } else if (key == QLatin1String("moonshot")) {
+        base = QStringLiteral("https://api.moonshot.cn/v1");
+        model = QStringLiteral("moonshot-v1-8k");
+        provider = QStringLiteral("openai");
+    } else if (key == QLatin1String("openai")) {
+        base = QStringLiteral("https://api.openai.com/v1");
+        model = QStringLiteral("gpt-4o-mini");
+        provider = QStringLiteral("openai");
+    }
+    m_store->setSetting(QStringLiteral("ai_base_url"), base);
+    m_store->setSetting(QStringLiteral("ai_model"), model);
+    m_store->setSetting(QStringLiteral("ai_provider"), provider);
+    m_ai->setEndpoint(base, model);
+    m_ai->setProvider(provider == QLatin1String("openai")
+                          ? AiClient::Provider::OpenAI
+                          : AiClient::Provider::Ollama);
+    emit countsChanged();
+}

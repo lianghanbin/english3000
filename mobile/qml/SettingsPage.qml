@@ -8,8 +8,12 @@ Page {
     property string model: bridge.aiModel()
     property string provider: bridge.aiProvider
     property string key: bridge.aiApiKey
-    property string engineLabel: provider === "openai"
-                                 ? model : "本地 " + model
+    property string engineLabel: ""
+    property string preset: bridge.aiPreset()
+    property bool isCloudPreset: false
+    property bool advancedOpen: false
+
+    Component.onCompleted: initAi()
 
     background: Rectangle { color: T.bg }
 
@@ -86,91 +90,168 @@ Page {
                             }
                         }
                     }
-                    Field {
-                        label: "服务地址"
-                        text: url
-                        placeholder: "http://192.168.1.100:11434"
-                        onEdited: url = value
-                    }
-                    Field {
-                        label: "模型名"
-                        text: model
-                        placeholder: "qwen2.5:1.5b"
-                        onEdited: model = value
+                    Text {
+                        text: "翻译、例句、文章生成都会用它；不好用就换下面这个。"
+                        font.pixelSize: 11
+                        color: T.textMuted
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
                         Text {
-                            text: "服务类型"
+                            text: "选择 AI"
                             font.pixelSize: 11
                             color: T.textMuted
                         }
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 40
+                            height: 42
                             radius: 10
                             color: "#f7faf7"
                             border.color: T.line
                             ComboBox {
-                                id: providerCombo
+                                id: presetCombo
                                 anchors.fill: parent
                                 anchors.leftMargin: 8
                                 anchors.rightMargin: 8
                                 background: Rectangle { color: "transparent" }
                                 model: [
+                                    { text: "自动选择（推荐）", value: "auto" },
+                                    { text: "本地小模型（免费离线）", value: "local" },
                                     { text: "本地 Ollama", value: "ollama" },
-                                    {
-                                        text: "OpenAI 兼容(DeepSeek/通义/GLM/Kimi)",
-                                        value: "openai"
-                                    }
+                                    { text: "DeepSeek（云端）", value: "deepseek" },
+                                    { text: "通义千问（云端）", value: "dashscope" },
+                                    { text: "智谱 GLM（云端）", value: "glm" },
+                                    { text: "Kimi（云端）", value: "moonshot" },
+                                    { text: "OpenAI（云端）", value: "openai" },
+                                    { text: "自定义…", value: "custom" }
                                 ]
                                 textRole: "text"
                                 valueRole: "value"
                                 font.pixelSize: 13
-                                onActivated: provider = currentValue
-                                Component.onCompleted: {
-                                    for (var i = 0; i < model.length; ++i) {
-                                        if (model[i].value === provider) {
-                                            currentIndex = i
-                                            break
-                                        }
-                                    }
-                                }
+                                onActivated: applyPreset(currentValue)
                             }
                         }
                     }
                     Field {
-                        label: "API Key(本地 Ollama 可留空)"
+                        id: keyField
+                        visible: isCloudPreset
+                        label: "API Key（云端必填，本地可留空）"
                         text: key
                         placeholder: "sk-..."
                         password: true
                         onEdited: key = value
                     }
 
-                    Rectangle {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        height: 42
-                        radius: 21
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: T.greenBright }
-                            GradientStop { position: 1.0; color: T.green }
+                        spacing: 0
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 40
+                            radius: 10
+                            color: "transparent"
+                            Text {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "高级设置（地址 / 模型名）"
+                                font.pixelSize: 12
+                                font.bold: true
+                                color: T.blue
+                            }
+                            Text {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: advancedOpen ? "收起 ▲" : "展开 ▼"
+                                font.pixelSize: 11
+                                color: T.textMuted
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: advancedOpen = !advancedOpen
+                            }
                         }
-                        Text {
-                            anchors.centerIn: parent
-                            text: "保存"
-                            font.pixelSize: 15
-                            font.bold: true
-                            color: "#ffffff"
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: save()
+                        ColumnLayout {
+                            visible: advancedOpen
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Field {
+                                label: "服务地址"
+                                text: url
+                                placeholder: "http://192.168.1.100:11434"
+                                onEdited: url = value
+                            }
+                            Field {
+                                label: "模型名"
+                                text: model
+                                placeholder: "qwen2.5:1.5b"
+                                onEdited: model = value
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Text {
+                                    text: "服务类型"
+                                    font.pixelSize: 11
+                                    color: T.textMuted
+                                }
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 40
+                                    radius: 10
+                                    color: "#f7faf7"
+                                    border.color: T.line
+                                    ComboBox {
+                                        id: providerCombo
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 8
+                                        anchors.rightMargin: 8
+                                        background: Rectangle { color: "transparent" }
+                                        model: [
+                                            { text: "本地 Ollama", value: "ollama" },
+                                            { text: "OpenAI 兼容(DeepSeek/通义/GLM/Kimi)", value: "openai" }
+                                        ]
+                                        textRole: "text"
+                                        valueRole: "value"
+                                        font.pixelSize: 13
+                                        onActivated: provider = currentValue
+                                        Component.onCompleted: {
+                                            for (var i = 0; i < model.length; ++i) {
+                                                if (model[i].value === provider) {
+                                                    currentIndex = i
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 42
+                                radius: 21
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: T.greenBright }
+                                    GradientStop { position: 1.0; color: T.green }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "保存"
+                                    font.pixelSize: 15
+                                    font.bold: true
+                                    color: "#ffffff"
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: save()
+                                }
+                            }
                         }
                     }
                 }
             }
-
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -457,6 +538,44 @@ Page {
             engineLabel = label
             showToast("AI 检测完成")
         }
+    }
+
+    function initAi() {
+        selectPreset(preset)
+        if (isCloudPreset && key.length === 0)
+            showToast("云端 AI 需要填写 API Key")
+    }
+
+    function selectPreset(v) {
+        preset = v
+        isCloudPreset = (v === "deepseek" || v === "dashscope"
+                         || v === "glm" || v === "moonshot"
+                         || v === "openai")
+        for (var i = 0; i < presetCombo.model.length; ++i) {
+            if (presetCombo.model[i].value === v) {
+                presetCombo.currentIndex = i
+                break
+            }
+        }
+        if (v === "auto") {
+            engineLabel = "检测中…"
+        } else {
+            engineLabel = bridge.aiProvider === "openai"
+                          ? bridge.aiModel() : "本地 " + bridge.aiModel()
+        }
+    }
+
+    function applyPreset(v) {
+        preset = v
+        isCloudPreset = (v === "deepseek" || v === "dashscope"
+                         || v === "glm" || v === "moonshot"
+                         || v === "openai")
+        if (v === "auto")
+            engineLabel = "检测中…"
+        bridge.setAiPreset(v)
+        engineLabel = bridge.aiProvider === "openai"
+                      ? bridge.aiModel() : "本地 " + bridge.aiModel()
+        showToast("已切换到" + presetCombo.currentText)
     }
 
     function showToast(msg) {

@@ -699,14 +699,14 @@ Page {
         lastSource = bridge.articleContent(a.id)
         translating = true
         resultText.text = ""
-        bridge.translate(lastSource, bridge.aiModel())
+        bridge.translate(lastSource, "")
     }
 
     function translateWord(w) {
         lastSource = w
         translating = true
         resultText.text = ""
-        bridge.translate(w, bridge.aiModel())
+        bridge.translate(w, "")
     }
 
     function readAloud() {
