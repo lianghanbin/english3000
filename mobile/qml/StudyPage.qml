@@ -222,14 +222,9 @@ Page {
                                     color: "#ffffff"
                                 }
                                 MouseArea {
+                                    id: transBtn
                                     anchors.fill: parent
-                                    onClicked: {
-                                        exTransSrc.text = currentExample
-                                        exTransResult.text = "翻译中…"
-                                        exampleTransPopup.open()
-                                        bridge.translate(currentExample,
-                                                         bridge.aiModel())
-                                    }
+                                    onClicked: doExampleTranslate()
                                 }
                             }
                             Row {
@@ -267,7 +262,17 @@ Page {
                 drag.threshold: 6
                 drag.minimumX: -150
                 drag.maximumX: 150
-                onClicked: reveal()
+                onClicked: {
+                    if (exampleBox.visible) {
+                        var p = transBtn.mapFromItem(cardMouse, mouse.x,
+                                                     mouse.y)
+                        if (transBtn.contains(Qt.point(p.x, p.y))) {
+                            doExampleTranslate()
+                            return
+                        }
+                    }
+                    reveal()
+                }
                 onPositionChanged: {
                     if (!drag.active)
                         return
@@ -567,6 +572,13 @@ Page {
         toast.visible = true
         toastAnim.start()
         toastTimer.start()
+    }
+
+    function doExampleTranslate() {
+        exTransSrc.text = currentExample
+        exTransResult.text = "翻译中…"
+        exampleTransPopup.open()
+        bridge.translate(currentExample, bridge.aiModel())
     }
 
     function fillCard() {
