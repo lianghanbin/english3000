@@ -9,6 +9,9 @@ Page {
     property int currentId: -1
     property string currentName: ""
     property bool aiBusy: false
+    property int pageOffset: 0
+    property int pageSize: 120
+    property bool hasMore: false
 
     background: Rectangle { color: T.bg }
 
@@ -140,6 +143,10 @@ Page {
                 model: rows
                 delegate: RowItem {}
                 boundsBehavior: Flickable.StopAtBounds
+                onAtYEndChanged: {
+                    if (atYEnd && hasMore)
+                        loadMore()
+                }
             }
         }
     }
@@ -181,7 +188,10 @@ Page {
 
     Connections {
         target: bridge
-        function onCountsChanged() { refresh() }
+        function onCountsChanged() {
+            if (SwipeView.isCurrentItem)
+                refresh()
+        }
         function onWordListReady(name, count) {
             aiBusy = false
             refresh()
@@ -322,7 +332,18 @@ Page {
                 break
             }
         }
-        rows = currentId >= 0 ? bridge.wordListRows(currentId, 0) : []
+        pageOffset = 0
+        rows = []
+        loadMore()
+    }
+
+    function loadMore() {
+        if (currentId < 0)
+            return
+        var more = bridge.wordListPageRows(currentId, pageOffset, pageSize)
+        rows = rows.concat(more)
+        pageOffset += more.length
+        hasMore = more.length === pageSize
     }
 
     function startAi() {

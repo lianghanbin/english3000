@@ -1258,7 +1258,8 @@ bool WordStore::updateItemMeaning(qint64 listId, const QString &word,
     return q.numRowsAffected() > 0;
 }
 
-QVector<Word> WordStore::wordsInWordList(qint64 listId, int limit) const
+QVector<Word> WordStore::wordsInWordList(qint64 listId, int limit,
+                                         int offset) const
 {
     QString sql = QStringLiteral(
         "SELECT i.id, i.word, "
@@ -1272,6 +1273,10 @@ QVector<Word> WordStore::wordsInWordList(qint64 listId, int limit) const
     if (limit > 0) {
         sql += QStringLiteral(" LIMIT ?");
         args.append(limit);
+    }
+    if (offset > 0) {
+        sql += QStringLiteral(" OFFSET ?");
+        args.append(offset);
     }
     QSqlQuery q = rawQuery(sql, args);
     QVector<Word> words;

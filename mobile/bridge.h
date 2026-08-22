@@ -45,6 +45,8 @@ public:
     Q_INVOKABLE QVariantList reviewCards(int limit);
     Q_INVOKABLE QVariantList wordLists();
     Q_INVOKABLE QVariantList wordListRows(qint64 listId, int limit);
+    Q_INVOKABLE QVariantList wordListPageRows(qint64 listId, int offset,
+                                              int limit);
     Q_INVOKABLE QVariantMap wordInfo(const QString &word);
     Q_INVOKABLE void setCurrentList(qint64 listId);
     Q_INVOKABLE void deleteWordList(qint64 listId);

@@ -336,6 +336,30 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
     return rows;
 }
 
+QVariantList MobileBridge::wordListPageRows(qint64 listId, int offset,
+                                             int limit)
+{
+    QVariantList rows;
+    if (limit <= 0)
+        return rows;
+    const QVector<Word> words =
+        m_store->wordsInWordList(listId, limit, qMax(0, offset));
+    for (const Word &w : words) {
+        QVariantMap r;
+        r.insert(QStringLiteral("id"), w.itemId);
+        r.insert(QStringLiteral("word"), w.word);
+        r.insert(QStringLiteral("pos"), w.pos);
+        r.insert(QStringLiteral("meaning"), w.meaning);
+        const QString status =
+            w.box >= 6 ? QStringLiteral("mastered")
+                       : (w.box == 0 ? QStringLiteral("new")
+                                     : QStringLiteral("learning"));
+        r.insert(QStringLiteral("status"), status);
+        rows.append(r);
+    }
+    return rows;
+}
+
 QVariantMap MobileBridge::wordInfo(const QString &word)
 {
     QVariantMap out;

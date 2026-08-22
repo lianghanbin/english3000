@@ -161,7 +161,8 @@ public:
     // 回填词表条目的词性/释义(AI 补全用)
     bool updateItemMeaning(qint64 listId, const QString &word,
                            const QString &pos, const QString &meaning);
-    QVector<Word> wordsInWordList(qint64 listId, int limit = 0) const;
+    QVector<Word> wordsInWordList(qint64 listId, int limit = 0,
+                                  int offset = 0) const;
     QVector<WordListInfo> listsContainingWord(const QString &word) const;
     QSet<QString> allListWords() const;
     QSet<QString> currentListWords() const;

@@ -501,6 +501,9 @@ Page {
             var s = t.length > 60 ? t.substring(0, 60) + "…" : t
             showToast(s)
         }
+        function onTranslationFailed(m) {
+            showToast("翻译失败:" + m)
+        }
     }
 
     function showToast(msg) {
