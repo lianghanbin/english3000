@@ -127,6 +127,8 @@ public:
     qint64 queueWordFromTranslation(const QString &word,
                                     const QString &meaning,
                                     const QString &sentence);
+    int queueWordsFromTranslation(const QVector<Word> &words,
+                                  const QString &sourceText);
     qint64 queueWordToReadingList(const QString &word,
                                   const QString &meaning,
                                   const QString &sentence);

@@ -825,6 +825,148 @@ qint64 WordStore::queueWordFromTranslation(const QString &word,
     return wordId;
 }
 
+int WordStore::queueWordsFromTranslation(const QVector<Word> &words,
+                                         const QString &sourceText)
+{
+    if (words.isEmpty())
+        return 0;
+    const qint64 transList = getOrCreateWordList(
+        QStringLiteral("翻译生词"),
+        QStringLiteral("翻译时自动收集的生词"),
+        QStringLiteral("translation"));
+    if (transList <= 0)
+        return 0;
+
+    // 候选词去重
+    QStringList cands;
+    QSet<QString> seen;
+    for (const Word &w : words) {
+        const QString key = w.word.trimmed().toLower();
+        if (key.isEmpty() || seen.contains(key))
+            continue;
+        seen.insert(key);
+        cands.append(key);
+    }
+    if (cands.isEmpty())
+        return 0;
+
+    // 已在该词表里的词（一次查询，避免重复写入）
+    QSet<QString> inList;
+    QSqlQuery q = rawQuery(QStringLiteral(
+        "SELECT word FROM word_list_items WHERE list_id=?"),
+        {transList});
+    while (q.next())
+        inList.insert(q.value(0).toString().toLower());
+
+    // 已存在于 words 表的词（一次 IN 查询替代逐词查找）
+    QHash<QString, qint64> existingIds;
+    QHash<QString, QString> existingMeaning;
+    {
+        QStringList ph;
+        QVariantList args;
+        for (const QString &c : cands) {
+            ph << QStringLiteral("?");
+            args << c;
+        }
+        QSqlQuery q2 = rawQuery(QStringLiteral(
+            "SELECT id, word, meaning FROM words WHERE word IN (")
+            + ph.join(QLatin1String(",")) + QLatin1String(")"),
+            args);
+        while (q2.next()) {
+            const QString w = q2.value(1).toString().toLower();
+            existingIds.insert(w, q2.value(0).toLongLong());
+            existingMeaning.insert(w, q2.value(2).toString());
+        }
+    }
+
+    // 新词 rank 与词表排序（各查一次，事务内自增）
+    int rank = 1;
+    {
+        QSqlQuery rq = rawQuery(QStringLiteral(
+            "SELECT COALESCE(MAX(rank), 0) + 1 FROM words"));
+        if (rq.next())
+            rank = rq.value(0).toInt();
+    }
+    int order = 1;
+    {
+        QSqlQuery oq = rawQuery(QStringLiteral(
+            "SELECT COALESCE(MAX(sort_order), 0) + 1 "
+            "FROM word_list_items WHERE list_id=?"),
+            {transList});
+        if (oq.next())
+            order = oq.value(0).toInt();
+    }
+
+    if (!m_db.transaction())
+        return 0;
+    int added = 0;
+    for (const QString &key : cands) {
+        QString pos;
+        QString meaning = existingMeaning.value(key);
+        for (const Word &w : words) {
+            if (w.word.trimmed().toLower() != key)
+                continue;
+            if (pos.isEmpty())
+                pos = w.pos;
+            if (meaning.isEmpty())
+                meaning = w.meaning;
+            break;
+        }
+        qint64 wordId = existingIds.value(key, 0);
+        if (wordId == 0) {
+            QSqlQuery ins(m_db);
+            ins.prepare(QStringLiteral(
+                "INSERT INTO words(rank, word, pos, meaning) "
+                "VALUES(?, ?, ?, ?)"));
+            ins.addBindValue(rank++);
+            ins.addBindValue(key);
+            ins.addBindValue(pos.isEmpty() ? QStringLiteral("") : pos);
+            ins.addBindValue(meaning.isEmpty() ? QStringLiteral("")
+                                               : meaning);
+            if (!ins.exec())
+                continue;
+            wordId = ins.lastInsertId().toLongLong();
+            const std::optional<Word> dictWord = lookupDict(key);
+            if (dictWord && !dictWord->phonetic.isEmpty()) {
+                QSqlQuery upd(m_db);
+                upd.prepare(QStringLiteral(
+                    "UPDATE words SET phonetic=? WHERE id=?"));
+                upd.addBindValue(dictWord->phonetic);
+                upd.addBindValue(wordId);
+                upd.exec();
+            }
+        }
+        const QString sent = sentenceContaining(sourceText, key);
+        if (!sent.isEmpty()) {
+            QSqlQuery upd(m_db);
+            upd.prepare(QStringLiteral(
+                "UPDATE words SET example_sentence="
+                "COALESCE(NULLIF(?, ''), example_sentence) WHERE id=?"));
+            upd.addBindValue(sent);
+            upd.addBindValue(wordId);
+            upd.exec();
+        }
+        if (inList.contains(key))
+            continue;
+        QSqlQuery item(m_db);
+        item.prepare(QStringLiteral(
+            "INSERT OR IGNORE INTO word_list_items"
+            "(list_id, word, pos, meaning, sort_order) VALUES(?, ?, ?, ?, ?)"));
+        item.addBindValue(transList);
+        item.addBindValue(key);
+        item.addBindValue(pos.isEmpty() ? QStringLiteral("") : pos);
+        item.addBindValue(meaning.isEmpty() ? QStringLiteral("")
+                                            : meaning);
+        item.addBindValue(order++);
+        if (item.exec()) {
+            inList.insert(key);
+            ++added;
+        }
+    }
+    m_db.commit();
+    return added;
+}
+
 qint64 WordStore::queueWordToReadingList(const QString &word,
                                          const QString &meaning,
                                          const QString &sentence)

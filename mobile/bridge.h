@@ -106,6 +106,7 @@ private:
     QNetworkAccessManager *m_net = nullptr;
     QNetworkReply *m_importReply = nullptr;
     qint64 m_pendingExampleId = -1;
+    QString m_lastTranslateSource;
     qint64 m_currentArticleId = -1;
     QString m_currentArticleContent;
     QString m_pendingListName;

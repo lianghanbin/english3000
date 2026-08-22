@@ -492,6 +492,25 @@ void testTranslationLinkage()
     check(transList.size() == 1
               && store.knownInWordList(transList.first().id) == 1,
           "known in translation list counts mastered word");
+
+    // 批量收词：一次事务写入多个生词，重复调用不产生重复项
+    const QString text2 =
+        QStringLiteral("Kernel and folder keep data safe here.");
+    const QVector<Word> unknown2 = store.extractUnknownWords(text2, 20);
+    const int added1 = store.queueWordsFromTranslation(unknown2, text2);
+    check(added1 >= 1, "batch queue added words");
+    const int added2 = store.queueWordsFromTranslation(unknown2, text2);
+    check(added2 == 0, "batch queue dedup on second run");
+    for (const Word &u : unknown2) {
+        const auto item = store.findInNamedList(
+            QStringLiteral("翻译生词"), u.word);
+        check(item.has_value(), "batch word in translation list");
+        check(item->exampleSentence.contains(u.word)
+                  || item->exampleSentence.isEmpty()
+                  || WordStore::sentenceContaining(text2, u.word)
+                         .contains(u.word),
+              "batch word example sentence");
+    }
 }
 
 void testWordLists()

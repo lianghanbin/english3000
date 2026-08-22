@@ -502,11 +502,7 @@ void TranslatorWindow::onTranslationFinished(const QString &translation)
     if (!m_lastSource.trimmed().isEmpty()) {
         const QVector<Word> unknown =
             m_store->extractUnknownWords(m_lastSource, 20);
-        for (const Word &w : unknown) {
-            m_store->queueWordFromTranslation(
-                w.word, w.meaning,
-                WordStore::sentenceContaining(m_lastSource, w.word));
-        }
+        m_store->queueWordsFromTranslation(unknown, m_lastSource);
     }
 }
 
@@ -736,11 +732,7 @@ void ScreenshotResultWindow::onTranslationFinished(const QString &translation)
     if (!m_ocrText.trimmed().isEmpty()) {
         const QVector<Word> unknown =
             m_store->extractUnknownWords(m_ocrText, 20);
-        for (const Word &w : unknown) {
-            m_store->queueWordFromTranslation(
-                w.word, w.meaning,
-                WordStore::sentenceContaining(m_ocrText, w.word));
-        }
+        m_store->queueWordsFromTranslation(unknown, m_ocrText);
     }
 }
 

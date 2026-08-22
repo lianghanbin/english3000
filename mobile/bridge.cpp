@@ -191,7 +191,17 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
     , m_ai(ai)
 {
     connect(m_ai, &AiClient::translationFinished, this,
-            [this](const QString &t) { emit translationReady(t); });
+            [this](const QString &t) {
+                if (!m_lastTranslateSource.trimmed().isEmpty()) {
+                    const QVector<Word> unknown =
+                        m_store->extractUnknownWords(
+                            m_lastTranslateSource, 20);
+                    m_store->queueWordsFromTranslation(
+                        unknown, m_lastTranslateSource);
+                    emit countsChanged();
+                }
+                emit translationReady(t);
+            });
     connect(m_ai, &AiClient::failed, this,
             [this](const QString &m) {
                 // 例句请求失败也要释放挂起标记,否则以后不会再请求例句
@@ -379,13 +389,8 @@ void MobileBridge::translate(const QString &text, const QString &model)
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty())
         return;
-    // 翻译前先收生词（自动加入「翻译生词」词表，原句当例句）
-    const QVector<Word> unknown = m_store->extractUnknownWords(trimmed, 20);
-    for (const Word &w : unknown) {
-        const QString sentence =
-            WordStore::sentenceContaining(trimmed, w.word);
-        m_store->queueWordFromTranslation(w.word, w.meaning, sentence);
-    }
+    // 翻译完成后再收生词（避免点击瞬间卡顿；原句当例句）
+    m_lastTranslateSource = trimmed;
     int cjk = 0;
     int total = 0;
     for (const QChar c : trimmed) {
