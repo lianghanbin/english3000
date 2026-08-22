@@ -602,6 +602,35 @@ Page {
                     border.color: T.line
                 }
             }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    text: "词数"
+                    font.pixelSize: 12
+                    color: T.textMuted
+                }
+                SpinBox {
+                    id: genCountSpin
+                    from: 50
+                    to: 500
+                    stepSize: 50
+                    value: 200
+                    editable: true
+                    Layout.fillWidth: true
+                }
+                Text {
+                    text: "难度"
+                    font.pixelSize: 12
+                    color: T.textMuted
+                }
+                ComboBox {
+                    id: genLevelCombo
+                    Layout.fillWidth: true
+                    model: ["简单", "中等", "较难"]
+                    currentIndex: 1
+                }
+            }
             Text {
                 text: genBusy ? "AI 生成中,约 1~3 分钟…" : ""
                 font.pixelSize: 11
@@ -802,7 +831,8 @@ Page {
         var t = topicField.text.trim()
         genBusy = true
         genPopup.close()
-        bridge.aiGenerateArticle(t)
+        bridge.aiGenerateArticle(t, genCountSpin.value,
+                                 genLevelCombo.currentIndex + 1)
     }
 
     function loadArticle(id) {

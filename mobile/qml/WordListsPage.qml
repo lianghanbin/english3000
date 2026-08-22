@@ -395,10 +395,10 @@ Page {
                 }
                 SpinBox {
                     id: countSpin
-                    from: 20
-                    to: 300
-                    stepSize: 20
-                    value: 60
+                    from: 50
+                    to: 500
+                    stepSize: 50
+                    value: 200
                     editable: true
                 }
                 Item { Layout.fillWidth: true }

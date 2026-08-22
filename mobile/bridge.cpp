@@ -925,7 +925,7 @@ void MobileBridge::aiGenerateWordList(const QString &domain, int count)
     }
     m_pendingListId = -1;
     m_pendingListName = d;
-    m_ai->generateWordList(d, qBound(20, count, 300));
+    m_ai->generateWordList(d, qBound(50, count, 500));
 }
 
 void MobileBridge::aiSupplementWordList(const QString &domain, int count)
@@ -939,7 +939,7 @@ void MobileBridge::aiSupplementWordList(const QString &domain, int count)
     const QString d = domain.trimmed().isEmpty() ? name : domain.trimmed();
     m_pendingListId = listId;
     m_pendingListName = name;
-    m_ai->generateWordList(d, qBound(20, count, 200));
+    m_ai->generateWordList(d, qBound(50, count, 500));
 }
 
 void MobileBridge::aiFillMissingMeanings()
@@ -963,7 +963,8 @@ void MobileBridge::aiFillMissingMeanings()
     m_ai->fillMeanings(missing);
 }
 
-void MobileBridge::aiGenerateArticle(const QString &topic)
+void MobileBridge::aiGenerateArticle(const QString &topic, int wordCount,
+                                     int level)
 {
     const qint64 listId = m_store->currentWordListId();
     QString t = topic.trimmed();
@@ -972,14 +973,16 @@ void MobileBridge::aiGenerateArticle(const QString &topic)
     if (t.isEmpty())
         t = QStringLiteral("英语学习");
     m_pendingArticleTitle = t;
+    const int count = qBound(50, wordCount, 500);
+    const int lvl = qBound(1, level, 3);
     if (listId > 0) {
         QStringList preferred;
         const QVector<Word> words = m_store->wordsInWordList(listId, 200);
         for (const Word &w : words)
             preferred << w.word;
-        m_ai->generateArticle(t, 1, 300, preferred);
+        m_ai->generateArticle(t, lvl, count, preferred);
     } else {
-        m_ai->generateArticle(t, 1, 300);
+        m_ai->generateArticle(t, lvl, count);
     }
 }
 

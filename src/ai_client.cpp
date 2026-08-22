@@ -158,6 +158,9 @@ QString AiClient::translatePrompt(const QString &text, bool toChinese)
 void AiClient::generateArticle(const QString &topic, int level, int wordCount)
 {
     m_requestType = RequestType::Generate;
+    // 文章长度按词数放大输出上限,避免长文章被 1500 token 截断
+    m_requestPredict = qBound(3000, wordCount * 12 + 1000, 9000);
+    m_requestTimeoutMs = 20 * 60 * 1000;
     start(topicPrompt(topic, level, wordCount));
 }
 
@@ -165,6 +168,8 @@ void AiClient::generateArticle(const QString &topic, int level, int wordCount,
                                const QStringList &preferredWords)
 {
     m_requestType = RequestType::Generate;
+    m_requestPredict = qBound(3000, wordCount * 12 + 1000, 9000);
+    m_requestTimeoutMs = 20 * 60 * 1000;
     start(topicPrompt(topic, level, wordCount, preferredWords));
 }
 

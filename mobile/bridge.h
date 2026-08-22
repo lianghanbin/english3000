@@ -63,7 +63,9 @@ public:
     Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
     Q_INVOKABLE void aiFillMissingMeanings();
-    Q_INVOKABLE void aiGenerateArticle(const QString &topic);
+    Q_INVOKABLE void aiGenerateArticle(const QString &topic,
+                                       int wordCount = 300,
+                                       int level = 1);
     Q_INVOKABLE void aiCancel();
     Q_INVOKABLE void chatOpen(const QString &title, const QString &content);
     Q_INVOKABLE void chatSend(const QString &message);
