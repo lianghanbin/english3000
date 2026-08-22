@@ -326,16 +326,6 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
         r.insert(QStringLiteral("word"), w.word);
         r.insert(QStringLiteral("pos"), w.pos);
         r.insert(QStringLiteral("meaning"), w.meaning);
-        std::optional<Word> dict = m_store->lookupDict(w.word);
-        if (!dict && !w.word.isEmpty()) {
-            const QString lemma = m_store->lookupLemma(w.word);
-            if (!lemma.isEmpty())
-                dict = m_store->lookupDict(lemma);
-        }
-        if (dict && !dict->meaning.isEmpty()) {
-            r.insert(QStringLiteral("pos"), dict->pos);
-            r.insert(QStringLiteral("meaning"), dict->meaning);
-        }
         const QString status =
             w.box >= 6 ? QStringLiteral("mastered")
                        : (w.box == 0 ? QStringLiteral("new")
