@@ -164,7 +164,7 @@ Page {
                             Text {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: advancedOpen ? "收起 ▲" : "展开 ▼"
+                                text: advancedOpen ? "收起" : "展开"
                                 font.pixelSize: 11
                                 color: T.textMuted
                             }

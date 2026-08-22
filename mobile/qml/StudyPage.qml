@@ -45,9 +45,9 @@ Page {
                 }
             }
             Item { Layout.fillWidth: true }
-            Text {
-                text: "未学 " + bridge.newCount + " · 待复习 "
-                      + bridge.dueCount + " · 已掌握 " + bridge.masteredCount
+                Text {
+                    text: "未学 " + bridge.newCount + " / 待复习 "
+                          + bridge.dueCount + " / 已掌握 " + bridge.masteredCount
                 font.pixelSize: 12
                 color: T.textMuted
                 Layout.alignment: Qt.AlignVCenter
@@ -293,8 +293,8 @@ Page {
             }
         }
 
-        Text {
-            text: "点击翻牌 · 左甩不认识 · 右甩认识 · AI 随时可问"
+            Text {
+                text: "点击翻牌,左甩不认识,右甩认识"
             font.pixelSize: 12
             color: T.textMuted
             horizontalAlignment: Text.AlignHCenter

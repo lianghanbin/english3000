@@ -23,7 +23,7 @@ Page {
             spacing: 14
 
             Text {
-                text: "学习循环 · 你的成长"
+                text: "学习数据"
                 font.pixelSize: 20
                 font.bold: true
                 color: T.textDark

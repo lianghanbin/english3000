@@ -23,7 +23,7 @@ Page {
         RowLayout {
             Layout.fillWidth: true
             Text {
-                text: "AI 阅读"
+                text: "阅读"
                 font.pixelSize: 20
                 font.bold: true
                 color: T.textDark
@@ -72,23 +72,23 @@ Page {
             Layout.fillWidth: true
             spacing: 6
             ChipBtn {
-                text: genBusy ? "生成中…" : "✦ AI 生成"
+                text: genBusy ? "生成中…" : "生成文章"
                 Layout.fillWidth: true
                 enabled: !genBusy
                 onClicked: genPopup.open()
             }
             ChipBtn {
-                text: "💬 对话练习"
+                text: "对话练习"
                 Layout.fillWidth: true
                 onClicked: openChat()
             }
             ChipBtn {
-                text: "🌐 导入网址"
+                text: "导入网址"
                 Layout.fillWidth: true
                 onClicked: importPopup.open()
             }
             ChipBtn {
-                text: "🗑 删除"
+                text: "删除"
                 Layout.fillWidth: true
                 onClicked: deleteCurrent()
             }
@@ -184,14 +184,14 @@ Page {
                         }
                         Item { Layout.fillWidth: true }
                         Rectangle {
-                            width: 26
+                            width: 48
                             height: 26
                             radius: 13
                             color: T.greenSoft
                             Text {
                                 anchors.centerIn: parent
-                                text: "✕"
-                                font.pixelSize: 12
+                                text: "关闭"
+                                font.pixelSize: 11
                                 color: T.greenDark
                             }
                             MouseArea {
@@ -323,14 +323,14 @@ Page {
                     color: chatBusy ? T.deskAccent : "#7b93c2"
                 }
                 Rectangle {
-                    width: 30
+                    width: 52
                     height: 30
                     radius: 15
                     color: "transparent"
                     Text {
                         anchors.centerIn: parent
-                        text: "✕"
-                        font.pixelSize: 15
+                        text: "关闭"
+                        font.pixelSize: 12
                         color: T.deskText
                     }
                     MouseArea {
@@ -577,7 +577,7 @@ Page {
         contentItem: ColumnLayout {
             spacing: 12
             Text {
-                text: "AI 生成文章"
+                text: "生成文章"
                 font.pixelSize: 16
                 font.bold: true
                 color: T.textDark
@@ -632,7 +632,7 @@ Page {
                 }
             }
             Text {
-                text: genBusy ? "AI 生成中,约 1~3 分钟…" : ""
+                text: genBusy ? "生成中,约 1~3 分钟…" : ""
                 font.pixelSize: 11
                 color: T.green
                 wrapMode: Text.Wrap
@@ -709,7 +709,7 @@ Page {
         }
         function onAiFailed(message) {
             genBusy = false
-            showToast("AI 失败:" + message)
+            showToast("生成失败:" + message)
         }
         function onChatReady(text) {
             chatBusy = false
@@ -720,7 +720,7 @@ Page {
         function onChatFailed(message) {
             chatBusy = false
             chatStatus = "失败"
-            chatModel.append({ from: "ai", text: "⚠ " + message })
+            chatModel.append({ from: "ai", text: message })
             chatView.positionViewAtEnd()
         }
         function onArticleImported(id, title) {
@@ -753,7 +753,7 @@ Page {
             return
         }
         chatModel.clear()
-        chatStatus = "AI 准备第一个问题…"
+        chatStatus = "准备第一个问题…"
         chatBusy = true
         bridge.chatOpen(a.title, bridge.articleContent(a.id))
         chatPopup.open()
@@ -766,7 +766,7 @@ Page {
         chatModel.append({ from: "me", text: t })
         chatInput.text = ""
         chatBusy = true
-        chatStatus = "AI 思考中…"
+        chatStatus = "思考中…"
         bridge.chatSend(t)
         chatView.positionViewAtEnd()
     }

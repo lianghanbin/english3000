@@ -199,26 +199,6 @@ ApplicationWindow {
             opacity: 0.6
         }
 
-        Column {
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 64
-            spacing: 8
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "英语的核心日常词汇，其实只有三千个"
-                font.pixelSize: 17
-                font.bold: true
-                color: "#f1fbf4"
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "三千词，是日常的地图，也是通往英文世界的第一把钥匙"
-                font.pixelSize: 11
-                color: "#a9d8b8"
-            }
-        }
-
         NumberAnimation on opacity {
             id: splashFade
             from: 1

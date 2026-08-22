@@ -79,7 +79,7 @@ Page {
                 }
 
                 SideBtn {
-                    text: "✦ AI 生成词表"
+                    text: "AI 生成词表"
                     onClicked: {
                         aiPopup.mode = "new"
                         domainField.text = ""
@@ -87,7 +87,7 @@ Page {
                     }
                 }
                 SideBtn {
-                    text: "＋ AI 补充词表"
+                    text: "AI 补充词表"
                     onClicked: {
                         aiPopup.mode = "supplement"
                         domainField.text = ""
@@ -112,7 +112,7 @@ Page {
                 }
                 Item { Layout.fillWidth: true }
                 Text {
-                    text: "未学 " + bridge.newCount + " · 已掌握 "
+                    text: "未学 " + bridge.newCount + " / 已掌握 "
                           + bridge.masteredCount
                     font.pixelSize: 11
                     color: T.textMuted

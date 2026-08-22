@@ -80,7 +80,7 @@ Page {
                 spacing: 10
 
                 Text {
-                    text: "AI 翻译结果"
+                    text: "翻译结果"
                     font.pixelSize: 13
                     font.bold: true
                     color: T.deskText
