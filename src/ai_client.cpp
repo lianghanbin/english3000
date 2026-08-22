@@ -119,6 +119,8 @@ QString AiClient::wordListPrompt(const QString &domain, int count)
                "- Output ONLY lines in this exact format:\n"
                "  word | part of speech | Simplified Chinese meaning\n"
                "- Example: algorithm | n. | 算法\n"
+               "- Use ONLY the | separator. Do NOT use colons, dashes, "
+               "or parentheses. Bad: algorithm: 算法\n"
                "- One line per word, lowercase word, no numbering, "
                "no duplicate words.\n"
                "- Include important nouns, verbs, and adjectives.")
@@ -135,6 +137,8 @@ QString AiClient::fillMeaningsPrompt(const QStringList &words)
                "- Output ONLY lines in this exact format:\n"
                "  word | part of speech | Simplified Chinese meaning\n"
                "- Example: algorithm | n. | 算法\n"
+               "- Use ONLY the | separator. Do NOT use colons, dashes, "
+               "or parentheses. Bad: algorithm: 算法\n"
                "- One line per word, lowercase, no numbering, no extra text.\n"
                "- If a word has multiple common meanings, keep the meaning "
                "short.\n\n"

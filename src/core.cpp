@@ -2109,8 +2109,9 @@ bool validListWord(const QString &word)
     if (word.size() < 2)
         return false;
     for (const QChar c : word) {
-        if (!c.isLetter() && c != QLatin1Char('-')
-            && c != QLatin1Char('\'')) {
+        // 只允许英文字母: 中文/其他语言的“单词”会污染词表
+        if (!(c >= QLatin1Char('a') && c <= QLatin1Char('z'))
+            && c != QLatin1Char('-') && c != QLatin1Char('\'')) {
             return false;
         }
     }
@@ -2197,6 +2198,36 @@ QVector<WordEntry> parseWordEntries(const QString &raw)
             out.append(e);
         } else {
             line = stripListNumbering(line);
+            // 兼容小模型常见的 "word: 释义" / "word = 释义" /
+            // "word - n. 释义" 格式(前后带空格的短横线才是分隔符)
+            static const QRegularExpression sepRe(
+                QStringLiteral(
+                    "^([A-Za-z][A-Za-z'\\-]*)\\s*(?:[:：=]|\\s+-\\s+)"
+                    "\\s*(.+)$"));
+            const QRegularExpressionMatch sm = sepRe.match(line);
+            if (sm.hasMatch()) {
+                WordEntry e;
+                e.word = sm.captured(1).trimmed().toLower();
+                QString rest = sm.captured(2).trimmed();
+                static const QRegularExpression posRe(
+                    QStringLiteral(
+                        "^(n|v|vt|vi|adj|adv|prep|conj|pron|num|art|"
+                        "aux|int|phr|abbr|pl|u|c)\\.?\\s+(.*)$"),
+                    QRegularExpression::CaseInsensitiveOption);
+                const QRegularExpressionMatch pm = posRe.match(rest);
+                if (pm.hasMatch()) {
+                    e.pos = pm.captured(1).toLower();
+                    if (!e.pos.endsWith(QLatin1Char('.')))
+                        e.pos += QLatin1Char('.');
+                    rest = pm.captured(2).trimmed();
+                }
+                e.meaning = rest;
+                if (validListWord(e.word) && !seen.contains(e.word)) {
+                    seen.insert(e.word);
+                    out.append(e);
+                }
+                continue;
+            }
             // 纯单词一行: 按空白拆(兼容 "1. algorithm" 和旧格式)
             const QStringList tokens =
                 line.split(QRegularExpression(QStringLiteral("\\s+")),

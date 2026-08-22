@@ -188,14 +188,21 @@ void testParseWordEntries()
     const QVector<WordEntry> entries = parseWordEntries(QStringLiteral(
         "algorithm | n. | 算法\n"
         "scalable | adj. | 可扩展的\n"
+        "kernel: 内核\n"
+        "buffer = 缓冲区\n"
+        "driver - n. 驱动程序\n"
         "1. hello\n"
         "x-box | n. | 游戏机\n"
         "world\n"
         "the\n"
+        "算法\n"
         "algorithm\n"));
-    check(entries.size() == 5, "parse word entries count");
+    check(entries.size() == 8, "parse word entries count");
     bool hasAlgorithm = false;
     bool hasScalable = false;
+    bool hasKernel = false;
+    bool hasBuffer = false;
+    bool hasDriver = false;
     bool hasHello = false;
     bool hasXbox = false;
     bool hasWorld = false;
@@ -206,6 +213,13 @@ void testParseWordEntries()
         if (e.word == QLatin1String("scalable"))
             hasScalable = e.meaning == QStringLiteral("可扩展的")
                           && e.pos == QLatin1String("adj.");
+        if (e.word == QLatin1String("kernel"))
+            hasKernel = e.meaning == QStringLiteral("内核");
+        if (e.word == QLatin1String("buffer"))
+            hasBuffer = e.meaning == QStringLiteral("缓冲区");
+        if (e.word == QLatin1String("driver"))
+            hasDriver = e.meaning == QStringLiteral("驱动程序")
+                        && e.pos == QLatin1String("n.");
         if (e.word == QLatin1String("hello"))
             hasHello = true;
         if (e.word == QLatin1String("x-box"))
@@ -215,6 +229,9 @@ void testParseWordEntries()
     }
     check(hasAlgorithm, "algorithm parsed with pos+meaning");
     check(hasScalable, "scalable parsed with pos+meaning");
+    check(hasKernel, "colon format parsed");
+    check(hasBuffer, "equals format parsed");
+    check(hasDriver, "dash format parsed with pos");
     check(hasHello, "numbered plain word parsed");
     check(hasXbox, "hyphen word with meaning parsed");
     check(hasWorld, "plain word parsed");
