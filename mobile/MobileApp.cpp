@@ -17,6 +17,8 @@ int main(int argc, char *argv[])
     // Waydroid 下 Qt 的 androidmedia 后端与系统集成有问题
     // (QtAudioDeviceManager setActivity 缺失),强制用 ffmpeg 后端播放。
     qputenv("QT_MEDIA_BACKEND", "ffmpeg");
+    // 使用应用内置的 OpenSSL 3 库做 TLS,避免加载系统 BoringSSL。
+    qputenv("ANDROID_OPENSSL_SUFFIX", "_3");
 #endif
     QCoreApplication::setApplicationName(QStringLiteral("english3000"));
     QCoreApplication::setOrganizationName(QStringLiteral("liang"));

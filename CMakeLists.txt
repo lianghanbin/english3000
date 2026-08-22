@@ -17,7 +17,7 @@ find_package(Qt6 REQUIRED COMPONENTS Sql Network)
 find_package(Qt6 QUIET COMPONENTS Widgets)
 
 find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
-find_package(Qt6 QUIET COMPONENTS TextToSpeech)
+find_package(Qt6 QUIET COMPONENTS TextToSpeech WebSockets)
 file(GLOB_RECURSE ESPEAK_DATA_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/data/*)
 if(Qt6Quick_FOUND)
@@ -35,7 +35,8 @@ if(Qt6Quick_FOUND)
     # Android 打包必需:显式导入 SQLite 驱动插件(否则运行时 Driver not loaded)
     qt_import_plugins(english3000_mobile INCLUDE Qt6::QSQLiteDriverPlugin)
     if(Qt6TextToSpeech_FOUND)
-        target_link_libraries(english3000_mobile PRIVATE Qt6::TextToSpeech Qt6::Multimedia)
+        target_link_libraries(english3000_mobile PRIVATE
+            Qt6::TextToSpeech Qt6::Multimedia Qt6::WebSockets)
         target_compile_definitions(english3000_mobile PRIVATE
             ENGLISH3000_HAS_TTS=1)
     endif()

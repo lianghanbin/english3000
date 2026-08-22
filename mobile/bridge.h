@@ -11,6 +11,8 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QTextToSpeech;
 class QTemporaryFile;
+class QTimer;
+class QWebSocket;
 class WordStore;
 
 class MobileBridge : public QObject {
@@ -122,5 +124,15 @@ private:
     QMediaPlayer *m_player = nullptr;
     QAudioOutput *m_audioOut = nullptr;
     QTemporaryFile *m_ttsFile = nullptr;
+    QWebSocket *m_edgeWs = nullptr;
+    QTimer *m_edgeTimer = nullptr;
+    QByteArray m_edgeAudio;
+    QString m_edgeText;
+    void speakEdgeOrFallback(const QString &text);
+    void startEdgeTts(const QString &text);
+    void edgePlayAudio();
+    void edgeFallback();
+    void startEdgeTimer();
+    void playAudioBytes(const QByteArray &audio);
 #endif
 };

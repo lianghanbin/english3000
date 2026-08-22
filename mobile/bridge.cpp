@@ -15,6 +15,7 @@
 #include <QUrl>
 
 #ifdef ENGLISH3000_HAS_TTS
+#include <QDebug>
 #include <QTextToSpeech>
 #include <QMediaPlayer>
 #include <QAudioOutput>
@@ -22,6 +23,13 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QStandardPaths>
+#include <QWebSocket>
+#include <QCryptographicHash>
+#include <QUuid>
+#include <QUrlQuery>
+#include <QTimer>
+#include <QLocale>
+#include <QDateTime>
 #if defined(Q_OS_ANDROID)
 #include <espeak-ng/speak_lib.h>
 #endif
@@ -605,9 +613,25 @@ void MobileBridge::speak(const QString &text)
         m_net->get(QNetworkRequest(url));
         return;
     }
-    // 真机: 统一用内置的 espeak-ng 本地合成英文。
-    // 不依赖系统 TTS 引擎(小米/Google 引擎常缺英文语音数据或需要联网下载)。
-    const QByteArray audio = synthEspeak(t);
+    // 真机: 优先 Edge TTS 神经网络语音(自然、免费、无需Key),
+    // 失败/断网时自动回退内置 espeak-ng,保证离线也有声音。
+    speakEdgeOrFallback(t);
+#else
+    // 桌面端也走本机中继的 Piper 合成,声音比系统 speechd/espeak 自然。
+    const QString t = text.trimmed();
+    if (t.isEmpty())
+        return;
+    const QUrl url(QStringLiteral("http://127.0.0.1:8099/play?text=")
+                   + QString::fromLatin1(QUrl::toPercentEncoding(t)));
+    m_net->get(QNetworkRequest(url));
+#endif
+#else
+    Q_UNUSED(text);
+#endif
+}
+
+void MobileBridge::playAudioBytes(const QByteArray &audio)
+{
     if (audio.isEmpty())
         return;
     if (m_player && m_ttsFile) {
@@ -633,18 +657,195 @@ void MobileBridge::speak(const QString &text)
     m_player->stop();
     m_player->setSource(QUrl::fromLocalFile(f->fileName()));
     m_player->play();
-#else
-    // 桌面端也走本机中继的 Piper 合成,声音比系统 speechd/espeak 自然。
-    const QString t = text.trimmed();
-    if (t.isEmpty())
+}
+
+void MobileBridge::speakEdgeOrFallback(const QString &text)
+{
+    startEdgeTts(text);
+}
+
+void MobileBridge::startEdgeTts(const QString &text)
+{
+    qDebug("edge-tts: start len=%d", int(text.size()));
+    if (m_edgeWs) {
+        m_edgeWs->abort();
+        m_edgeWs->deleteLater();
+        m_edgeWs = nullptr;
+    }
+    m_edgeAudio.clear();
+
+    const qint64 unixSecs = QDateTime::currentSecsSinceEpoch();
+    const qint64 rounded = unixSecs - (unixSecs % 300); // 向下取整到 5 分钟
+    const qint64 ticks = (rounded + 11644473600LL) * 10000000LL;
+    const QByteArray digest = QCryptographicHash::hash(
+        QByteArray::number(ticks)
+            + QByteArrayLiteral("6A5AA1D4EAFF4E9FB37E23D68491D6F4"),
+        QCryptographicHash::Sha256).toHex().toUpper();
+    const QString gec = QString::fromLatin1(digest);
+    const QString connId = QUuid::createUuid()
+                               .toString(QUuid::WithoutBraces)
+                               .remove(QLatin1Char('-'));
+    const QString reqId = connId;
+
+    QUrl url(QStringLiteral(
+        "wss://speech.platform.bing.com/consumer/speech/"
+        "synthesize/readaloud/edge/v1"));
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("TrustedClientToken"),
+                   QStringLiteral("6A5AA1D4EAFF4E9FB37E23D68491D6F4"));
+    q.addQueryItem(QStringLiteral("Sec-MS-GEC"), gec);
+    q.addQueryItem(QStringLiteral("Sec-MS-GEC-Version"),
+                   QStringLiteral("1-143.0.3650.75"));
+    q.addQueryItem(QStringLiteral("ConnectionId"), connId);
+    url.setQuery(q);
+
+    QNetworkRequest request(url);
+    request.setRawHeader(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0");
+    request.setRawHeader("Accept-Encoding", "gzip, deflate, br, zstd");
+    request.setRawHeader("Accept-Language", "en-US,en;q=0.9");
+    request.setRawHeader("Pragma", "no-cache");
+    request.setRawHeader("Cache-Control", "no-cache");
+    request.setRawHeader(
+        "Origin",
+        "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold");
+    const QString muid = QUuid::createUuid()
+                             .toString(QUuid::WithoutBraces)
+                             .remove(QLatin1Char('-'))
+                             .toUpper();
+    request.setRawHeader("Cookie", "muid=" + muid.toLatin1() + ";");
+
+    auto *ws = new QWebSocket(QString(),
+                              QWebSocketProtocol::VersionLatest, this);
+    m_edgeWs = ws;
+    connect(ws, &QWebSocket::connected, this,
+            [this, ws, text, reqId] {
+                if (ws != m_edgeWs)
+                    return;
+                qDebug("edge-tts: connected");
+                const QString ts =
+                    QLocale(QLocale::English).toString(
+                        QDateTime::currentDateTimeUtc(),
+                        QStringLiteral("ddd MMM dd yyyy HH:mm:ss"))
+                    + QStringLiteral(
+                        " GMT+0000 (Coordinated Universal Time)");
+                const QString config =
+                    QStringLiteral(
+                        "X-Timestamp:%1\r\n"
+                        "Content-Type:application/json; charset=utf-8\r\n"
+                        "Path:speech.config\r\n\r\n"
+                        "{\"context\":{\"synthesis\":{\"audio\":{"
+                        "\"metadataoptions\":{\"sentenceBoundaryEnabled\":"
+                        "\"false\",\"wordBoundaryEnabled\":\"false\"},"
+                        "\"outputFormat\":"
+                        "\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n")
+                        .arg(ts);
+                ws->sendTextMessage(config);
+
+                QString escaped = text;
+                escaped.replace(QLatin1Char('&'), QStringLiteral("&amp;"));
+                escaped.replace(QLatin1Char('<'), QStringLiteral("&lt;"));
+                escaped.replace(QLatin1Char('>'), QStringLiteral("&gt;"));
+                escaped.replace(QLatin1Char('"'), QStringLiteral("&quot;"));
+                escaped.replace(QLatin1Char('\''), QStringLiteral("&apos;"));
+                const QString ssml =
+                    QStringLiteral(
+                        "X-RequestId:%1\r\n"
+                        "Content-Type:application/ssml+xml\r\n"
+                        "X-Timestamp:%2\r\n"
+                        "Path:ssml\r\n\r\n"
+                        "<speak version='1.0' "
+                        "xmlns='http://www.w3.org/2001/10/synthesis' "
+                        "xml:lang='en-US'>"
+                        "<voice name='en-US-JennyNeural'>"
+                        "<prosody pitch='+0Hz' rate='+0%' volume='+0%'>"
+                        "%3</prosody></voice></speak>")
+                        .arg(reqId, ts, escaped);
+                ws->sendTextMessage(ssml);
+            });
+    connect(ws, &QWebSocket::binaryMessageReceived, this,
+            [this, ws](const QByteArray &message) {
+                if (ws != m_edgeWs)
+                    return;
+                if (message.size() < 2)
+                    return;
+                const quint16 headerLen = static_cast<quint16>(
+                    (static_cast<quint8>(message.at(0)) << 8)
+                    | static_cast<quint8>(message.at(1)));
+                if (2 + headerLen > message.size())
+                    return;
+                const QByteArray head = message.mid(2, headerLen);
+                if (!head.contains("Path:audio"))
+                    return;
+                m_edgeAudio.append(message.mid(2 + headerLen));
+                qDebug("edge-tts: audio chunk += %d",
+                       int(message.size() - 2 - headerLen));
+            });
+    connect(ws, &QWebSocket::textMessageReceived, this,
+            [this, ws](const QString &message) {
+                if (ws != m_edgeWs)
+                    return;
+                qDebug("edge-tts: text path=%s",
+                       qPrintable(message.left(120).trimmed()));
+                if (message.contains(QStringLiteral("Path:turn.end")))
+                    edgePlayAudio();
+            });
+    connect(ws, &QWebSocket::errorOccurred, this,
+            [this, ws](QAbstractSocket::SocketError) {
+                if (ws != m_edgeWs)
+                    return;
+                qWarning("edge-tts: ws error: %s",
+                         qPrintable(ws->errorString()));
+                edgeFallback();
+            });
+    ws->open(request);
+    startEdgeTimer();
+}
+
+void MobileBridge::edgePlayAudio()
+{
+    qDebug("edge-tts: play audio bytes=%d", int(m_edgeAudio.size()));
+    if (m_edgeTimer)
+        m_edgeTimer->stop();
+    if (m_edgeAudio.isEmpty()) {
+        edgeFallback();
         return;
-    const QUrl url(QStringLiteral("http://127.0.0.1:8099/play?text=")
-                   + QString::fromLatin1(QUrl::toPercentEncoding(t)));
-    m_net->get(QNetworkRequest(url));
+    }
+    if (m_edgeWs) {
+        m_edgeWs->close();
+        m_edgeWs->deleteLater();
+        m_edgeWs = nullptr;
+    }
+    playAudioBytes(m_edgeAudio);
+    m_edgeAudio.clear();
+}
+
+void MobileBridge::edgeFallback()
+{
+    qWarning("edge-tts: fallback to espeak");
+    if (m_edgeTimer)
+        m_edgeTimer->stop();
+    if (m_edgeWs) {
+        m_edgeWs->abort();
+        m_edgeWs->deleteLater();
+        m_edgeWs = nullptr;
+    }
+#if defined(Q_OS_ANDROID)
+    playAudioBytes(synthEspeak(m_edgeText));
 #endif
-#else
-    Q_UNUSED(text);
-#endif
+}
+
+void MobileBridge::startEdgeTimer()
+{
+    if (!m_edgeTimer) {
+        m_edgeTimer = new QTimer(this);
+        m_edgeTimer->setSingleShot(true);
+        connect(m_edgeTimer, &QTimer::timeout, this,
+                &MobileBridge::edgeFallback);
+    }
+    m_edgeTimer->start(30000);
 }
 
 void MobileBridge::onWordListFinished(const QString &rawText)
