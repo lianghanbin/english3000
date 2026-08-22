@@ -94,6 +94,16 @@ struct WordListInfo {
     int wordCount = 0;
 };
 
+// AI 词表返回的一行: word | 词性 | 中文释义
+struct WordEntry {
+    QString word;
+    QString pos;
+    QString meaning;
+};
+
+// 兼容两种 AI 输出: 纯单词一行, 或 "word | pos | 释义" 一行
+QVector<WordEntry> parseWordEntries(const QString &raw);
+
 class WordStore {
 public:
     explicit WordStore(const QString &dbPath);
@@ -148,7 +158,10 @@ public:
     bool addWordToList(qint64 listId, const QString &word,
                        const QString &pos, const QString &meaning,
                        int order);
-    QVector<Word> wordsInWordList(qint64 listId) const;
+    // 回填词表条目的词性/释义(AI 补全用)
+    bool updateItemMeaning(qint64 listId, const QString &word,
+                           const QString &pos, const QString &meaning);
+    QVector<Word> wordsInWordList(qint64 listId, int limit = 0) const;
     QVector<WordListInfo> listsContainingWord(const QString &word) const;
     QSet<QString> allListWords() const;
     QSet<QString> currentListWords() const;

@@ -116,11 +116,30 @@ QString AiClient::wordListPrompt(const QString &domain, int count)
                "You are a vocabulary expert. List exactly %1 English words "
                "commonly used in the field of: %2.\n"
                "Rules:\n"
-               "- Output ONLY the words, one per line, lowercase.\n"
-               "- Do not include numbers, explanations, or duplicate words.\n"
+               "- Output ONLY lines in this exact format:\n"
+               "  word | part of speech | Simplified Chinese meaning\n"
+               "- Example: algorithm | n. | 算法\n"
+               "- One line per word, lowercase word, no numbering, "
+               "no duplicate words.\n"
                "- Include important nouns, verbs, and adjectives.")
         .arg(count)
         .arg(domain.trimmed());
+}
+
+QString AiClient::fillMeaningsPrompt(const QStringList &words)
+{
+    return QStringLiteral(
+               "Give the part of speech and Simplified Chinese meaning for "
+               "each English word below.\n"
+               "Rules:\n"
+               "- Output ONLY lines in this exact format:\n"
+               "  word | part of speech | Simplified Chinese meaning\n"
+               "- Example: algorithm | n. | 算法\n"
+               "- One line per word, lowercase, no numbering, no extra text.\n"
+               "- If a word has multiple common meanings, keep the meaning "
+               "short.\n\n"
+               "%1")
+        .arg(words.join(QLatin1Char('\n')));
 }
 
 QString AiClient::translatePrompt(const QString &text, bool toChinese)
@@ -170,6 +189,14 @@ void AiClient::generateWordList(const QString &domain, int count)
     m_requestPredict = qBound(2000, count * 8 + 1000, 6000);
     m_requestTimeoutMs = 20 * 60 * 1000;
     start(wordListPrompt(domain, count));
+}
+
+void AiClient::fillMeanings(const QStringList &words)
+{
+    m_requestType = RequestType::WordList;
+    m_requestPredict = qBound(2000, words.size() * 20 + 1000, 6000);
+    m_requestTimeoutMs = 10 * 60 * 1000;
+    start(fillMeaningsPrompt(words));
 }
 
 void AiClient::chat(const QString &prompt, int maxTokens,

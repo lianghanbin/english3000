@@ -62,6 +62,7 @@ public:
     Q_INVOKABLE QVariantList coverageHistory(int days);
     Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
+    Q_INVOKABLE void aiFillMissingMeanings();
     Q_INVOKABLE void aiGenerateArticle(const QString &topic);
     Q_INVOKABLE void aiCancel();
     Q_INVOKABLE void chatOpen(const QString &title, const QString &content);
@@ -86,10 +87,12 @@ public:
 
 signals:
     void countsChanged();
+    void listChanged();
     void translationReady(const QString &translation);
     void translationFailed(const QString &message);
     void exampleReady(qint64 wordId, const QString &sentence);
     void wordListReady(const QString &name, int count);
+    void meaningsFilled(int count);
     void articleReady(qint64 articleId, const QString &title);
     void articleImported(qint64 articleId, const QString &title);
     void chatReady(const QString &text);
@@ -114,6 +117,7 @@ private:
     QString m_currentArticleContent;
     QString m_pendingListName;
     qint64 m_pendingListId = -1;
+    qint64 m_pendingFillListId = -1;
     QString m_pendingArticleTitle;
     QString m_chatTitle;
     QString m_chatContext;

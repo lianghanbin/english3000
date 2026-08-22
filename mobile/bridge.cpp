@@ -146,51 +146,6 @@ QByteArray synthEspeak(const QString &text)
 }
 #endif
 
-const QSet<QString> kNoiseWords = {
-    "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
-    "to", "for", "with", "from", "by", "as", "is", "are", "was", "were",
-    "be", "been", "being", "have", "has", "had", "do", "does", "did",
-    "will", "would", "shall", "should", "can", "could", "may", "might",
-    "must", "not", "no", "yes", "this", "that", "these", "those", "it",
-    "its", "he", "she", "they", "we", "you", "i", "me", "him", "her",
-    "them", "us", "my", "your", "his", "their", "our", "what", "which",
-    "who", "whom", "when", "where", "why", "how", "all", "any", "some",
-    "each", "every", "both", "few", "more", "most", "other", "such",
-    "there", "here", "then", "than", "so", "very", "just", "also", "too",
-    "into", "about", "after", "before", "between", "under", "over",
-    "again", "once", "only", "own", "same", "through", "during",
-    "list", "words", "word", "example", "please", "include", "output",
-    "one", "per", "line", "lowercase", "numbers", "explanations",
-    "duplicates", "important", "nouns", "verbs", "adjectives", "field",
-    "domain", "common", "commonly", "used", "exactly", "often",
-    "related", "following", "below", "above", "see", "etc", "like",
-};
-
-QStringList splitWordList(const QString &raw)
-{
-    QString normalized = raw;
-    normalized.replace(QLatin1Char(','), QLatin1Char(' '));
-    const QStringList parts =
-        normalized.split(QRegularExpression(QStringLiteral("\\s+")),
-                         Qt::SkipEmptyParts);
-    QStringList result;
-    for (const QString &part : parts) {
-        QString word = part.toLower();
-        bool lettersOnly = true;
-        for (const QChar c : word) {
-            if (!c.isLetter() && c != QLatin1Char('-')
-                && c != QLatin1Char('\'')) {
-                lettersOnly = false;
-                break;
-            }
-        }
-        if (lettersOnly && word.size() >= 2 && !result.contains(word))
-            if (!kNoiseWords.contains(word))
-                result << word;
-    }
-    return result;
-}
-
 } // namespace
 
 MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
@@ -333,7 +288,8 @@ QVariantList MobileBridge::wordLists()
 QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
 {
     QVariantList rows;
-    const QVector<Word> words = m_store->wordsInWordList(listId);
+    const QVector<Word> words =
+        m_store->wordsInWordList(listId, limit > 0 ? limit : 50);
     const int n = qMin(limit > 0 ? limit : 50, words.size());
     for (int i = 0; i < n; ++i) {
         const Word &w = words.at(i);
@@ -377,6 +333,7 @@ QVariantMap MobileBridge::wordInfo(const QString &word)
 void MobileBridge::setCurrentList(qint64 listId)
 {
     m_store->setCurrentWordList(listId);
+    emit listChanged();
     emit countsChanged();
 }
 
@@ -850,11 +807,26 @@ void MobileBridge::startEdgeTimer()
 
 void MobileBridge::onWordListFinished(const QString &rawText)
 {
-    const QStringList words = splitWordList(rawText);
+    const QVector<WordEntry> entries = parseWordEntries(rawText);
+    if (m_pendingFillListId > 0) {
+        const qint64 fillListId = m_pendingFillListId;
+        m_pendingFillListId = -1;
+        int updated = 0;
+        for (const WordEntry &e : entries) {
+            if (e.meaning.trimmed().isEmpty())
+                continue;
+            if (m_store->updateItemMeaning(fillListId, e.word, e.pos,
+                                           e.meaning))
+                ++updated;
+        }
+        emit meaningsFilled(updated);
+        emit countsChanged();
+        return;
+    }
     const QString name = m_pendingListName;
     const qint64 listId = m_pendingListId;
     m_pendingListId = -1;
-    if (words.isEmpty()) {
+    if (entries.isEmpty()) {
         emit aiFailed(QStringLiteral("AI 没有返回有效单词"));
         return;
     }
@@ -865,24 +837,33 @@ void MobileBridge::onWordListFinished(const QString &rawText)
             existing.insert(w.word);
         int added = 0;
         int order = current.size();
-        for (const QString &word : words) {
-            if (existing.contains(word))
+        for (const WordEntry &e : entries) {
+            if (existing.contains(e.word))
                 continue;
             QString pos;
             QString meaning;
-            const std::optional<Word> found = m_store->findWordByText(word);
-            if (found) {
-                pos = found->pos;
-                meaning = found->meaning;
-            } else {
-                const std::optional<Word> dict = m_store->lookupDict(word);
-                if (dict) {
-                    pos = dict->pos;
-                    meaning = dict->meaning;
+            if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+                const std::optional<Word> found =
+                    m_store->findWordByText(e.word);
+                if (found) {
+                    pos = found->pos;
+                    meaning = found->meaning;
+                } else {
+                    const std::optional<Word> dict =
+                        m_store->lookupDict(e.word);
+                    if (dict) {
+                        pos = dict->pos;
+                        meaning = dict->meaning;
+                    }
                 }
             }
-            if (m_store->addWordToList(listId, word, pos, meaning, order)) {
-                existing.insert(word);
+            if (!e.pos.isEmpty())
+                pos = e.pos;
+            if (!e.meaning.isEmpty())
+                meaning = e.meaning;
+            if (m_store->addWordToList(listId, e.word, pos, meaning,
+                                       order)) {
+                existing.insert(e.word);
                 ++added;
                 ++order;
             }
@@ -896,24 +877,32 @@ void MobileBridge::onWordListFinished(const QString &rawText)
         emit aiFailed(QStringLiteral("创建失败:同名词表可能已存在"));
         return;
     }
-    for (int i = 0; i < words.size(); ++i) {
-        const QString &word = words[i];
+    for (int i = 0; i < entries.size(); ++i) {
+        const WordEntry &e = entries.at(i);
         QString pos;
         QString meaning;
-        const std::optional<Word> found = m_store->findWordByText(word);
-        if (found) {
-            pos = found->pos;
-            meaning = found->meaning;
-        } else {
-            const std::optional<Word> dict = m_store->lookupDict(word);
-            if (dict) {
-                pos = dict->pos;
-                meaning = dict->meaning;
+        if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+            const std::optional<Word> found =
+                m_store->findWordByText(e.word);
+            if (found) {
+                pos = found->pos;
+                meaning = found->meaning;
+            } else {
+                const std::optional<Word> dict =
+                    m_store->lookupDict(e.word);
+                if (dict) {
+                    pos = dict->pos;
+                    meaning = dict->meaning;
+                }
             }
         }
-        m_store->addWordToList(newId, word, pos, meaning, i);
+        if (!e.pos.isEmpty())
+            pos = e.pos;
+        if (!e.meaning.isEmpty())
+            meaning = e.meaning;
+        m_store->addWordToList(newId, e.word, pos, meaning, i);
     }
-    emit wordListReady(name, words.size());
+    emit wordListReady(name, entries.size());
 }
 
 void MobileBridge::onArticleFinished(const QString &articleText)
@@ -953,6 +942,27 @@ void MobileBridge::aiSupplementWordList(const QString &domain, int count)
     m_ai->generateWordList(d, qBound(20, count, 200));
 }
 
+void MobileBridge::aiFillMissingMeanings()
+{
+    const qint64 listId = m_store->currentWordListId();
+    if (listId <= 0) {
+        emit aiFailed(QStringLiteral("请先选择一个词表"));
+        return;
+    }
+    const QVector<Word> items = m_store->wordsInWordList(listId, 500);
+    QStringList missing;
+    for (const Word &w : items) {
+        if (w.meaning.trimmed().isEmpty())
+            missing << w.word;
+    }
+    if (missing.isEmpty()) {
+        emit meaningsFilled(0);
+        return;
+    }
+    m_pendingFillListId = listId;
+    m_ai->fillMeanings(missing);
+}
+
 void MobileBridge::aiGenerateArticle(const QString &topic)
 {
     const qint64 listId = m_store->currentWordListId();
@@ -964,11 +974,9 @@ void MobileBridge::aiGenerateArticle(const QString &topic)
     m_pendingArticleTitle = t;
     if (listId > 0) {
         QStringList preferred;
-        const QVector<Word> words = m_store->wordsInWordList(listId);
+        const QVector<Word> words = m_store->wordsInWordList(listId, 200);
         for (const Word &w : words)
             preferred << w.word;
-        if (preferred.size() > 200)
-            preferred = preferred.mid(0, 200);
         m_ai->generateArticle(t, 1, 300, preferred);
     } else {
         m_ai->generateArticle(t, 1, 300);

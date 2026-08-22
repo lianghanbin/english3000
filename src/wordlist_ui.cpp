@@ -25,55 +25,6 @@
 #include <QTableWidgetItem>
 #include <QVBoxLayout>
 
-namespace {
-
-const QSet<QString> kNoiseWords = {
-    "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
-    "to", "for", "with", "from", "by", "as", "is", "are", "was", "were",
-    "be", "been", "being", "have", "has", "had", "do", "does", "did",
-    "will", "would", "shall", "should", "can", "could", "may", "might",
-    "must", "not", "no", "yes", "this", "that", "these", "those", "it",
-    "its", "he", "she", "they", "we", "you", "i", "me", "him", "her",
-    "them", "us", "my", "your", "his", "their", "our", "what", "which",
-    "who", "whom", "when", "where", "why", "how", "all", "any", "some",
-    "each", "every", "both", "few", "more", "most", "other", "such",
-    "there", "here", "then", "than", "so", "very", "just", "also", "too",
-    "into", "about", "after", "before", "between", "under", "over",
-    "again", "once", "only", "own", "same", "through", "during",
-    "list", "words", "word", "example", "please", "include", "output",
-    "one", "per", "line", "lowercase", "numbers", "explanations",
-    "duplicates", "important", "nouns", "verbs", "adjectives", "field",
-    "domain", "common", "commonly", "used", "exactly", "often",
-    "related", "following", "below", "above", "see", "etc", "like",
-};
-
-QStringList splitWordList(const QString &raw)
-{
-    QString normalized = raw;
-    normalized.replace(QLatin1Char(','), QLatin1Char(' '));
-    const QStringList parts =
-        normalized.split(QRegularExpression(QStringLiteral("\\s+")),
-                         Qt::SkipEmptyParts);
-    QStringList result;
-    for (const QString &part : parts) {
-        QString word = part.toLower();
-        bool lettersOnly = true;
-        for (const QChar c : word) {
-            if (!c.isLetter() && c != QLatin1Char('-')
-                && c != QLatin1Char('\'')) {
-                lettersOnly = false;
-                break;
-            }
-        }
-        if (lettersOnly && word.size() >= 2 && !result.contains(word))
-            if (!kNoiseWords.contains(word))
-                result << word;
-    }
-    return result;
-}
-
-} // namespace
-
 WordListPage::WordListPage(WordStore *store, QWidget *parent)
     : QWidget(parent)
     , m_store(store)
@@ -174,6 +125,7 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
     m_currentButton = new QPushButton(QStringLiteral("设为当前词表"), right);
     m_resetButton = new QPushButton(QStringLiteral("重置词表进度"), right);
     m_moreButton = new QPushButton(QStringLiteral("AI 补充词表"), right);
+    m_fillButton = new QPushButton(QStringLiteral("AI 补全释义"), right);
     m_deleteButton = new QPushButton(QStringLiteral("删除词表"), right);
     m_currentButton->setObjectName(QStringLiteral("primaryButton"));
     connect(m_currentButton, &QPushButton::clicked, this,
@@ -182,11 +134,14 @@ WordListPage::WordListPage(WordStore *store, QWidget *parent)
             &WordListPage::resetCurrent);
     connect(m_moreButton, &QPushButton::clicked, this,
             &WordListPage::supplementAiList);
+    connect(m_fillButton, &QPushButton::clicked, this,
+            &WordListPage::fillMeaningsCurrent);
     connect(m_deleteButton, &QPushButton::clicked, this,
             &WordListPage::deleteCurrent);
     listRow->addWidget(m_currentButton);
     listRow->addWidget(m_resetButton);
     listRow->addWidget(m_moreButton);
+    listRow->addWidget(m_fillButton);
     listRow->addWidget(m_deleteButton);
     listRow->addStretch();
     rightLayout->addWidget(m_globalButtons);
@@ -276,6 +231,7 @@ void WordListPage::onListSelected()
     m_currentButton->setEnabled(hasList);
     m_resetButton->setEnabled(hasList);
     m_moreButton->setEnabled(hasList);
+    m_fillButton->setEnabled(hasList);
     m_deleteButton->setEnabled(hasList);
     fillCurrentScope();
 }
@@ -392,8 +348,26 @@ void WordListPage::onWordListFinished(const QString &rawText)
 {
     m_aiButton->setEnabled(true);
     m_moreButton->setEnabled(true);
-    const QStringList words = splitWordList(rawText);
-    if (words.isEmpty()) {
+    m_fillButton->setEnabled(true);
+    if (m_pendingFillListId > 0) {
+        const qint64 fillListId = m_pendingFillListId;
+        m_pendingFillListId = -1;
+        int updated = 0;
+        const QVector<WordEntry> fillEntries = parseWordEntries(rawText);
+        for (const WordEntry &e : fillEntries) {
+            if (e.meaning.trimmed().isEmpty())
+                continue;
+            if (m_store->updateItemMeaning(fillListId, e.word, e.pos,
+                                           e.meaning))
+                ++updated;
+        }
+        selectList(fillListId);
+        m_statusLabel->setText(
+            QStringLiteral("已补全 %1 个释义").arg(updated));
+        return;
+    }
+    const QVector<WordEntry> entries = parseWordEntries(rawText);
+    if (entries.isEmpty()) {
         m_statusLabel->setText(QStringLiteral("AI 没有返回有效单词"));
         return;
     }
@@ -406,24 +380,33 @@ void WordListPage::onWordListFinished(const QString &rawText)
             existing.insert(w.word);
         int added = 0;
         int order = current.size();
-        for (const QString &word : words) {
-            if (existing.contains(word))
+        for (const WordEntry &e : entries) {
+            if (existing.contains(e.word))
                 continue;
             QString pos;
             QString meaning;
-            const std::optional<Word> found = m_store->findWordByText(word);
-            if (found) {
-                pos = found->pos;
-                meaning = found->meaning;
-            } else {
-                const std::optional<Word> dict = m_store->lookupDict(word);
-                if (dict) {
-                    pos = dict->pos;
-                    meaning = dict->meaning;
+            if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+                const std::optional<Word> found =
+                    m_store->findWordByText(e.word);
+                if (found) {
+                    pos = found->pos;
+                    meaning = found->meaning;
+                } else {
+                    const std::optional<Word> dict =
+                        m_store->lookupDict(e.word);
+                    if (dict) {
+                        pos = dict->pos;
+                        meaning = dict->meaning;
+                    }
                 }
             }
-            if (m_store->addWordToList(listId, word, pos, meaning, order)) {
-                existing.insert(word);
+            if (!e.pos.isEmpty())
+                pos = e.pos;
+            if (!e.meaning.isEmpty())
+                meaning = e.meaning;
+            if (m_store->addWordToList(listId, e.word, pos, meaning,
+                                       order)) {
+                existing.insert(e.word);
                 ++added;
                 ++order;
             }
@@ -444,34 +427,43 @@ void WordListPage::onWordListFinished(const QString &rawText)
             QStringLiteral("创建失败：同名词表可能已存在"));
         return;
     }
-    for (int i = 0; i < words.size(); ++i) {
-        const QString &word = words[i];
+    for (int i = 0; i < entries.size(); ++i) {
+        const WordEntry &e = entries.at(i);
         QString pos;
         QString meaning;
-        const std::optional<Word> found = m_store->findWordByText(word);
-        if (found) {
-            pos = found->pos;
-            meaning = found->meaning;
-        } else {
-            const std::optional<Word> dict = m_store->lookupDict(word);
-            if (dict) {
-                pos = dict->pos;
-                meaning = dict->meaning;
+        if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+            const std::optional<Word> found =
+                m_store->findWordByText(e.word);
+            if (found) {
+                pos = found->pos;
+                meaning = found->meaning;
+            } else {
+                const std::optional<Word> dict =
+                    m_store->lookupDict(e.word);
+                if (dict) {
+                    pos = dict->pos;
+                    meaning = dict->meaning;
+                }
             }
         }
-        m_store->addWordToList(listId, word, pos, meaning, i);
+        if (!e.pos.isEmpty())
+            pos = e.pos;
+        if (!e.meaning.isEmpty())
+            meaning = e.meaning;
+        m_store->addWordToList(listId, e.word, pos, meaning, i);
     }
     selectList(listId);
     m_statusLabel->setText(
         QStringLiteral("词表已生成：「%1」共 %2 个词")
             .arg(m_pendingName)
-            .arg(words.size()));
+            .arg(entries.size()));
 }
 
 void WordListPage::onAiFailed(const QString &message)
 {
     m_aiButton->setEnabled(true);
     m_moreButton->setEnabled(true);
+    m_fillButton->setEnabled(true);
     m_statusLabel->setText(QStringLiteral("生成失败：%1").arg(message));
 }
 
@@ -499,6 +491,31 @@ void WordListPage::supplementAiList()
         QStringLiteral("正在为「%1」补充词表…（本地模型需要一段时间）")
             .arg(name));
     m_ai->generateWordList(name, 100);
+}
+
+void WordListPage::fillMeaningsCurrent()
+{
+    QListWidgetItem *item = m_listWidget->currentItem();
+    if (!item)
+        return;
+    const qint64 listId = item->data(Qt::UserRole).toLongLong();
+    const QVector<Word> items = m_store->wordsInWordList(listId, 500);
+    QStringList missing;
+    for (const Word &w : items) {
+        if (w.meaning.trimmed().isEmpty())
+            missing << w.word;
+    }
+    if (missing.isEmpty()) {
+        m_statusLabel->setText(QStringLiteral("没有需要补全的释义"));
+        return;
+    }
+    m_pendingFillListId = listId;
+    m_aiButton->setEnabled(false);
+    m_moreButton->setEnabled(false);
+    m_fillButton->setEnabled(false);
+    m_statusLabel->setText(
+        QStringLiteral("正在补全 %1 个释义…").arg(missing.size()));
+    m_ai->fillMeanings(missing);
 }
 
 void WordListPage::createFromArticlesDialog()

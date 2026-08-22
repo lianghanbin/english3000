@@ -183,6 +183,43 @@ void testCsvParser()
           "csv empty field is empty string, not null");
 }
 
+void testParseWordEntries()
+{
+    const QVector<WordEntry> entries = parseWordEntries(QStringLiteral(
+        "algorithm | n. | 算法\n"
+        "scalable | adj. | 可扩展的\n"
+        "1. hello\n"
+        "x-box | n. | 游戏机\n"
+        "world\n"
+        "the\n"
+        "algorithm\n"));
+    check(entries.size() == 5, "parse word entries count");
+    bool hasAlgorithm = false;
+    bool hasScalable = false;
+    bool hasHello = false;
+    bool hasXbox = false;
+    bool hasWorld = false;
+    for (const WordEntry &e : entries) {
+        if (e.word == QLatin1String("algorithm"))
+            hasAlgorithm = e.meaning == QStringLiteral("算法")
+                           && e.pos == QLatin1String("n.");
+        if (e.word == QLatin1String("scalable"))
+            hasScalable = e.meaning == QStringLiteral("可扩展的")
+                          && e.pos == QLatin1String("adj.");
+        if (e.word == QLatin1String("hello"))
+            hasHello = true;
+        if (e.word == QLatin1String("x-box"))
+            hasXbox = e.meaning == QStringLiteral("游戏机");
+        if (e.word == QLatin1String("world"))
+            hasWorld = true;
+    }
+    check(hasAlgorithm, "algorithm parsed with pos+meaning");
+    check(hasScalable, "scalable parsed with pos+meaning");
+    check(hasHello, "numbered plain word parsed");
+    check(hasXbox, "hyphen word with meaning parsed");
+    check(hasWorld, "plain word parsed");
+}
+
 void testArticleSaveAndStats()
 {
     QTemporaryDir dir;
@@ -675,6 +712,7 @@ int main(int argc, char *argv[])
     testAddWordAndSearch();
     testDailyLogAndStreak();
     testCsvParser();
+    testParseWordEntries();
     testArticleSaveAndStats();
     testPoolPromoteAndPriority();
     testMigration();

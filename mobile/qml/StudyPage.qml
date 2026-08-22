@@ -11,6 +11,7 @@ Page {
     property string mode: "learn"
     property bool speaking: false
     property bool pendingKnown: false
+    property bool needsReload: false
     property int total: bridge.newCount + bridge.dueCount + bridge.masteredCount
 
     background: Rectangle { color: T.bg }
@@ -387,6 +388,13 @@ Page {
 
     Connections {
         target: bridge
+        function onListChanged() {
+            needsReload = true
+            if (SwipeView.isCurrentItem) {
+                needsReload = false
+                load(mode)
+            }
+        }
         function onExampleReady(wordId, sentence) {
             if (cardIndex >= 0 && cards[cardIndex].id === wordId) {
                 currentExample = sentence
@@ -428,7 +436,8 @@ Page {
         wordText.text = c.word
         ipaText.text = c.phonetic !== undefined ? (c.phonetic || "") : ""
         posText.text = c.pos || ""
-        meaningText.text = (c.pos ? c.pos + "  " : "") + (c.meaning || "")
+        meaningText.text = (c.pos ? c.pos + "  " : "")
+                           + (c.meaning ? c.meaning : "（暂无释义）")
         currentExample = c.example || ""
         if (currentExample === "")
             bridge.requestExample(c.id, c.word)
@@ -487,7 +496,21 @@ Page {
         }
     }
 
+    function reloadIfNeeded() {
+        if (needsReload) {
+            needsReload = false
+            load(mode)
+        }
+    }
+
     Component.onCompleted: load()
+
+    onVisibleChanged: {
+        if (visible && needsReload) {
+            needsReload = false
+            load(mode)
+        }
+    }
 
     component ActionBtn: Rectangle {
         id: root

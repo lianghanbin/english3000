@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -42,6 +43,7 @@ public:
     void translateText(const QString &text, const QString &model = {},
                        bool toChinese = true);
     void generateWordList(const QString &domain, int count);
+    void fillMeanings(const QStringList &words);
     void chat(const QString &prompt, int maxTokens = 400,
               const QString &model = {});
     void cancel();
@@ -53,6 +55,7 @@ public:
     static QString rewritePrompt(const QString &sourceText, int level);
     static QString translatePrompt(const QString &text, bool toChinese = true);
     static QString wordListPrompt(const QString &domain, int count);
+    static QString fillMeaningsPrompt(const QStringList &words);
     static QString levelLabel(int level);
     RequestType requestType() const { return m_requestType; }
 

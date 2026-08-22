@@ -31,6 +31,7 @@ private slots:
     void createAiDialog();
     void createFromArticlesDialog();
     void supplementAiList();
+    void fillMeaningsCurrent();
     void setCurrent();
     void resetCurrent();
     void saveOrder();
@@ -54,6 +55,7 @@ private:
     QProgressBar *m_progressBar = nullptr;
     QLabel *m_statusLabel = nullptr;
     QPushButton *m_aiButton = nullptr;
+    QPushButton *m_fillButton = nullptr;
     QPushButton *m_articleButton = nullptr;
     QPushButton *m_currentButton = nullptr;
     QPushButton *m_resetButton = nullptr;
@@ -64,5 +66,6 @@ private:
     QString m_pendingName;
     int m_pendingCount = 0;
     qint64 m_pendingListId = -1;
+    qint64 m_pendingFillListId = -1;
     qint64 m_scopeId = -1;
 };

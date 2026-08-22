@@ -21,6 +21,11 @@ ApplicationWindow {
             height: parent.height - 56
             interactive: true
 
+            onCurrentIndexChanged: {
+                if (currentIndex === 0)
+                    swipe.itemAt(0).reloadIfNeeded()
+            }
+
             StudyPage {}
             WordListsPage {}
             ReadingPage {}

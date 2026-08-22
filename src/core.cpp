@@ -13,6 +13,7 @@
 #include <QTextStream>
 #include <QVariant>
 #include <QDir>
+#include <QRegularExpression>
 
 #include <optional>
 
@@ -113,6 +114,26 @@ const QSet<QString> kStopwords = {
     "there", "here", "then", "than", "so", "very", "just", "also", "too",
     "into", "about", "after", "before", "between", "under", "over",
     "again", "once", "only", "own", "same", "through", "during",
+};
+
+const QSet<QString> kListNoiseWords = {
+    "the", "a", "an", "and", "or", "but", "if", "of", "in", "on", "at",
+    "to", "for", "with", "from", "by", "as", "is", "are", "was", "were",
+    "be", "been", "being", "have", "has", "had", "do", "does", "did",
+    "will", "would", "shall", "should", "can", "could", "may", "might",
+    "must", "not", "no", "yes", "this", "that", "these", "those", "it",
+    "its", "he", "she", "they", "we", "you", "i", "me", "him", "her",
+    "them", "us", "my", "your", "his", "their", "our", "what", "which",
+    "who", "whom", "when", "where", "why", "how", "all", "any", "some",
+    "each", "every", "both", "few", "more", "most", "other", "such",
+    "there", "here", "then", "than", "so", "very", "just", "also", "too",
+    "into", "about", "after", "before", "between", "under", "over",
+    "again", "once", "only", "own", "same", "through", "during",
+    "list", "words", "word", "example", "please", "include", "output",
+    "one", "per", "line", "lowercase", "numbers", "explanations",
+    "duplicates", "important", "nouns", "verbs", "adjectives", "field",
+    "domain", "common", "commonly", "used", "exactly", "often",
+    "related", "following", "below", "above", "see", "etc", "like",
 };
 
 QString dueSql(const QDate &day)
@@ -387,7 +408,10 @@ QVector<Word> WordStore::learnCards(int limit)
         return {};
     QSqlQuery q = rawQuery(
         QStringLiteral(
-            "SELECT i.id, i.word, i.pos, i.meaning, i.box, "
+            "SELECT i.id, i.word, "
+            "COALESCE(NULLIF(i.pos,''), w.pos, ''), "
+            "COALESCE(NULLIF(i.meaning,''), w.meaning, ''), "
+            "i.box, "
             "i.review_count, w.id, w.phonetic, w.example_sentence "
             "FROM word_list_items i "
             "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
@@ -406,9 +430,12 @@ QVector<Word> WordStore::learnCards(int limit)
         w.id = q.value(6).toLongLong();
         w.phonetic = q.value(7).toString();
         w.exampleSentence = q.value(8).toString();
+        words.append(w);
+    }
+    // 查询游标关闭后再补写,避免 SELECT 未结束就写库
+    for (Word &w : words) {
         if (w.id <= 0)
             w.id = addWord(w.word, w.pos, w.meaning); // 词表单词补进词典
-        words.append(w);
     }
     return words;
 }
@@ -420,7 +447,10 @@ QVector<Word> WordStore::reviewCards(int limit)
         return {};
     QSqlQuery q = rawQuery(
         QStringLiteral(
-            "SELECT i.id, i.word, i.pos, i.meaning, i.box, "
+            "SELECT i.id, i.word, "
+            "COALESCE(NULLIF(i.pos,''), w.pos, ''), "
+            "COALESCE(NULLIF(i.meaning,''), w.meaning, ''), "
+            "i.box, "
             "i.review_count, w.id, w.phonetic, w.example_sentence "
             "FROM word_list_items i "
             "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
@@ -439,9 +469,11 @@ QVector<Word> WordStore::reviewCards(int limit)
         w.id = q.value(6).toLongLong();
         w.phonetic = q.value(7).toString();
         w.exampleSentence = q.value(8).toString();
+        words.append(w);
+    }
+    for (Word &w : words) {
         if (w.id <= 0)
             w.id = addWord(w.word, w.pos, w.meaning);
-        words.append(w);
     }
     return words;
 }
@@ -1153,27 +1185,90 @@ bool WordStore::addWordToList(qint64 listId, const QString &word,
                               const QString &pos, const QString &meaning,
                               int order)
 {
+    QString pos2 = pos.trimmed();
+    QString meaning2 = meaning.trimmed();
+    // 词表项没给释义时,自动从词典表/words 表补上,避免出现空白释义
+    if (pos2.isEmpty() || meaning2.isEmpty()) {
+        const std::optional<Word> found = findWordByText(word);
+        if (found) {
+            if (pos2.isEmpty())
+                pos2 = found->pos;
+            if (meaning2.isEmpty())
+                meaning2 = found->meaning;
+        }
+        if (meaning2.isEmpty()) {
+            const std::optional<Word> dict = lookupDict(word);
+            if (dict) {
+                if (pos2.isEmpty())
+                    pos2 = dict->pos;
+                if (meaning2.isEmpty())
+                    meaning2 = dict->meaning;
+            }
+        }
+    }
     QSqlQuery q(m_db);
     q.prepare(QStringLiteral(
         "INSERT OR IGNORE INTO word_list_items"
         "(list_id, word, pos, meaning, sort_order) VALUES(?, ?, ?, ?, ?)"));
     q.addBindValue(listId);
     q.addBindValue(word.trimmed().toLower());
-    q.addBindValue(pos.isEmpty() ? QStringLiteral("") : pos.trimmed());
-    q.addBindValue(meaning.isEmpty() ? QStringLiteral("") : meaning.trimmed());
+    q.addBindValue(pos2);
+    q.addBindValue(meaning2);
     q.addBindValue(order);
     return q.exec();
 }
 
-QVector<Word> WordStore::wordsInWordList(qint64 listId) const
+bool WordStore::updateItemMeaning(qint64 listId, const QString &word,
+                                  const QString &pos,
+                                  const QString &meaning)
 {
-    QSqlQuery q = rawQuery(QStringLiteral(
-        "SELECT i.id, i.word, i.pos, i.meaning, i.box, "
-        "i.review_count, w.id, w.phonetic, w.example_sentence "
+    const QString w = word.trimmed().toLower();
+    if (w.isEmpty() || meaning.trimmed().isEmpty())
+        return false;
+    // 词典表没有的词也补进 words,方便以后查询和例句
+    if (!findWordByText(w)) {
+        addWord(w, pos, meaning);
+    } else {
+        QSqlQuery upd(m_db);
+        upd.prepare(QStringLiteral(
+            "UPDATE words SET pos=COALESCE(NULLIF(?,''), pos), "
+            "meaning=COALESCE(NULLIF(?,''), meaning) WHERE word=? COLLATE NOCASE"));
+        upd.addBindValue(pos.trimmed());
+        upd.addBindValue(meaning.trimmed());
+        upd.addBindValue(w);
+        upd.exec();
+    }
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE word_list_items SET "
+        "pos=COALESCE(NULLIF(?,''), pos), "
+        "meaning=COALESCE(NULLIF(?,''), meaning) "
+        "WHERE list_id=? AND word=? COLLATE NOCASE"));
+    q.addBindValue(pos.trimmed());
+    q.addBindValue(meaning.trimmed());
+    q.addBindValue(listId);
+    q.addBindValue(w);
+    if (!q.exec())
+        return false;
+    return q.numRowsAffected() > 0;
+}
+
+QVector<Word> WordStore::wordsInWordList(qint64 listId, int limit) const
+{
+    QString sql = QStringLiteral(
+        "SELECT i.id, i.word, "
+        "COALESCE(NULLIF(i.pos,''), w.pos, ''), "
+        "COALESCE(NULLIF(i.meaning,''), w.meaning, ''), "
+        "i.box, i.review_count, w.id, w.phonetic, w.example_sentence "
         "FROM word_list_items i "
         "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
-        "WHERE i.list_id=? ORDER BY i.sort_order, i.id"),
-        {listId});
+        "WHERE i.list_id=? ORDER BY i.sort_order, i.id");
+    QVariantList args = {listId};
+    if (limit > 0) {
+        sql += QStringLiteral(" LIMIT ?");
+        args.append(limit);
+    }
+    QSqlQuery q = rawQuery(sql, args);
     QVector<Word> words;
     while (q.next()) {
         Word w;
@@ -1293,7 +1388,10 @@ std::optional<Word> WordStore::findInNamedList(const QString &listName,
     if (listId <= 0)
         return std::nullopt;
     QSqlQuery q = rawQuery(QStringLiteral(
-        "SELECT i.id, i.word, i.pos, i.meaning, i.box, "
+        "SELECT i.id, i.word, "
+        "COALESCE(NULLIF(i.pos,''), w.pos, ''), "
+        "COALESCE(NULLIF(i.meaning,''), w.meaning, ''), "
+        "i.box, "
         "i.review_count, w.id, w.phonetic, w.example_sentence "
         "FROM word_list_items i "
         "LEFT JOIN words w ON w.word = i.word COLLATE NOCASE "
@@ -2002,4 +2100,119 @@ QVector<QStringList> parseCsv(const QString &text)
         rows << row;
     }
     return rows;
+}
+
+namespace {
+
+bool validListWord(const QString &word)
+{
+    if (word.size() < 2)
+        return false;
+    for (const QChar c : word) {
+        if (!c.isLetter() && c != QLatin1Char('-')
+            && c != QLatin1Char('\'')) {
+            return false;
+        }
+    }
+    return !kListNoiseWords.contains(word);
+}
+
+QString stripListNumbering(QString line)
+{
+    line = line.trimmed();
+    // 去掉 "1." "1、" "- " "* " 之类的前缀
+    int i = 0;
+    while (i < line.size()) {
+        const QChar c = line.at(i);
+        if (c.isDigit() || c == QLatin1Char('.')
+            || c == QLatin1Char('-') || c == QLatin1Char('*')
+            || c == QChar(0x2022) || c == QChar(0x3001)
+            || c == QLatin1Char(')') || c == QChar(0xFF09)
+            || c.isSpace()) {
+            ++i;
+            continue;
+        }
+        break;
+    }
+    return line.mid(i).trimmed();
+}
+
+} // namespace
+
+QVector<WordEntry> parseWordEntries(const QString &raw)
+{
+    QVector<WordEntry> out;
+    QSet<QString> seen;
+    QString text = raw;
+    text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+    text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+    const QStringList lines =
+        text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (QString line : lines) {
+        line = line.trimmed();
+        if (line.isEmpty())
+            continue;
+        if (line.contains(QLatin1Char('|'))
+            || line.contains(QLatin1Char('\t'))) {
+            const QChar sep =
+                line.contains(QLatin1Char('|')) ? QLatin1Char('|')
+                                                : QLatin1Char('\t');
+            const QStringList parts =
+                line.split(sep, Qt::SkipEmptyParts);
+            if (parts.isEmpty())
+                continue;
+            WordEntry e;
+            e.word = parts.at(0).trimmed().toLower();
+            QStringList rest;
+            if (parts.size() >= 2)
+                rest = parts.mid(1);
+            QString second = rest.isEmpty() ? QString()
+                                            : rest.takeFirst().trimmed();
+            // 第二段像词性(如 n. / adj / verb)就作为词性,否则并入释义
+            const auto looksLikePos = [](const QString &raw) {
+                QString s = raw.trimmed().toLower();
+                if (s.isEmpty() || s.size() > 12)
+                    return false;
+                if (s.endsWith(QLatin1Char('.')))
+                    s.chop(1);
+                for (const QChar c : s) {
+                    if (!c.isLower() && c != QLatin1Char('.'))
+                        return false;
+                }
+                return true;
+            };
+            if (!second.isEmpty() && looksLikePos(second)) {
+                e.pos = second;
+            } else if (!second.isEmpty()) {
+                rest.prepend(second);
+            }
+            if (!rest.isEmpty())
+                e.meaning = rest.join(QLatin1Char(' ')).trimmed();
+            e.word = stripListNumbering(e.word).toLower();
+            if (!validListWord(e.word))
+                continue;
+            if (seen.contains(e.word))
+                continue;
+            seen.insert(e.word);
+            out.append(e);
+        } else {
+            line = stripListNumbering(line);
+            // 纯单词一行: 按空白拆(兼容 "1. algorithm" 和旧格式)
+            const QStringList tokens =
+                line.split(QRegularExpression(QStringLiteral("\\s+")),
+                           Qt::SkipEmptyParts);
+            for (const QString &tok : tokens) {
+                WordEntry t;
+                t.word = tok.toLower();
+                if (!validListWord(t.word))
+                    continue;
+                if (seen.contains(t.word))
+                    continue;
+                seen.insert(t.word);
+                out.append(t);
+            }
+            continue;
+        }
+    }
+    return out;
 }

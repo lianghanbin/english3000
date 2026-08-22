@@ -68,8 +68,6 @@ Page {
                             anchors.fill: parent
                             onClicked: {
                                 bridge.setCurrentList(modelData.id)
-                                bridge.refresh()
-                                refresh()
                             }
                             onPressAndHold: {
                                 delList.id = modelData.id
@@ -94,6 +92,13 @@ Page {
                         aiPopup.mode = "supplement"
                         domainField.text = ""
                         aiPopup.open()
+                    }
+                }
+                SideBtn {
+                    text: "✎ AI 补全释义"
+                    onClicked: {
+                        aiBusy = true
+                        bridge.aiFillMissingMeanings()
                     }
                 }
             }
@@ -194,6 +199,12 @@ Page {
             refresh()
             showToast("词表已生成:「" + name + "」共 " + count + " 词")
         }
+        function onMeaningsFilled(count) {
+            aiBusy = false
+            refresh()
+            showToast(count > 0 ? "已补全 " + count + " 个释义"
+                                : "没有需要补全的释义")
+        }
         function onAiFailed(message) {
             aiBusy = false
             showToast("AI 失败:" + message)
@@ -234,7 +245,7 @@ Page {
                         s += i.phonetic + "  "
                     if (i.pos)
                         s += i.pos + "  "
-                    s += i.meaning
+                    s += i.meaning === "" ? "（暂无释义）" : i.meaning
                     return s
                 }
                 wrapMode: Text.Wrap
@@ -563,7 +574,8 @@ Page {
                     anchors.leftMargin: 4
                     width: parent.width - 8
                     elide: Text.ElideRight
-                    text: modelData.meaning
+                    text: modelData.meaning === ""
+                          ? "（暂无释义，可点 AI 补全）" : modelData.meaning
                     font.pixelSize: 12
                     color: T.textBody
                 }
