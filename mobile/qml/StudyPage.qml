@@ -105,6 +105,19 @@ Page {
             clip: true
 
             Rectangle {
+                id: cardShadow
+                x: cardBody.x + 4
+                y: cardBody.y + 8
+                width: cardBody.width
+                height: cardBody.height
+                radius: 28
+                color: "#24000000"
+                opacity: cardBody.opacity
+                rotation: cardBody.rotation
+                scale: cardBody.scale
+            }
+
+            Rectangle {
                 id: cardBody
                 x: 2
                 y: 2
@@ -249,16 +262,26 @@ Page {
                 anchors.fill: parent
                 drag.target: cardBody
                 drag.axis: Drag.XAxis
-                drag.threshold: 8
-                drag.minimumX: -260
-                drag.maximumX: 260
+                drag.threshold: 6
+                drag.minimumX: -150
+                drag.maximumX: 150
                 onClicked: reveal()
+                onPositionChanged: {
+                    if (!drag.active)
+                        return
+                    var p = cardBody.x
+                    if (!revealed && Math.abs(p) > 18)
+                        reveal()
+                    cardBody.rotation = p / 18
+                    cardBody.scale = 1 - Math.min(Math.abs(p), 150) / 1500
+                    cardBody.opacity = 1 - Math.min(Math.abs(p), 300) / 1200
+                }
                 onReleased: {
                     if (!revealed) {
                         backX.start()
-                    } else if (cardBody.x <= -60) {
+                    } else if (cardBody.x <= -42) {
                         swipeAnswer(false)
-                    } else if (cardBody.x >= 60) {
+                    } else if (cardBody.x >= 42) {
                         swipeAnswer(true)
                     } else {
                         backX.start()
@@ -339,28 +362,74 @@ Page {
 
     SequentialAnimation {
         id: cardSeq
-        PropertyAnimation { target: cardBody; property: "opacity"; to: 0; duration: 130 }
-        PropertyAnimation { target: cardBody; property: "x"; to: -300; duration: 1 }
         ScriptAction { script: fillCard() }
-        PropertyAnimation {
-            target: cardBody
-            property: "x"
-            from: 300
-            to: 0
-            duration: 230
-            easing.type: Easing.OutCubic
+        ParallelAnimation {
+            PropertyAnimation {
+                target: cardBody
+                property: "x"
+                from: 340
+                to: 0
+                duration: 260
+                easing.type: Easing.OutCubic
+            }
+            PropertyAnimation {
+                target: cardBody
+                property: "opacity"
+                from: 0
+                to: 1
+                duration: 220
+                easing.type: Easing.OutCubic
+            }
+            PropertyAnimation {
+                target: cardBody
+                property: "rotation"
+                from: 8
+                to: 0
+                duration: 260
+                easing.type: Easing.OutCubic
+            }
+            PropertyAnimation {
+                target: cardBody
+                property: "scale"
+                from: 0.96
+                to: 1
+                duration: 260
+                easing.type: Easing.OutCubic
+            }
         }
-        PropertyAnimation { target: cardBody; property: "opacity"; to: 1; duration: 170 }
     }
 
     SequentialAnimation {
         id: flyX
-        PropertyAnimation {
-            id: flyXAnim
-            target: cardBody
-            property: "x"
-            duration: 170
-            easing.type: Easing.InQuad
+        ParallelAnimation {
+            PropertyAnimation {
+                id: flyXAnim
+                target: cardBody
+                property: "x"
+                duration: 210
+                easing.type: Easing.InOutCubic
+            }
+            PropertyAnimation {
+                id: flyRot
+                target: cardBody
+                property: "rotation"
+                duration: 210
+                easing.type: Easing.InOutCubic
+            }
+            PropertyAnimation {
+                target: cardBody
+                property: "scale"
+                to: 0.94
+                duration: 210
+                easing.type: Easing.InOutCubic
+            }
+            PropertyAnimation {
+                target: cardBody
+                property: "opacity"
+                to: 0
+                duration: 190
+                easing.type: Easing.InCubic
+            }
         }
         ScriptAction {
             script: {
@@ -371,13 +440,35 @@ Page {
         }
     }
 
-    NumberAnimation {
+    ParallelAnimation {
         id: backX
-        target: cardBody
-        property: "x"
-        to: 0
-        duration: 180
-        easing.type: Easing.OutCubic
+        NumberAnimation {
+            target: cardBody
+            property: "x"
+            to: 0
+            duration: 240
+            easing.type: Easing.OutBack
+        }
+        NumberAnimation {
+            target: cardBody
+            property: "rotation"
+            to: 0
+            duration: 240
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: cardBody
+            property: "scale"
+            to: 1
+            duration: 240
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: cardBody
+            property: "opacity"
+            to: 1
+            duration: 200
+        }
     }
 
     Timer {
@@ -481,7 +572,8 @@ Page {
     function swipeAnswer(known) {
         if (cardIndex < 0) return
         pendingKnown = known
-        flyXAnim.to = known ? 340 : -340
+        flyXAnim.to = known ? 420 : -420
+        flyRot.to = known ? 10 : -10
         flyX.start()
     }
 
