@@ -257,6 +257,12 @@ QVariantList MobileBridge::newCards(int limit)
         card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
+        const std::optional<Word> dict = m_store->lookupDict(w.word);
+        if (dict && !dict->meaning.isEmpty()) {
+            card.insert(QStringLiteral("pos"), dict->pos);
+            card.insert(QStringLiteral("phonetic"), dict->phonetic);
+            card.insert(QStringLiteral("meaning"), dict->meaning);
+        }
         cards.append(card);
     }
     return cards;
@@ -275,6 +281,12 @@ QVariantList MobileBridge::reviewCards(int limit)
         card.insert(QStringLiteral("phonetic"), w.phonetic);
         card.insert(QStringLiteral("meaning"), w.meaning);
         card.insert(QStringLiteral("example"), w.exampleSentence);
+        const std::optional<Word> dict = m_store->lookupDict(w.word);
+        if (dict && !dict->meaning.isEmpty()) {
+            card.insert(QStringLiteral("pos"), dict->pos);
+            card.insert(QStringLiteral("phonetic"), dict->phonetic);
+            card.insert(QStringLiteral("meaning"), dict->meaning);
+        }
         cards.append(card);
     }
     return cards;
