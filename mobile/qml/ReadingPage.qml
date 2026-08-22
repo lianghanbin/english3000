@@ -703,14 +703,16 @@ Page {
         }
         lastSource = content
         translating = true
-        resultText.text = ""
+        translateText.text = ""
+        translatePopup.open()
         bridge.translate(content, "")
     }
 
     function translateWord(w) {
         lastSource = w
         translating = true
-        resultText.text = ""
+        translateText.text = ""
+        translatePopup.open()
         bridge.translate(w, "")
     }
 
