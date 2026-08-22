@@ -224,9 +224,11 @@ Page {
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
+                                        exTransSrc.text = currentExample
+                                        exTransResult.text = "翻译中…"
+                                        exampleTransPopup.open()
                                         bridge.translate(currentExample,
                                                          bridge.aiModel())
-                                        showToast("翻译例句中…")
                                     }
                                 }
                             }
@@ -356,6 +358,52 @@ Page {
                 toastAnim.stop()
                 toast.opacity = 0
                 toast.visible = false
+            }
+        }
+    }
+
+    Popup {
+        id: exampleTransPopup
+        anchors.centerIn: parent
+        width: parent.width * 0.9
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 10
+            Text {
+                text: "例句翻译"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                id: exTransSrc
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                font.pixelSize: 13
+                color: T.textBody
+            }
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: T.line
+            }
+            Text {
+                id: exTransResult
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                font.pixelSize: 14
+                color: T.greenDark
+            }
+            ActionBtn {
+                text: "关闭"
+                colorA: T.blueBright
+                colorB: T.blue
+                Layout.fillWidth: true
+                onClicked: exampleTransPopup.close()
             }
         }
     }
@@ -498,10 +546,18 @@ Page {
             }
         }
         function onTranslationReady(t) {
+            if (exampleTransPopup.opened) {
+                exTransResult.text = t
+                return
+            }
             var s = t.length > 60 ? t.substring(0, 60) + "…" : t
             showToast(s)
         }
         function onTranslationFailed(m) {
+            if (exampleTransPopup.opened) {
+                exTransResult.text = "翻译失败:" + m
+                return
+            }
             showToast("翻译失败:" + m)
         }
     }
