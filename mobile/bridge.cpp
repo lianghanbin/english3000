@@ -289,8 +289,8 @@ QVariantList MobileBridge::wordListRows(qint64 listId, int limit)
 {
     QVariantList rows;
     const QVector<Word> words =
-        m_store->wordsInWordList(listId, limit > 0 ? limit : 50);
-    const int n = qMin(limit > 0 ? limit : 50, words.size());
+        m_store->wordsInWordList(listId, limit > 0 ? limit : 0);
+    const int n = limit > 0 ? qMin(limit, words.size()) : words.size();
     for (int i = 0; i < n; ++i) {
         const Word &w = words.at(i);
         QVariantMap r;
