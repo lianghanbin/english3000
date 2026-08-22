@@ -667,9 +667,12 @@ Page {
     component GuideItem: Column {
         property string title: ""
         property string body: ""
+        width: parent.width
         spacing: 3
         Text {
             text: title
+            width: parent.width
+            wrapMode: Text.Wrap
             font.bold: true
             font.pixelSize: 13
             color: T.blue
