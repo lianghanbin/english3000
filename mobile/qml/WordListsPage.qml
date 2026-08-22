@@ -8,6 +8,8 @@ Page {
     property var rows: []
     property int currentId: -1
     property string currentName: ""
+    property int currentCount: 0
+    property int rowsLoaded: 0
     property bool aiBusy: false
 
     background: Rectangle { color: T.bg }
@@ -144,14 +146,44 @@ Page {
                 Layout.fillHeight: true
                 clip: true
                 contentHeight: rowsCol.height
-                Column {
-                    id: rowsCol
-                    width: parent.width
-                    Repeater {
-                        model: rows
-                        delegate: RowItem {}
+                    Column {
+                        id: rowsCol
+                        width: parent.width
+                        Repeater {
+                            model: rows
+                            delegate: RowItem {}
+                        }
+                        Item {
+                            width: parent.width
+                            height: 46
+                            visible: currentId > 0
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: parent.width - 24
+                                height: 34
+                                radius: 17
+                                color: rowsLoaded >= currentCount
+                                       ? "#eef4ee" : T.greenSoft
+                                border.color: T.greenBorder
+                                border.width: 1
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: rowsLoaded >= currentCount
+                                          ? "已显示全部 " + currentCount + " 词"
+                                          : "已显示 " + rows.length + " / "
+                                            + currentCount + " · 点此加载更多"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    color: T.greenDark
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: rowsLoaded < currentCount
+                                    onClicked: loadMore()
+                                }
+                            }
+                        }
                     }
-                }
             }
         }
     }
@@ -330,16 +362,31 @@ Page {
     }
 
     function refresh() {
+        var prevId = currentId
+        var prevLoaded = rowsLoaded
         lists = bridge.wordLists()
         currentId = -1
+        currentCount = 0
         for (var i = 0; i < lists.length; ++i) {
             if (lists[i].current) {
                 currentId = lists[i].id
                 currentName = lists[i].name
+                currentCount = lists[i].wordCount
                 break
             }
         }
-        rows = currentId >= 0 ? bridge.wordListRows(currentId, 40) : []
+        if (prevId === currentId && prevLoaded > 40)
+            rowsLoaded = prevLoaded
+        else
+            rowsLoaded = 40
+        rows = currentId >= 0 ? bridge.wordListRows(currentId, rowsLoaded) : []
+    }
+
+    function loadMore() {
+        if (currentId <= 0 || rowsLoaded >= currentCount)
+            return
+        rowsLoaded = Math.min(rowsLoaded + 100, currentCount)
+        rows = bridge.wordListRows(currentId, rowsLoaded)
     }
 
     function startAi() {
