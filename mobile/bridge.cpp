@@ -455,13 +455,8 @@ QVariantList MobileBridge::articles()
     return out;
 }
 
-QString MobileBridge::articleHtml(qint64 articleId)
+QString MobileBridge::highlightText(const QString &text)
 {
-    const std::optional<Article> article = m_store->getArticle(articleId);
-    if (!article)
-        return {};
-    m_currentArticleId = articleId;
-    m_currentArticleContent = article->content;
     const QSet<QString> inAny = m_store->allListWords();
     const QSet<QString> current = m_store->currentListWords();
     const QSet<QString> mastered = m_store->masteredListWords();
@@ -486,12 +481,9 @@ QString MobileBridge::articleHtml(qint64 articleId)
         return QStringLiteral("#1565c0");
     };
 
-    QString html = QStringLiteral(
-        "<style>a { text-decoration: none; }</style>"
-        "<div style='font-size:18px; line-height:1.7;'>");
+    QString html;
     QString word;
-    const QString content = article->content;
-    for (const QChar c : content) {
+    for (const QChar c : text) {
         if (c.isLetterOrNumber() || c == QLatin1Char('\'')
             || c == QLatin1Char('-')) {
             word += c;
@@ -513,8 +505,20 @@ QString MobileBridge::articleHtml(qint64 articleId)
                     .arg(word.toLower().toHtmlEscaped(),
                          colorFor(word), word.toHtmlEscaped());
     }
-    html += QStringLiteral("</div>");
     return html;
+}
+
+QString MobileBridge::articleHtml(qint64 articleId)
+{
+    const std::optional<Article> article = m_store->getArticle(articleId);
+    if (!article)
+        return {};
+    m_currentArticleId = articleId;
+    m_currentArticleContent = article->content;
+    return QStringLiteral(
+               "<style>a { text-decoration: none; }</style>"
+               "<div style='font-size:18px; line-height:1.7;'>")
+        + highlightText(article->content) + QStringLiteral("</div>");
 }
 
 QString MobileBridge::articleContent(qint64 articleId)

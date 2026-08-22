@@ -10,6 +10,8 @@ Page {
     property string lastSource: ""
     property bool translating: false
     property bool genBusy: false
+    property bool showTranslate: false
+    property string sourceHtml: ""
 
     background: Rectangle { color: T.bg }
 
@@ -156,6 +158,131 @@ Page {
                     LegendDot { dotColor: T.blue; label: "其他词表" }
                     LegendDot { dotColor: T.red; label: "未入词表" }
                     LegendDot { dotColor: "#333333"; label: "已掌握" }
+                }
+
+                Rectangle {
+                    visible: showTranslate
+                    Layout.fillWidth: true
+                    height: 1
+                    color: T.line
+                }
+
+                ColumnLayout {
+                    id: translatePanel
+                    visible: showTranslate
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 300
+                    spacing: 6
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: translating ? "翻译中…" : "翻译结果"
+                            font.pixelSize: 13
+                            font.bold: true
+                            color: T.greenDark
+                        }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            width: 26
+                            height: 26
+                            radius: 13
+                            color: T.greenSoft
+                            Text {
+                                anchors.centerIn: parent
+                                text: "✕"
+                                font.pixelSize: 12
+                                color: T.greenDark
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: closeTranslate()
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 3
+                        Text {
+                            text: "原文"
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: T.textMuted
+                        }
+                        Flickable {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            contentWidth: width
+                            contentHeight: sourceText.height
+                            Text {
+                                id: sourceText
+                                width: parent.width
+                                text: sourceHtml
+                                textFormat: Text.RichText
+                                wrapMode: Text.Wrap
+                                color: T.textBody
+                                TapHandler {
+                                    acceptedButtons: Qt.LeftButton
+                                    longPressThreshold: 600
+                                    onTapped: function(eventPoint) {
+                                        var link = sourceText.linkAt(
+                                            eventPoint.position.x,
+                                            eventPoint.position.y)
+                                        if (link !== "") {
+                                            bridge.speak(
+                                                link.replace("word://", ""))
+                                        }
+                                    }
+                                    onLongPressed: function(eventPoint) {
+                                        var link = sourceText.linkAt(
+                                            eventPoint.position.x,
+                                            eventPoint.position.y)
+                                        if (link !== "") {
+                                            popupWord.word =
+                                                link.replace("word://", "")
+                                            popupWord.open()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 1
+                        color: T.line
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 3
+                        Text {
+                            text: "译文"
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: T.textMuted
+                        }
+                        Flickable {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            contentWidth: width
+                            contentHeight: translateText.height
+                            Text {
+                                id: translateText
+                                width: parent.width
+                                text: ""
+                                wrapMode: Text.Wrap
+                                font.pixelSize: 12
+                                color: T.textBody
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -352,67 +479,6 @@ Page {
     }
 
     Popup {
-        id: translatePopup
-        x: 8
-        y: 8
-        width: parent.width - 16
-        height: parent.height - 16
-        modal: true
-        focus: true
-        background: Rectangle {
-            radius: 20
-            color: T.deskDark
-            border.color: T.deskBorder
-        }
-        contentItem: ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 14
-            spacing: 10
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: translating ? "翻译中…" : "翻译结果"
-                    font.pixelSize: 16
-                    font.bold: true
-                    color: T.deskText
-                }
-                Item { Layout.fillWidth: true }
-                Rectangle {
-                    width: 30
-                    height: 30
-                    radius: 15
-                    color: "transparent"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "✕"
-                        font.pixelSize: 15
-                        color: T.deskText
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: translatePopup.close()
-                    }
-                }
-            }
-            Flickable {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentWidth: width
-                contentHeight: translateText.height
-                Text {
-                    id: translateText
-                    width: parent.width
-                    text: ""
-                    wrapMode: Text.Wrap
-                    font.pixelSize: 14
-                    color: T.deskText
-                }
-            }
-        }
-    }
-
-    Popup {
         id: popupWord
         property string word: ""
         anchors.centerIn: parent
@@ -602,12 +668,10 @@ Page {
         function onTranslationReady(t) {
             translateText.text = t
             translating = false
-            translatePopup.open()
         }
         function onTranslationFailed(m) {
             translateText.text = "翻译失败:" + m
             translating = false
-            translatePopup.open()
         }
         function onArticleReady(id, title) {
             genBusy = false
@@ -640,6 +704,11 @@ Page {
     ListModel { id: chatModel }
     property bool chatBusy: false
     property string chatStatus: ""
+
+    function closeTranslate() {
+        showTranslate = false
+        translating = false
+    }
 
     function showToast(msg) {
         toastText.text = msg
@@ -702,17 +771,21 @@ Page {
             showToast("文章较长，只翻译前 4000 字符")
         }
         lastSource = content
+        sourceHtml = "<div style='font-size:13px; line-height:1.6;'>"
+                     + bridge.highlightText(content) + "</div>"
         translating = true
-        translateText.text = ""
-        translatePopup.open()
+        showTranslate = true
+        translateText.text = "翻译中…"
         bridge.translate(content, "")
     }
 
     function translateWord(w) {
         lastSource = w
+        sourceHtml = "<div style='font-size:13px; line-height:1.6;'>"
+                     + bridge.highlightText(w) + "</div>"
         translating = true
-        translateText.text = ""
-        translatePopup.open()
+        showTranslate = true
+        translateText.text = "翻译中…"
         bridge.translate(w, "")
     }
 
