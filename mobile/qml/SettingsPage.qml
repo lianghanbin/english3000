@@ -419,6 +419,7 @@ Page {
         id: donatePopup
         anchors.centerIn: parent
         width: parent.width * 0.9
+        height: parent.height * 0.9
         modal: true
         focus: true
         background: Rectangle { radius: 18; color: T.card }
@@ -433,24 +434,34 @@ Page {
                 font.pixelSize: 14
                 color: T.textBody
             }
-            RowLayout {
+            Flickable {
                 Layout.fillWidth: true
-                spacing: 8
-                Image {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 150
-                    fillMode: Image.PreserveAspectFit
-                    source: "qrc:/assets/donate/qr1.jpg"
-                }
-                Image {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 150
-                    fillMode: Image.PreserveAspectFit
-                    source: "qrc:/assets/donate/qr2.jpg"
+                Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: qrCol.implicitHeight
+                clip: true
+                Column {
+                    id: qrCol
+                    width: parent.width
+                    spacing: 14
+                    Image {
+                        width: Math.min(parent.width * 0.66, 250)
+                        height: width * sourceSize.height / sourceSize.width
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        fillMode: Image.PreserveAspectFit
+                        source: "qrc:/assets/donate/qr1.jpg"
+                    }
+                    Image {
+                        width: Math.min(parent.width * 0.66, 250)
+                        height: width * sourceSize.height / sourceSize.width
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        fillMode: Image.PreserveAspectFit
+                        source: "qrc:/assets/donate/qr2.jpg"
+                    }
                 }
             }
             Text {
-                text: "扫一扫上面的二维码即可支持。感谢每一位使用者。"
+                text: "扫一扫二维码即可支持。感谢每一位使用者。"
                 color: T.textMuted
                 wrapMode: Text.Wrap
                 horizontalAlignment: Text.AlignHCenter
@@ -496,31 +507,35 @@ Page {
                     spacing: 12
                     GuideItem {
                         title: "快速开始"
-                        body: "选一个词表,学习页自动进入卡片流;点卡片显示释义,认识/不认识一键记录。"
+                        body: "选一个词表,学习页就是卡片流;点击或拖动翻牌,左滑不认识,右滑认识,一次手势完成。"
                     }
                     GuideItem {
                         title: "学习与复习"
-                        body: "学习=没学过的词;点「不认识」的词自动进复习队列,点「开始复习」再学。没有每日上限,进度自动保存。"
+                        body: "学习=没学过的词;不认识的词自动进复习队列,随时点「开始复习」再学。没有每日上限,进度自动保存。"
                     }
                     GuideItem {
                         title: "词表"
-                        body: "每个词表独立记录未学/待复习/已掌握;AI 生成、从文章提取、导入 CSV 都可以建新词表。"
+                        body: "每个词表独立记录未学/待复习/已掌握;可以 AI 生成或补充领域词表,阅读和翻译中遇到的生词也会自动收集。"
                     }
                     GuideItem {
                         title: "阅读"
-                        body: "红色=未入词表,蓝色=其他词表,绿色=当前词表,黑色=已掌握;点单词发音、加入阅读词表。"
+                        body: "红色=还没进词表的生词,绿色=当前词表,蓝色=其他词表,黑色=已掌握;点单词发音,可以加入阅读词表。"
                     }
                     GuideItem {
                         title: "翻译"
-                        body: "翻译遇到的生词会自动收集到「翻译生词」词表,之后可以在词表页选中它来学习。"
+                        body: "输入英文翻译成中文,翻译中遇到的生词会自动收进「翻译生词」词表。"
+                    }
+                    GuideItem {
+                        title: "生成文章"
+                        body: "按当前词表自动生成一篇文章,用于在真实语境里复习;文章里的生词可以直接加入阅读词表。"
                     }
                     GuideItem {
                         title: "AI 设置"
-                        body: "本地 Ollama 或 OpenAI 兼容(DeepSeek/通义/GLM/Kimi);默认模型 qwen2.5:1.5b,日常够用。"
+                        body: "手机上的翻译、生成文章、对话都需要联网模型;填 DeepSeek/通义/GLM/Kimi/OpenAI 的 API Key 就能用,也可以连接电脑上的本地服务。"
                     }
                     GuideItem {
-                        title: "更新与数据"
-                        body: "所有数据保存在本机;设置页可重新导入内置词表或重置学习进度。"
+                        title: "数据"
+                        body: "所有数据保存在手机本机;设置页可以重新导入内置词表,或把全部进度重置回未学状态。"
                     }
                 }
             }
