@@ -16,6 +16,15 @@
 
 #ifdef ENGLISH3000_HAS_TTS
 #include <QTextToSpeech>
+#include <QMediaPlayer>
+#include <QAudioOutput>
+#include <QTemporaryFile>
+#include <QDir>
+#include <QDirIterator>
+#include <QStandardPaths>
+#if defined(Q_OS_ANDROID)
+#include <espeak-ng/speak_lib.h>
+#endif
 #endif
 
 namespace {
@@ -28,7 +37,104 @@ bool isWaydroidContainer()
                {QStringLiteral("ro.product.manufacturer")});
     if (!proc.waitForFinished(1500))
         return false;
-    return proc.readAll().contains(QStringLiteral("Waydroid"));
+    return proc.readAll().contains(QByteArrayLiteral("Waydroid"));
+}
+#endif
+
+#if defined(Q_OS_ANDROID) && defined(ENGLISH3000_HAS_TTS)
+// 把内置的 espeak-ng-data 从资源解压到应用数据目录(仅首次)。
+QString ensureEspeakData()
+{
+    const QString dir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString dataDir = dir + QStringLiteral("/espeak-ng-data");
+    QDir d(dataDir);
+    if (d.exists() && QFileInfo::exists(dataDir + QStringLiteral("/phondata")))
+        return dir; // 已解压
+    QDir().mkpath(dataDir);
+    QDirIterator it(QStringLiteral(":/espeak-ng-data"),
+                    QDir::Files | QDir::NoDotAndDotDot,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        const QString rel = it.filePath().mid(
+            QStringLiteral(":/espeak-ng-data").size() + 1);
+        QFile in(it.filePath());
+        QFile out(dataDir + QLatin1Char('/') + rel);
+        QDir().mkpath(QFileInfo(out).absolutePath());
+        if (in.open(QIODevice::ReadOnly) && out.open(QIODevice::WriteOnly)) {
+            out.write(in.readAll());
+            out.close();
+        }
+    }
+    return dir;
+}
+
+// 用 espeak-ng 合成英文,返回完整 WAV(16bit mono)。
+QByteArray synthEspeak(const QString &text)
+{
+    static const QString dataPath = ensureEspeakData();
+    QByteArray pcm;
+    static QByteArray *sink = &pcm;
+
+    // espeak 回调收集样本
+    auto cb = [](short *wav, int numsamples, espeak_EVENT *) -> int {
+        if (numsamples > 0 && wav)
+            sink->append(reinterpret_cast<const char *>(wav),
+                         numsamples * sizeof(short));
+        return 0;
+    };
+
+    const int rate = espeak_Initialize(AUDIO_OUTPUT_SYNCHRONOUS, 0,
+                                       dataPath.toUtf8().constData(),
+                                       espeakINITIALIZE_DONT_EXIT);
+    if (rate <= 0)
+        return QByteArray();
+    espeak_SetSynthCallback(cb);
+    espeak_SetVoiceByName("en-us");
+    espeak_SetParameter(espeakRATE, 150, 0);
+    espeak_SetParameter(espeakPITCH, 50, 0);
+    espeak_SetParameter(espeakVOLUME, 100, 0);
+
+    pcm.clear();
+    sink = &pcm;
+    const QByteArray utf8 = text.toUtf8();
+    espeak_Synth(utf8.constData(), utf8.size() + 1, 0, POS_CHARACTER, 0,
+                 espeakCHARS_UTF8, nullptr, nullptr);
+    espeak_Terminate();
+    sink = nullptr;
+    if (pcm.isEmpty())
+        return QByteArray();
+
+    // 组 WAV 头
+    QByteArray wav;
+    const qint32 dataLen = pcm.size();
+    const qint32 byteRate = rate * 2;
+    auto put32 = [&wav](quint32 v) {
+        wav.append(char(v & 0xff));
+        wav.append(char((v >> 8) & 0xff));
+        wav.append(char((v >> 16) & 0xff));
+        wav.append(char((v >> 24) & 0xff));
+    };
+    auto put16 = [&wav](quint16 v) {
+        wav.append(char(v & 0xff));
+        wav.append(char((v >> 8) & 0xff));
+    };
+    wav.append("RIFF", 4);
+    put32(36 + dataLen);
+    wav.append("WAVE", 4);
+    wav.append("fmt ", 4);
+    put32(16);
+    put16(1);          // PCM
+    put16(1);          // mono
+    put32(rate);
+    put32(byteRate);
+    put16(2);          // block align
+    put16(16);         // bits per sample
+    wav.append("data", 4);
+    put32(dataLen);
+    wav.append(pcm);
+    return wav;
 }
 #endif
 
@@ -472,24 +578,45 @@ void MobileBridge::speak(const QString &text)
         // Waydroid 的安卓 TTS/音频栈不可靠:
         // 让本机中继用 Piper 合成并在电脑上播放(/play 接口)。
         const QUrl url(
-            QStringLiteral("http://192.168.240.1:8099/play?text=")
+            QStringLiteral("http://127.0.0.1:8099/play?text=")
             + QString::fromLatin1(QUrl::toPercentEncoding(t)));
         m_net->get(QNetworkRequest(url));
         return;
     }
-    // 真机: 用系统 TTS(谷歌/讯飞等,声音自然),没有引擎才放弃。
-    if (!m_tts) {
-        if (QTextToSpeech::availableEngines().isEmpty())
-            return;
-        m_tts = new QTextToSpeech(this);
+    // 真机: 统一用内置的 espeak-ng 本地合成英文。
+    // 不依赖系统 TTS 引擎(小米/Google 引擎常缺英文语音数据或需要联网下载)。
+    const QByteArray audio = synthEspeak(t);
+    if (audio.isEmpty())
+        return;
+    if (m_player && m_ttsFile) {
+        m_player->stop();
+        m_ttsFile->close();
+        m_ttsFile->remove();
+        delete m_ttsFile;
+        m_ttsFile = nullptr;
     }
-    m_tts->say(t);
+    if (!m_player) {
+        m_player = new QMediaPlayer(this);
+        m_audioOut = new QAudioOutput(this);
+        m_player->setAudioOutput(m_audioOut);
+    }
+    auto *f = new QTemporaryFile(this);
+    if (!f->open()) {
+        delete f;
+        return;
+    }
+    f->write(audio);
+    f->flush();
+    m_ttsFile = f;
+    m_player->stop();
+    m_player->setSource(QUrl::fromLocalFile(f->fileName()));
+    m_player->play();
 #else
     // 桌面端也走本机中继的 Piper 合成,声音比系统 speechd/espeak 自然。
     const QString t = text.trimmed();
     if (t.isEmpty())
         return;
-    const QUrl url(QStringLiteral("http://192.168.240.1:8099/play?text=")
+    const QUrl url(QStringLiteral("http://127.0.0.1:8099/play?text=")
                    + QString::fromLatin1(QUrl::toPercentEncoding(t)));
     m_net->get(QNetworkRequest(url));
 #endif

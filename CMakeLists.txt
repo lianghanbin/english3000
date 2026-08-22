@@ -18,6 +18,8 @@ find_package(Qt6 QUIET COMPONENTS Widgets)
 
 find_package(Qt6 QUIET COMPONENTS Quick QuickControls2)
 find_package(Qt6 QUIET COMPONENTS TextToSpeech)
+file(GLOB_RECURSE ESPEAK_DATA_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/data/*)
 if(Qt6Quick_FOUND)
     qt_add_executable(english3000_mobile MANUAL_FINALIZATION
         mobile/MobileApp.cpp
@@ -33,7 +35,7 @@ if(Qt6Quick_FOUND)
     # Android 打包必需:显式导入 SQLite 驱动插件(否则运行时 Driver not loaded)
     qt_import_plugins(english3000_mobile INCLUDE Qt6::QSQLiteDriverPlugin)
     if(Qt6TextToSpeech_FOUND)
-        target_link_libraries(english3000_mobile PRIVATE Qt6::TextToSpeech)
+        target_link_libraries(english3000_mobile PRIVATE Qt6::TextToSpeech Qt6::Multimedia)
         target_compile_definitions(english3000_mobile PRIVATE
             ENGLISH3000_HAS_TTS=1)
     endif()
@@ -61,6 +63,18 @@ if(Qt6Quick_FOUND)
             QT_ANDROID_PACKAGE_SOURCE_DIR
             ${CMAKE_CURRENT_SOURCE_DIR}/mobile/android)
     endif()
+    if(ANDROID)
+        target_link_libraries(english3000_mobile PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libespeak-ng.a
+            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libucd.a
+            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libspeechPlayer.a)
+        target_include_directories(english3000_mobile PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/include)
+    endif()
+    qt_add_resources(english3000_mobile "espeak_data"
+        PREFIX "/espeak-ng-data"
+        BASE ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/data
+        FILES ${ESPEAK_DATA_FILES})
     qt_finalize_executable(english3000_mobile)
 endif()
 

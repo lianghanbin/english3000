@@ -5,9 +5,12 @@
 
 class AiClient;
 class AiProbe;
+class QAudioOutput;
+class QMediaPlayer;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTextToSpeech;
+class QTemporaryFile;
 class WordStore;
 
 class MobileBridge : public QObject {
@@ -109,5 +112,8 @@ private:
     bool m_pendingChat = false;
 #ifdef ENGLISH3000_HAS_TTS
     QTextToSpeech *m_tts = nullptr;
+    QMediaPlayer *m_player = nullptr;
+    QAudioOutput *m_audioOut = nullptr;
+    QTemporaryFile *m_ttsFile = nullptr;
 #endif
 };

@@ -154,6 +154,12 @@ WordStore::WordStore(const QString &dbPath)
         qFatal("无法打开数据库 %s: %s", qPrintable(dbPath),
                qPrintable(m_db.lastError().text()));
     }
+    // 手机闪存写入慢:WAL + NORMAL 显著减少每次回答/学习的卡顿。
+    {
+        QSqlQuery pragma(m_db);
+        pragma.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
+        pragma.exec(QStringLiteral("PRAGMA synchronous=NORMAL"));
+    }
     execStatements(kSchema);
     m_dict = QSqlDatabase::addDatabase(
         QStringLiteral("QSQLITE"), QStringLiteral("english3000_dict"));
