@@ -135,13 +135,12 @@ QString AiClient::fillMeaningsPrompt(const QStringList &words)
                "each English word below.\n"
                "Rules:\n"
                "- Output ONLY lines in this exact format:\n"
-               "  word | part of speech | Simplified Chinese meaning\n"
-               "- Example: algorithm | n. | 算法\n"
+               "  word | part of speech | meaning1; meaning2\n"
+               "- Example: run | v. | 跑; 经营; 运转\n"
                "- Use ONLY the | separator. Do NOT use colons, dashes, "
                "or parentheses. Bad: algorithm: 算法\n"
                "- One line per word, lowercase, no numbering, no extra text.\n"
-               "- If a word has multiple common meanings, keep the meaning "
-               "short.\n\n"
+               "- Keep 2 to 4 common meanings separated by '; '.\n\n"
                "%1")
         .arg(words.join(QLatin1Char('\n')));
 }

@@ -1,6 +1,8 @@
 #include <QDir>
 #include <QFile>
 #include <QGuiApplication>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QStandardPaths>
@@ -75,6 +77,22 @@ int main(int argc, char *argv[])
     ai.setApiKey(store.getSetting(QStringLiteral("ai_api_key")));
 
     MobileBridge bridge(&store, &ai);
+
+    // 手机端内置完整离线词典(ECDICT),首次启动后台导入,完成后通知界面
+    if (!store.dictReady()) {
+        const QString dictPath =
+            dataDir + QStringLiteral("/dict.db");
+        auto *watcher = new QFutureWatcher<int>(&app);
+        QObject::connect(watcher, &QFutureWatcher<int>::finished, &app,
+                         [watcher, &bridge]() {
+                             bridge.notifyDictReady();
+                             watcher->deleteLater();
+                         });
+        watcher->setFuture(QtConcurrent::run([dictPath]() {
+            return importDictCsvInto(
+                dictPath, QStringLiteral(":/assets/dict/ecdict.csv"));
+        }));
+    }
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("bridge"),

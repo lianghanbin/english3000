@@ -25,6 +25,7 @@ class MobileBridge : public QObject {
     Q_PROPERTY(QString aiProvider READ aiProvider NOTIFY countsChanged)
     Q_PROPERTY(QString aiApiKey READ aiApiKey NOTIFY countsChanged)
     Q_PROPERTY(QString aiMode READ aiMode WRITE setAiMode NOTIFY countsChanged)
+    Q_PROPERTY(bool dictReady READ dictReady NOTIFY dictReadyChanged)
 
 public:
     MobileBridge(WordStore *store, AiClient *ai, QObject *parent = nullptr);
@@ -33,6 +34,7 @@ public:
     int dueCount() const;
     int masteredCount() const;
     int streak() const;
+    bool dictReady() const;
     QString currentListName() const;
     QString aiProvider() const;
     QString aiApiKey() const;
@@ -62,7 +64,6 @@ public:
     Q_INVOKABLE QVariantList coverageHistory(int days);
     Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
-    Q_INVOKABLE void aiFillMissingMeanings();
     Q_INVOKABLE void aiGenerateArticle(const QString &topic,
                                        int wordCount = 300,
                                        int level = 1);
@@ -77,6 +78,7 @@ public:
     Q_INVOKABLE void resetAllProgress();
     Q_INVOKABLE void resetListItem(qint64 itemId);
     Q_INVOKABLE void aiProbe();
+    Q_INVOKABLE void notifyDictReady();
 
     Q_INVOKABLE QString aiUrl() const;
     Q_INVOKABLE void setAiUrl(const QString &url);
@@ -94,7 +96,7 @@ signals:
     void translationFailed(const QString &message);
     void exampleReady(qint64 wordId, const QString &sentence);
     void wordListReady(const QString &name, int count);
-    void meaningsFilled(int count);
+    void dictReadyChanged();
     void articleReady(qint64 articleId, const QString &title);
     void articleImported(qint64 articleId, const QString &title);
     void chatReady(const QString &text);
@@ -119,7 +121,6 @@ private:
     QString m_currentArticleContent;
     QString m_pendingListName;
     qint64 m_pendingListId = -1;
-    qint64 m_pendingFillListId = -1;
     QString m_pendingArticleTitle;
     QString m_chatTitle;
     QString m_chatContext;

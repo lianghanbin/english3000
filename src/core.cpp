@@ -192,7 +192,12 @@ WordStore::WordStore(const QString &dbPath)
             "CREATE TABLE IF NOT EXISTS dict ("
             "word TEXT PRIMARY KEY,"
             "pos TEXT NOT NULL DEFAULT '',"
-            "translation TEXT NOT NULL DEFAULT '')"));
+            "translation TEXT NOT NULL DEFAULT '',"
+            "phonetic TEXT NOT NULL DEFAULT '')"));
+        // 旧版本 dict.db 可能缺 phonetic 列,补上避免查询失败
+        q.exec(QStringLiteral(
+            "ALTER TABLE dict ADD COLUMN phonetic "
+            "TEXT NOT NULL DEFAULT ''"));
     }
     ensureColumn(QStringLiteral("words"), QStringLiteral("example_sentence"),
                  QStringLiteral("TEXT NOT NULL DEFAULT ''"));
@@ -1644,74 +1649,117 @@ int WordStore::importDictCsv(const QString &path)
         return 0;
     if (!m_dict.isOpen())
         return -1;
-    QFile file(path);
+    return importDictCsvInto(m_dict.databaseName(), path);
+}
+
+int importDictCsvInto(const QString &dbPath, const QString &csvPath)
+{
+    // 供后台线程独立导入:自己建连接,不碰主线程的 m_dict
+    const QString connName = QStringLiteral("dict_import_thread");
+    bool hasOld = false;
+    { QSqlDatabase drop = QSqlDatabase::database(connName, false);
+      hasOld = drop.isValid(); }
+    if (hasOld)
+        QSqlDatabase::removeDatabase(connName);
+    QFile file(csvPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return -1;
 
-    if (!m_dict.transaction()) {
-        qWarning("dict 事务启动失败: %s",
-                 qPrintable(m_dict.lastError().text()));
-    }
-    QSqlQuery insert(m_dict);
-    insert.prepare(QStringLiteral(
-        "INSERT OR IGNORE INTO dict(word, pos, translation, phonetic) "
-        "VALUES(?, ?, ?, ?)"));
     int count = 0;
-    QTextStream in(&file);
-    in.setEncoding(QStringConverter::Utf8);
-    bool first = true;
-    while (!in.atEnd()) {
-        const QString line = in.readLine();
-        if (first) {
-            first = false;
-            continue;
+    {
+        QSqlDatabase db =
+            QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+        db.setDatabaseName(dbPath);
+        if (!db.open()) {
+            qWarning("dict 导入连接失败: %s",
+                     qPrintable(db.lastError().text()));
+            QSqlDatabase::removeDatabase(connName);
+            return -1;
         }
-        QStringList fields;
-        QString field;
-        bool inQuotes = false;
-        const int n = line.size();
-        for (int i = 0; i < n; ++i) {
-            const QChar c = line[i];
-            if (inQuotes) {
-                if (c == QLatin1Char('"')) {
-                    if (i + 1 < n && line[i + 1] == QLatin1Char('"')) {
-                        field += QLatin1Char('"');
-                        ++i;
+        {
+            QSqlQuery pragma(db);
+            pragma.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
+            pragma.exec(QStringLiteral("PRAGMA synchronous=NORMAL"));
+            pragma.exec(QStringLiteral(
+                "CREATE TABLE IF NOT EXISTS dict ("
+                "word TEXT PRIMARY KEY,"
+                "pos TEXT NOT NULL DEFAULT '',"
+                "translation TEXT NOT NULL DEFAULT '',"
+                "phonetic TEXT NOT NULL DEFAULT '')"));
+            pragma.exec(QStringLiteral(
+                "ALTER TABLE dict ADD COLUMN phonetic "
+                "TEXT NOT NULL DEFAULT ''"));
+        }
+        if (!db.transaction()) {
+            qWarning("dict 事务启动失败: %s",
+                     qPrintable(db.lastError().text()));
+        }
+        QSqlQuery insert(db);
+        insert.prepare(QStringLiteral(
+            "INSERT OR IGNORE INTO dict(word, pos, translation, phonetic) "
+            "VALUES(?, ?, ?, ?)"));
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+        bool first = true;
+        while (!in.atEnd()) {
+            const QString line = in.readLine();
+            if (first) {
+                first = false;
+                continue;
+            }
+            QStringList fields;
+            QString field;
+            bool inQuotes = false;
+            const int n = line.size();
+            for (int i = 0; i < n; ++i) {
+                const QChar c = line[i];
+                if (inQuotes) {
+                    if (c == QLatin1Char('"')) {
+                        if (i + 1 < n && line[i + 1] == QLatin1Char('"')) {
+                            field += QLatin1Char('"');
+                            ++i;
+                        } else {
+                            inQuotes = false;
+                        }
                     } else {
-                        inQuotes = false;
+                        field += c;
                     }
+                } else if (c == QLatin1Char('"')) {
+                    inQuotes = true;
+                } else if (c == QLatin1Char(',')) {
+                    fields << (field.isNull() ? QStringLiteral("") : field);
+                    field.clear();
                 } else {
                     field += c;
                 }
-            } else if (c == QLatin1Char('"')) {
-                inQuotes = true;
-            } else if (c == QLatin1Char(',')) {
-                fields << (field.isNull() ? QStringLiteral("") : field);
-                field.clear();
-            } else {
-                field += c;
             }
+            fields << (field.isNull() ? QStringLiteral("") : field);
+            if (fields.size() < 5)
+                continue;
+            const QString word = fields[0].trimmed().toLower();
+            if (word.isEmpty())
+                continue;
+            insert.bindValue(0, word);
+            insert.bindValue(1, fields[4].isEmpty() ? QStringLiteral("")
+                                                    : fields[4].trimmed());
+            insert.bindValue(2, fields[3].isEmpty() ? QStringLiteral("")
+                                                    : fields[3].trimmed());
+            insert.bindValue(3, fields[1].isEmpty() ? QStringLiteral("")
+                                                    : fields[1].trimmed());
+            if (insert.exec())
+                ++count;
         }
-        fields << (field.isNull() ? QStringLiteral("") : field);
-        if (fields.size() < 5)
-            continue;
-        const QString word = fields[0].trimmed().toLower();
-        if (word.isEmpty())
-            continue;
-        insert.bindValue(0, word);
-        insert.bindValue(1, fields[4].isEmpty() ? QStringLiteral("")
-                                                : fields[4].trimmed());
-        insert.bindValue(2, fields[3].isEmpty() ? QStringLiteral("")
-                                                : fields[3].trimmed());
-        insert.bindValue(3, fields[1].isEmpty() ? QStringLiteral("")
-                                                : fields[1].trimmed());
-        if (insert.exec())
-            ++count;
+        if (!db.commit()) {
+            qWarning("dict 事务提交失败: %s",
+                     qPrintable(db.lastError().text()));
+        }
+        // 立即把 WAL 合并回主库,避免首次导入后残留 60MB+ 的 wal 文件
+        QSqlQuery checkpoint(db);
+        checkpoint.exec(QStringLiteral("PRAGMA wal_checkpoint(TRUNCATE)"));
+        db.close();
     }
-    if (!m_dict.commit()) {
-        qWarning("dict 事务提交失败: %s",
-                 qPrintable(m_dict.lastError().text()));
-    }
+    QSqlDatabase::removeDatabase(connName);
+    qInfo("离线词典导入完成: %d 词", count);
     return count;
 }
 

@@ -218,6 +218,16 @@ int MobileBridge::streak() const
     return m_store->streak();
 }
 
+bool MobileBridge::dictReady() const
+{
+    return m_store->dictReady();
+}
+
+void MobileBridge::notifyDictReady()
+{
+    emit dictReadyChanged();
+}
+
 QString MobileBridge::currentListName() const
 {
     return m_store->currentWordListName();
@@ -808,21 +818,6 @@ void MobileBridge::startEdgeTimer()
 void MobileBridge::onWordListFinished(const QString &rawText)
 {
     const QVector<WordEntry> entries = parseWordEntries(rawText);
-    if (m_pendingFillListId > 0) {
-        const qint64 fillListId = m_pendingFillListId;
-        m_pendingFillListId = -1;
-        int updated = 0;
-        for (const WordEntry &e : entries) {
-            if (e.meaning.trimmed().isEmpty())
-                continue;
-            if (m_store->updateItemMeaning(fillListId, e.word, e.pos,
-                                           e.meaning))
-                ++updated;
-        }
-        emit meaningsFilled(updated);
-        emit countsChanged();
-        return;
-    }
     const QString name = m_pendingListName;
     const qint64 listId = m_pendingListId;
     m_pendingListId = -1;
@@ -940,27 +935,6 @@ void MobileBridge::aiSupplementWordList(const QString &domain, int count)
     m_pendingListId = listId;
     m_pendingListName = name;
     m_ai->generateWordList(d, qBound(50, count, 500));
-}
-
-void MobileBridge::aiFillMissingMeanings()
-{
-    const qint64 listId = m_store->currentWordListId();
-    if (listId <= 0) {
-        emit aiFailed(QStringLiteral("请先选择一个词表"));
-        return;
-    }
-    const QVector<Word> items = m_store->wordsInWordList(listId, 500);
-    QStringList missing;
-    for (const Word &w : items) {
-        if (w.meaning.trimmed().isEmpty())
-            missing << w.word;
-    }
-    if (missing.isEmpty()) {
-        emit meaningsFilled(0);
-        return;
-    }
-    m_pendingFillListId = listId;
-    m_ai->fillMeanings(missing);
 }
 
 void MobileBridge::aiGenerateArticle(const QString &topic, int wordCount,

@@ -19,6 +19,7 @@ ApplicationWindow {
             id: swipe
             width: parent.width
             height: parent.height - 56
+                     - (dictBanner.visible ? dictBanner.height : 0)
             interactive: true
 
             onCurrentIndexChanged: {
@@ -161,6 +162,21 @@ ApplicationWindow {
                         }
                     }
                 }
+            }
+        }
+
+        Rectangle {
+            id: dictBanner
+            visible: !bridge.dictReady
+            width: parent.width
+            height: 34
+            color: T.amberSoft
+            border.color: T.amber
+            Text {
+                anchors.centerIn: parent
+                text: "正在初始化离线词典…首次约需 10~20 秒"
+                font.pixelSize: 12
+                color: T.textDark
             }
         }
 

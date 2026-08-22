@@ -94,13 +94,6 @@ Page {
                         aiPopup.open()
                     }
                 }
-                SideBtn {
-                    text: "✎ AI 补全释义"
-                    onClicked: {
-                        aiBusy = true
-                        bridge.aiFillMissingMeanings()
-                    }
-                }
             }
         }
 
@@ -193,12 +186,6 @@ Page {
             aiBusy = false
             refresh()
             showToast("词表已生成:「" + name + "」共 " + count + " 词")
-        }
-        function onMeaningsFilled(count) {
-            aiBusy = false
-            refresh()
-            showToast(count > 0 ? "已补全 " + count + " 个释义"
-                                : "没有需要补全的释义")
         }
         function onAiFailed(message) {
             aiBusy = false

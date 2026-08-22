@@ -243,3 +243,6 @@ private:
 
 // CSV 解析（支持引号包裹的逗号与双引号转义）
 QVector<QStringList> parseCsv(const QString &text);
+
+// 后台线程独立导入离线词典（ECDICT CSV → dict.db）
+int importDictCsvInto(const QString &dbPath, const QString &csvPath);
