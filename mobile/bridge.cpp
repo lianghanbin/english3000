@@ -873,6 +873,7 @@ void MobileBridge::speak(const QString &text)
 #endif
 }
 
+#ifdef ENGLISH3000_HAS_TTS
 void MobileBridge::playAudioBytes(const QByteArray &audio)
 {
     if (audio.isEmpty())
@@ -1477,6 +1478,8 @@ void MobileBridge::startEdgeTimer()
     }
     m_edgeTimer->start(30000);
 }
+#endif
+
 
 void MobileBridge::onWordListFinished(const QString &rawText)
 {
