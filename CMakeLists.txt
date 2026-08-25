@@ -50,9 +50,11 @@ if(Qt6Quick_FOUND)
             mobile/qml/TranslatePage.qml
             mobile/qml/SettingsPage.qml
             mobile/qml/StatsPage.qml
+            mobile/qml/GuideOverlay.qml
             mobile/qml/Theme.qml
             mobile/qml/qmldir
             assets/oxford3000.csv
+            assets/core_examples.tsv
             assets/lemma.en.txt
             assets/donate/qr1.jpg
             assets/donate/qr2.jpg

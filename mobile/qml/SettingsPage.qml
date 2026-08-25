@@ -8,12 +8,56 @@ Page {
     property string model: bridge.aiModel()
     property string provider: bridge.aiProvider
     property string key: bridge.aiApiKey
-    property string engineLabel: ""
     property string preset: bridge.aiPreset()
     property bool isCloudPreset: false
     property bool advancedOpen: false
+    property bool testing: false
+    property bool testOk: false
+    property string testMessage: ""
+    // 当前发音音色,由 bridge.ttsVoiceChanged() 驱动刷新,
+    // 避免直接绑定 C++ 方法导致界面不更新
+    property string voiceId: bridge.ttsVoice()
+    // 发音预下载进度(-1=空闲,否则 0..total)
+    property int preloadDone: -1
+    property int preloadTotal: 0
+    // 当前词表待下载发音的预估占用空间
+    property string preloadEstimate: ""
+    // 当前选中云端服务商的名称/获取 Key 地址,供引导卡片使用
+    readonly property string currentProviderName: ({
+        deepseek: "DeepSeek", dashscope: "通义千问",
+        glm: "智谱 GLM", moonshot: "Kimi", openai: "OpenAI"
+    })[preset] || "服务商"
+    readonly property string currentKeyUrl: ({
+        deepseek: "https://platform.deepseek.com/api_keys",
+        dashscope: "https://bailian.console.aliyun.com/?apiKey=1#/api-key",
+        glm: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys",
+        moonshot: "https://platform.moonshot.cn/console/api-keys",
+        openai: "https://platform.openai.com/api-keys"
+    })[preset] || ""
 
-    Component.onCompleted: initAi()
+    Component.onCompleted: {
+        initAi()
+        preloadEstimate = bridge.ttsPreloadEstimate()
+    }
+
+    Connections {
+        target: bridge
+        function onTtsVoiceChanged() {
+            voiceId = bridge.ttsVoice()
+            preloadEstimate = bridge.ttsPreloadEstimate()
+        }
+        function onTtsPreloadProgress(done, total) {
+            if (total === 0 || done >= total) {
+                preloadDone = -1
+                preloadEstimate = bridge.ttsPreloadEstimate()
+                if (total > 0)
+                    showToast("发音已全部缓存,可离线使用")
+            } else {
+                preloadDone = done
+                preloadTotal = total
+            }
+        }
+    }
 
     background: Rectangle { color: T.bg }
 
@@ -53,113 +97,257 @@ Page {
                     spacing: 10
 
                     Text {
-                        text: "AI 设置"
+                        text: "AI 服务"
                         font.pixelSize: 14
                         font.bold: true
                         color: T.textDark
                     }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text {
-                            text: "当前引擎: " + engineLabel
-                            font.pixelSize: 12
-                            color: T.textMuted
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        Rectangle {
-                            width: 84
-                            height: 30
-                            radius: 15
-                            color: T.greenSoft
-                            border.color: T.greenBorder
-                            border.width: 1
-                            Text {
-                                anchors.centerIn: parent
-                                text: "重新检测"
-                                font.pixelSize: 11
-                                font.bold: true
-                                color: T.greenDark
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    engineLabel = "检测中…"
-                                    bridge.aiProbe()
-                                }
-                            }
-                        }
-                    }
                     Text {
-                        text: "翻译、例句、文章生成都会用它；不好用就换下面这个。"
+                        text: "手机版使用云端 AI。选一家服务商,粘贴 API Key,点下方保存即可。"
                         font.pixelSize: 11
                         color: T.textMuted
                         wrapMode: Text.Wrap
                         Layout.fillWidth: true
                     }
+
+                    // 服务商列表
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 4
-                        Text {
-                            text: "选择 AI"
-                            font.pixelSize: 11
-                            color: T.textMuted
-                        }
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 42
-                            radius: 10
-                            color: "#f7faf7"
-                            border.color: T.line
-                            ComboBox {
-                                id: presetCombo
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                background: Rectangle { color: "transparent" }
-                                model: [
-                                    { text: "自动选择（推荐）", value: "auto" },
-                                    { text: "本地小模型（免费离线）", value: "local" },
-                                    { text: "本地 Ollama", value: "ollama" },
-                                    { text: "DeepSeek（云端）", value: "deepseek" },
-                                    { text: "通义千问（云端）", value: "dashscope" },
-                                    { text: "智谱 GLM（云端）", value: "glm" },
-                                    { text: "Kimi（云端）", value: "moonshot" },
-                                    { text: "OpenAI（云端）", value: "openai" },
-                                    { text: "自定义…", value: "custom" }
-                                ]
-                                textRole: "text"
-                                valueRole: "value"
-                                font.pixelSize: 13
-                                onActivated: applyPreset(currentValue)
+                        spacing: 8
+                        Repeater {
+                            model: [
+                                { value: "deepseek", name: "DeepSeek",
+                                  desc: "性价比高,中文好,推荐",
+                                  keyUrl: "https://platform.deepseek.com/api_keys" },
+                                { value: "glm", name: "智谱 GLM",
+                                  desc: "GLM-4-Flash 完全免费",
+                                  keyUrl: "https://bigmodel.cn/usercenter/proj-mgmt/apikeys" },
+                                { value: "dashscope", name: "通义千问",
+                                  desc: "阿里云,免费额度多",
+                                  keyUrl: "https://bailian.console.aliyun.com/?apiKey=1#/api-key" },
+                                { value: "moonshot", name: "Kimi",
+                                  desc: "长上下文,适合文章",
+                                  keyUrl: "https://platform.moonshot.cn/console/api-keys" },
+                                { value: "openai", name: "OpenAI",
+                                  desc: "GPT 系列,需海外网络",
+                                  keyUrl: "https://platform.openai.com/api-keys" },
+                                { value: "ollama", name: "局域网 Ollama",
+                                  desc: "连同一 Wi-Fi 的电脑", keyUrl: "" }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                required property var modelData
+                                height: 52
+                                radius: 12
+                                color: preset === modelData.value
+                                       ? T.greenSoft : "#f7faf7"
+                                border.width: preset === modelData.value ? 1.5 : 1
+                                border.color: preset === modelData.value
+                                              ? T.green : T.line
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 10
+                                    spacing: 8
+                                    Rectangle {
+                                        width: 16; height: 16; radius: 8
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: preset === modelData.value
+                                                      ? T.green : T.textMuted
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 8; height: 8; radius: 4
+                                            color: preset === modelData.value
+                                                   ? T.green : "transparent"
+                                        }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        Text {
+                                            text: modelData.name
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                            color: T.textDark
+                                        }
+                                        Text {
+                                            text: modelData.desc
+                                            font.pixelSize: 10
+                                            color: T.textMuted
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                    Rectangle {
+                                        visible: modelData.keyUrl !== ""
+                                                && preset !== modelData.value
+                                        width: keyTxt.implicitWidth + 18
+                                        height: 28
+                                        radius: 14
+                                        color: "transparent"
+                                        border.width: 1
+                                        border.color: T.blue
+                                        Text {
+                                            id: keyTxt
+                                            anchors.centerIn: parent
+                                            text: "获取 Key"
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            color: T.blue
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            onClicked: bridge.openUrl(modelData.keyUrl)
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        if (preset !== modelData.value)
+                                            applyPreset(modelData.value)
+                                        else if (modelData.keyUrl !== "")
+                                            bridge.openUrl(modelData.keyUrl)
+                                    }
+                                }
                             }
                         }
                     }
-                    Field {
-                        id: keyField
+
+                    // 云端 API Key 输入(智能按钮:空=粘贴,有内容=清除)
+                    ColumnLayout {
                         visible: isCloudPreset
-                        label: "API Key（云端必填，本地可留空）"
-                        text: key
-                        placeholder: "sk-..."
-                        password: true
-                        onEdited: key = value
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Text {
+                            text: "API Key"
+                            font.pixelSize: 11
+                            color: T.textMuted
+                        }
+                        // 整行就是一个大按钮:空时点一下直接粘贴,无需键盘/长按
+                        Rectangle {
+                            id: keyRow
+                            Layout.fillWidth: true
+                            height: 48
+                            radius: 12
+                            color: key.length > 0 ? T.greenSoft : T.blue
+                            border.width: 1
+                            border.color: key.length > 0 ? T.greenBorder : T.blue
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 12
+                                spacing: 8
+                                Text {
+                                    text: key.length > 0 ? "✓ 已填入:" : "📋"
+                                    font.pixelSize: key.length > 0 ? 13 : 18
+                                    font.bold: true
+                                    color: key.length > 0 ? T.greenDark : "#ffffff"
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: key.length > 0 ? maskKey(key)
+                                          : "点这里,一键粘贴剪贴板里的 Key"
+                                    font.pixelSize: key.length > 0 ? 13 : 14
+                                    font.bold: !key.length
+                                    color: key.length > 0 ? T.textDark : "#ffffff"
+                                    elide: Text.ElideRight
+                                }
+                                Rectangle {
+                                    visible: key.length > 0
+                                    width: replaceTxt.implicitWidth + 16
+                                    height: 30
+                                    radius: 15
+                                    color: "#ffffff"
+                                    border.width: 1
+                                    border.color: T.greenBorder
+                                    Text {
+                                        id: replaceTxt
+                                        anchors.centerIn: parent
+                                        text: "更换"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        color: T.greenDark
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: doPaste()
+                                    }
+                                }
+                                Rectangle {
+                                    visible: key.length > 0
+                                    width: clearTxt.implicitWidth + 16
+                                    height: 30
+                                    radius: 15
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: T.textMuted
+                                    Text {
+                                        id: clearTxt
+                                        anchors.centerIn: parent
+                                        text: "清除"
+                                        font.pixelSize: 11
+                                        color: T.textMuted
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: { key = "" }
+                                    }
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                // 有 Key 时整行不再响应点击(按钮各自处理),
+                                // 空 Key 时点整行直接粘贴。
+                                enabled: key.length === 0
+                                onClicked: doPaste()
+                            }
+                        }
+                        Text {
+                            text: "先到上面选一家服务商,点「获取 Key」复制,再回来点这里。"
+                            font.pixelSize: 10
+                            color: T.textMuted
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                            visible: key.length === 0
+                        }
                     }
 
+                    // 局域网 Ollama 地址提示
+                    Rectangle {
+                        visible: !isCloudPreset && preset === "ollama"
+                        Layout.fillWidth: true
+                        radius: 12
+                        color: T.amberSoft
+                        border.color: T.amber
+                        implicitHeight: ollamaHint.implicitHeight + 20
+                        Text {
+                            id: ollamaHint
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            text: "手机不跑模型,需在同一 Wi-Fi 的电脑上运行 ollama,"
+                                  + "并在下方「高级设置」填电脑局域网 IP。"
+                            font.pixelSize: 11
+                            color: T.textDark
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    // 高级设置(地址/模型名),折叠
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 40
-                            radius: 10
+                            height: 38
                             color: "transparent"
                             Text {
                                 anchors.left: parent.left
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "高级设置（地址 / 模型名）"
+                                text: "高级设置:地址 / 模型名"
                                 font.pixelSize: 12
-                                font.bold: true
-                                color: T.blue
+                                color: T.textMuted
                             }
                             Text {
                                 anchors.right: parent.right
@@ -180,78 +368,211 @@ Page {
                             Field {
                                 label: "服务地址"
                                 text: url
-                                placeholder: "http://192.168.1.100:11434"
+                                placeholder: "https://api.deepseek.com"
                                 onEdited: url = value
                             }
                             Field {
                                 label: "模型名"
                                 text: model
-                                placeholder: "qwen2.5:1.5b"
+                                placeholder: "deepseek-chat"
                                 onEdited: model = value
                             }
-                            ColumnLayout {
+                            Text {
+                                text: "一般不用改,选好服务商后会自动填好。"
+                                font.pixelSize: 10
+                                color: T.textMuted
+                                wrapMode: Text.Wrap
                                 Layout.fillWidth: true
-                                spacing: 4
-                                Text {
-                                    text: "服务类型"
-                                    font.pixelSize: 11
-                                    color: T.textMuted
-                                }
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 40
-                                    radius: 10
-                                    color: "#f7faf7"
-                                    border.color: T.line
-                                    ComboBox {
-                                        id: providerCombo
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 8
-                                        anchors.rightMargin: 8
-                                        background: Rectangle { color: "transparent" }
-                                        model: [
-                                            { text: "本地 Ollama", value: "ollama" },
-                                            { text: "OpenAI 兼容(DeepSeek/通义/GLM/Kimi)", value: "openai" }
-                                        ]
-                                        textRole: "text"
-                                        valueRole: "value"
-                                        font.pixelSize: 13
-                                        onActivated: provider = currentValue
-                                        Component.onCompleted: {
-                                            for (var i = 0; i < model.length; ++i) {
-                                                if (model[i].value === provider) {
-                                                    currentIndex = i
-                                                    break
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 42
-                                radius: 21
-                                gradient: Gradient {
-                                    GradientStop { position: 0.0; color: T.greenBright }
-                                    GradientStop { position: 1.0; color: T.green }
-                                }
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "保存"
-                                    font.pixelSize: 15
-                                    font.bold: true
-                                    color: "#ffffff"
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: save()
+                        }
+                    }
+
+                    // 连接结果(仅失败时显示,成功用按钮文案反馈)
+                    Rectangle {
+                        visible: testMessage.length > 0 && !testOk
+                        Layout.fillWidth: true
+                        radius: 10
+                        color: T.redSoft
+                        border.width: 1
+                        border.color: T.red
+                        implicitHeight: resultText.implicitHeight + 18
+                        Text {
+                            id: resultText
+                            anchors.fill: parent
+                            anchors.margins: 9
+                            text: testMessage
+                            font.pixelSize: 11
+                            color: T.red
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    // 唯一的主按钮:保存并测试
+                    Rectangle {
+                        id: saveBtn
+                        Layout.fillWidth: true
+                        height: 46
+                        radius: 23
+                        color: testing ? T.textMuted : T.green
+                        Text {
+                            anchors.centerIn: parent
+                            text: testing ? "连接测试中…"
+                                  : (testOk && testMessage.length > 0
+                                     ? "✓ 已连接 · 点此重新测试"
+                                     : (isCloudPreset ? "保存并测试连接" : "保存"))
+                            font.pixelSize: 15
+                            font.bold: true
+                            color: "#ffffff"
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (testing) return
+                                save()
+                                if (isCloudPreset) {
+                                    testing = true
+                                    testMessage = ""
+                                    testOk = false
+                                    bridge.testConnection()
+                                } else {
+                                    showToast("已保存")
                                 }
                             }
                         }
                     }
                 }
             }
+
+            // 发音音色
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                radius: 18
+                color: T.card
+                border.color: T.line
+                implicitHeight: voiceCol.implicitHeight + 28
+
+                ColumnLayout {
+                    id: voiceCol
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "发音音色"
+                            font.pixelSize: 14
+                            font.bold: true
+                            color: T.textDark
+                        }
+                        Item { Layout.fillWidth: true }
+                        Text {
+                            text: voiceId === "system" ? "离线" : "联网缓存"
+                            font.pixelSize: 11
+                            color: voiceId === "system" ? T.textMuted : T.green
+                        }
+                    }
+                    Text {
+                        text: "选系统声=零延迟离线;选神经网络音=更自然,首次需联网缓存,之后秒播"
+                        font.pixelSize: 11
+                        color: T.textMuted
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                    }
+
+                    Repeater {
+                        model: bridge.ttsVoices()
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            height: 40
+                            radius: 12
+                            color: voiceId === modelData.id ? T.blueSoft : T.track
+                            border.color: voiceId === modelData.id ? T.blue : T.line
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "●"
+                                font.pixelSize: 12
+                                color: voiceId === modelData.id ? T.blue : T.textMuted
+                            }
+                            Column {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    text: modelData.label
+                                    font.pixelSize: 13
+                                    color: T.textDark
+                                }
+                            }
+                            Text {
+                                anchors.right: parent.right
+                                anchors.rightMargin: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.id === "system"
+                                      ? (bridge.systemTtsEngine() || "本机引擎")
+                                      : modelData.desc
+                                font.pixelSize: 10
+                                color: T.textMuted
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    bridge.setTtsVoice(modelData.id)
+                                    // 试听
+                                    if (modelData.id === "system")
+                                        bridge.speak("Hello, welcome.")
+                                    else
+                                        bridge.speak("Hello, this is a sample sentence.")
+                                }
+                            }
+                        }
+                    }
+
+                    // 预下载当前词表发音(仅神经网络音有意义)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 44
+                        radius: 12
+                        visible: voiceId !== "system"
+                        color: preloadDone >= 0 ? T.track : T.greenSoft
+                        border.color: T.greenBorder
+                        Text {
+                            anchors.centerIn: parent
+                            text: preloadDone >= 0
+                                  ? "正在下载发音 " + preloadDone + "/" + preloadTotal + "…"
+                                  : "⬇️  预下载当前词表发音(下载后可离线)"
+                            font.pixelSize: 12
+                            color: T.greenDark
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: preloadDone < 0
+                            onClicked: bridge.preloadCurrentListTts()
+                        }
+                    }
+
+                    // 预估占用空间(空闲时显示)
+                    Text {
+                        Layout.fillWidth: true
+                        visible: voiceId !== "system" && preloadDone < 0
+                                 && preloadEstimate !== ""
+                        text: preloadEstimate === "已全部缓存"
+                              ? "✓ 当前词表发音已全部缓存,可离线使用"
+                              : "预计占用空间 " + preloadEstimate
+                                + " · 含单词与例句发音"
+                        font.pixelSize: 11
+                        color: T.muted
+                        horizontalAlignment: Text.AlignHCenter
+                        topPadding: 2
+                        bottomPadding: 4
+                    }
+                }
+            }
+
             RowLayout {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -266,6 +587,11 @@ Page {
                     text: "使用说明"
                     Layout.fillWidth: true
                     onClicked: guidePopup.open()
+                }
+                ChipBtn {
+                    text: "🔁 重新查看新手引导"
+                    Layout.fillWidth: true
+                    onClicked: bridge.requestGuide()
                 }
             }
 
@@ -312,18 +638,6 @@ Page {
                         Layout.fillWidth: true
                     }
                 }
-            }
-
-            Text {
-                text: "提示:安卓端 AI 需要连接电脑或服务器的 ollama 地址,"
-                      + "例如 http://192.168.1.100:11434"
-                font.pixelSize: 11
-                color: T.textMuted
-                wrapMode: Text.Wrap
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
-                Layout.bottomMargin: 16
-                Layout.fillWidth: true
             }
         }
     }
@@ -549,16 +863,17 @@ Page {
 
     Connections {
         target: bridge
-        function onAiProbeFinished(label) {
-            engineLabel = label
-            showToast("AI 检测完成")
+        function onConnectionTested(ok, message) {
+            testing = false
+            testOk = ok
+            testMessage = message
+            if (ok)
+                showToast("✓ 连接成功")
         }
     }
 
     function initAi() {
         selectPreset(preset)
-        if (isCloudPreset && key.length === 0)
-            showToast("云端 AI 需要填写 API Key")
     }
 
     function selectPreset(v) {
@@ -566,18 +881,6 @@ Page {
         isCloudPreset = (v === "deepseek" || v === "dashscope"
                          || v === "glm" || v === "moonshot"
                          || v === "openai")
-        for (var i = 0; i < presetCombo.model.length; ++i) {
-            if (presetCombo.model[i].value === v) {
-                presetCombo.currentIndex = i
-                break
-            }
-        }
-        if (v === "auto") {
-            engineLabel = "检测中…"
-        } else {
-            engineLabel = bridge.aiProvider === "openai"
-                          ? bridge.aiModel() : "本地 " + bridge.aiModel()
-        }
     }
 
     function applyPreset(v) {
@@ -585,12 +888,14 @@ Page {
         isCloudPreset = (v === "deepseek" || v === "dashscope"
                          || v === "glm" || v === "moonshot"
                          || v === "openai")
-        if (v === "auto")
-            engineLabel = "检测中…"
         bridge.setAiPreset(v)
-        engineLabel = bridge.aiProvider === "openai"
-                      ? bridge.aiModel() : "本地 " + bridge.aiModel()
-        showToast("已切换到" + presetCombo.currentText)
+        // 重新读取 bridge 已写入的地址/模型/服务类型
+        url = bridge.aiUrl()
+        model = bridge.aiModel()
+        provider = bridge.aiProvider
+        testMessage = ""
+        testOk = false
+        showToast("已选择" + (isCloudPreset ? currentProviderName : "Ollama"))
     }
 
     function showToast(msg) {
@@ -600,11 +905,28 @@ Page {
         toastTimer.start()
     }
 
+    function doPaste() {
+        var t = bridge.clipboardText().trim()
+        if (t.length > 0) {
+            key = t
+            showToast("已粘贴 Key")
+        } else {
+            showToast("剪贴板是空的,先去服务商页面复制 Key")
+        }
+    }
+
+    function maskKey(k) {
+        if (k.length <= 8)
+            return k
+        return k.slice(0, 5) + "••••••" + k.slice(-4)
+    }
+
     function save() {
         bridge.setAiUrl(url)
         bridge.setAiModel(model)
         bridge.setAiProvider(provider)
         bridge.setAiApiKey(key)
+        testMessage = ""
         showToast("已保存")
     }
 

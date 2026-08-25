@@ -3,8 +3,11 @@
     package="org.liang.english3000"
     android:versionCode="1"
     android:versionName="1.0">
-    <application android:label="English 3000"
-        android:allowBackup="true">
+    <application android:label="英语三千"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme">
         <activity android:name="org.qtproject.qt.android.bindings.QtActivity"
             android:exported="true"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
@@ -18,5 +21,12 @@
                 android:value="english3000_mobile"/>
         </activity>
     </application>
+    <!-- Android 11+ 包可见性:需要声明才能绑定系统/第三方 TTS 引擎,
+         否则 TextToSpeech 构造静默失败(onInit 返回 -1)。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+    </queries>
     <uses-permission android:name="android.permission.INTERNET"/>
 </manifest>

@@ -99,6 +99,14 @@ const QStringList kSchema = {
         "box INTEGER NOT NULL DEFAULT 0,"
         "review_count INTEGER NOT NULL DEFAULT 0,"
         "UNIQUE(list_id, word))"),
+    // 词表条目按 list_id 过滤 + sort_order/id 排序是最高频的查询,
+    // 建复合索引避免全表扫描,切换/翻页大词表时明显变快。
+    QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS idx_items_list_sort "
+        "ON word_list_items(list_id, sort_order, id)"),
+    QStringLiteral(
+        "CREATE INDEX IF NOT EXISTS idx_items_list_box "
+        "ON word_list_items(list_id, box)"),
 };
 
 const QSet<QString> kStopwords = {
@@ -1223,9 +1231,24 @@ bool WordStore::addWordToList(qint64 listId, const QString &word,
     return q.exec();
 }
 
+bool WordStore::setExampleSentence(const QString &word, const QString &example)
+{
+    const QString w = word.trimmed().toLower();
+    const QString ex = example.trimmed();
+    if (w.isEmpty() || ex.isEmpty())
+        return false;
+    if (!findWordByText(w))
+        addWord(w, QString(), QString());
+    QSqlQuery q(m_db);
+    q.prepare(QStringLiteral(
+        "UPDATE words SET example_sentence=? WHERE word=? COLLATE NOCASE"));
+    q.addBindValue(ex);
+    q.addBindValue(w);
+    return q.exec() && q.numRowsAffected() > 0;
+}
+
 bool WordStore::updateItemMeaning(qint64 listId, const QString &word,
-                                  const QString &pos,
-                                  const QString &meaning)
+                                  const QString &pos, const QString &meaning)
 {
     const QString w = word.trimmed().toLower();
     if (w.isEmpty() || meaning.trimmed().isEmpty())
@@ -1590,6 +1613,41 @@ void WordStore::seedWordPhonetics()
             update.exec();
         }
     }
+}
+
+int WordStore::importBuiltinExamples()
+{
+    // 只导一次;升级用户也会跑一次补齐核心 3000 的预置例句。
+    if (!getSetting(QStringLiteral("builtin_examples_v7")).isEmpty())
+        return 0;
+    QFile f(QStringLiteral(":/assets/core_examples.tsv"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return 0; // 资源未就位,下次启动重试(不写标记)
+    m_db.transaction();
+    QSqlQuery upd(m_db);
+    upd.prepare(QStringLiteral(
+        "UPDATE words SET example_sentence=? "
+        "WHERE word=? COLLATE NOCASE "
+        "AND (example_sentence IS NULL OR example_sentence='')"));
+    while (!f.atEnd()) {
+        const QString line =
+            QString::fromUtf8(f.readLine()).trimmed();
+        if (line.isEmpty() || !line.contains(QLatin1Char('\t')))
+            continue;
+        const int tab = line.indexOf(QLatin1Char('\t'));
+        const QString word = line.left(tab).trimmed().toLower();
+        const QString example = line.mid(tab + 1).trimmed();
+        if (word.isEmpty() || example.isEmpty())
+            continue;
+        upd.addBindValue(example);
+        upd.addBindValue(word);
+        upd.exec();
+    }
+    f.close();
+    m_db.commit();
+    setSetting(QStringLiteral("builtin_examples_v7"),
+               QStringLiteral("1"));
+    return 0;
 }
 
 QString WordStore::inflectionSummary(const QString &word) const
@@ -2197,6 +2255,19 @@ QVector<WordEntry> parseWordEntries(const QString &raw)
 {
     QVector<WordEntry> out;
     QSet<QString> seen;
+    // 判断一段文本像不像词性标注(如 n. / adj / verb)
+    const auto looksLikePos = [](const QString &raw) {
+        QString s = raw.trimmed().toLower();
+        if (s.isEmpty() || s.size() > 12)
+            return false;
+        if (s.endsWith(QLatin1Char('.')))
+            s.chop(1);
+        for (const QChar c : s) {
+            if (!c.isLower() && c != QLatin1Char('.'))
+                return false;
+        }
+        return true;
+    };
     QString text = raw;
     text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
     text.replace(QLatin1Char('\r'), QLatin1Char('\n'));
@@ -2217,31 +2288,27 @@ QVector<WordEntry> parseWordEntries(const QString &raw)
                 continue;
             WordEntry e;
             e.word = parts.at(0).trimmed().toLower();
-            QStringList rest;
-            if (parts.size() >= 2)
-                rest = parts.mid(1);
-            QString second = rest.isEmpty() ? QString()
-                                            : rest.takeFirst().trimmed();
-            // 第二段像词性(如 n. / adj / verb)就作为词性,否则并入释义
-            const auto looksLikePos = [](const QString &raw) {
-                QString s = raw.trimmed().toLower();
-                if (s.isEmpty() || s.size() > 12)
-                    return false;
-                if (s.endsWith(QLatin1Char('.')))
-                    s.chop(1);
-                for (const QChar c : s) {
-                    if (!c.isLower() && c != QLatin1Char('.'))
-                        return false;
+            // 布局:有词性 -> [word, pos, meaning, example?]
+            //       无词性 -> [word, meaning, example?]
+            int meaningIdx = 1;
+            if (parts.size() >= 2) {
+                const QString second = parts.at(1).trimmed();
+                if (looksLikePos(second)) {
+                    e.pos = second;
+                    meaningIdx = 2;
                 }
-                return true;
-            };
-            if (!second.isEmpty() && looksLikePos(second)) {
-                e.pos = second;
-            } else if (!second.isEmpty()) {
-                rest.prepend(second);
             }
-            if (!rest.isEmpty())
-                e.meaning = rest.join(QLatin1Char(' ')).trimmed();
+            if (parts.size() > meaningIdx)
+                e.meaning = parts.at(meaningIdx).trimmed();
+            const int exampleIdx = meaningIdx + 1;
+            if (parts.size() > exampleIdx) {
+                QString ex = parts.at(exampleIdx).trimmed();
+                ex.remove(QRegularExpression(
+                    QStringLiteral("^[0-9]+[.)]\\s*")));
+                if (ex.size() > 4 && ex.size() < 240
+                    && ex.contains(e.word, Qt::CaseInsensitive))
+                    e.example = ex;
+            }
             e.word = stripListNumbering(e.word).toLower();
             if (!validListWord(e.word))
                 continue;

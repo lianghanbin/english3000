@@ -10,7 +10,7 @@ Page {
     property string currentName: ""
     property bool aiBusy: false
     property int pageOffset: 0
-    property int pageSize: 120
+    property int pageSize: 60
     property bool hasMore: false
 
     background: Rectangle { color: T.bg }
@@ -70,7 +70,10 @@ Page {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: {
+                                if (modelData.current)
+                                    return
                                 bridge.setCurrentList(modelData.id)
+                                showToast("已切换到:「" + modelData.name + "」")
                             }
                             onPressAndHold: {
                                 delList.id = modelData.id
@@ -188,9 +191,13 @@ Page {
 
     Connections {
         target: bridge
-        function onCountsChanged() {
-            if (SwipeView.isCurrentItem)
-                refresh()
+        function onCurrentListChanged() {
+            // 切换当前词表:刷新左侧选中态 + 右侧词条
+            refreshRows()
+        }
+        function onListChanged() {
+            // 词表增删才需要重建左侧列表
+            refresh()
         }
         function onWordListReady(name, count) {
             aiBusy = false
@@ -323,6 +330,24 @@ Page {
 
     function refresh() {
         lists = bridge.wordLists()
+        syncCurrent()
+        pageOffset = 0
+        rows = []
+        loadMore()
+    }
+
+    // 切换当前词表或进度变化时调用:
+    // 重新取词表列表(整体替换 lists 以触发左侧选中高亮重绘),
+    // 并刷新右侧当前词表的词条。词表列表本身数据量很小,开销可忽略。
+    function refreshRows() {
+        lists = bridge.wordLists()
+        syncCurrent()
+        pageOffset = 0
+        rows = []
+        loadMore()
+    }
+
+    function syncCurrent() {
         currentId = -1
         currentName = ""
         for (var i = 0; i < lists.length; ++i) {
@@ -332,9 +357,6 @@ Page {
                 break
             }
         }
-        pageOffset = 0
-        rows = []
-        loadMore()
     }
 
     function loadMore() {

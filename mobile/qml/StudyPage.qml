@@ -13,6 +13,9 @@ Page {
     property bool pendingKnown: false
     property bool needsReload: false
     property int total: bridge.newCount + bridge.dueCount + bridge.masteredCount
+    // 例句加载状态: "" | "loading" | "failed"
+    property string exampleStatus: ""
+    property string exampleError: ""
 
     background: Rectangle { color: T.bg }
 
@@ -249,6 +252,33 @@ Page {
                             }
                         }
                     }
+                    // 例句加载中 / 失败提示(失败可点重试)
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 40
+                        radius: 12
+                        visible: revealed && currentExample === ""
+                                 && exampleStatus !== ""
+                        color: exampleStatus === "failed"
+                               ? T.redSoft : T.greenSoft
+                        border.width: 1
+                        border.color: exampleStatus === "failed"
+                                      ? T.red : T.greenBorder
+                        Text {
+                            anchors.centerIn: parent
+                            text: exampleStatus === "failed"
+                                  ? "例句生成失败,点击重试"
+                                  : "正在生成例句…"
+                            font.pixelSize: 12
+                            color: exampleStatus === "failed"
+                                   ? T.red : T.greenDark
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: exampleStatus === "failed"
+                            onClicked: retryExample()
+                        }
+                    }
                     Item { Layout.fillHeight: true }
                     Item { Layout.fillHeight: true }
                 }
@@ -321,14 +351,6 @@ Page {
                 enabled: revealed
                 onClicked: answer(true)
             }
-        }
-
-            Text {
-                text: "点击翻牌,左甩不认识,右甩认识"
-            font.pixelSize: 12
-            color: T.textMuted
-            horizontalAlignment: Text.AlignHCenter
-            Layout.fillWidth: true
         }
     }
 
@@ -533,21 +555,32 @@ Page {
     Connections {
         target: bridge
         function onListChanged() {
+            // 词表增删或切换当前词表:标记需要重新加载,
+            // 回到学习页时 reloadIfNeeded 会重新取词。
             needsReload = true
-            if (SwipeView.isCurrentItem) {
-                needsReload = false
-                load(mode)
-            }
+        }
+        function onCurrentListChanged() {
+            needsReload = true
         }
         function onExampleReady(wordId, sentence) {
             if (cardIndex >= 0 && cards[cardIndex].id === wordId) {
+                exampleStatus = sentence !== "" ? "" : "failed"
                 currentExample = sentence
                 cards[cardIndex].example = sentence
-                if (revealed && !speaking && sentence !== "") {
+                if (revealed && sentence !== "") {
+                    // 已翻开:直接读例句(原生 TTS 的 QUEUE_FLUSH
+                    // 会自动打断还在读的单词,无需等 speaking 结束)
                     speaking = true
                     bridge.speak(sentence)
                     speakTimer.restart()
                 }
+            }
+        }
+        function onExampleFailed(wordId, message) {
+            if (cardIndex >= 0 && cards[cardIndex].id === wordId) {
+                exampleStatus = "failed"
+                exampleError = message
+                currentExample = ""
             }
         }
         function onTranslationReady(t) {
@@ -590,6 +623,7 @@ Page {
             meaningText.text = "换个词表,或先学别的词"
             rankText.text = ""
             currentExample = ""
+            exampleStatus = ""
             revealed = false
             return
         }
@@ -598,13 +632,24 @@ Page {
         wordText.text = c.word
         ipaText.text = c.phonetic !== undefined ? (c.phonetic || "") : ""
         posText.text = c.pos || ""
+        // 整体预热当前词和后 3 个词:发音 + AI 例句 + 例句发音。
+        // bridge 串行处理(发音/例句各一条队列),避免并发打爆限流;
+        // 例句回来后会自动预取其发音。翻卡后点开即可秒显秒播。
+        for (var k = 0; k < 4; k++) {
+            var nc = cards[cardIndex + k]
+            if (nc) {
+                bridge.prefetchSpeak(nc.word)
+                bridge.prefetchExample(nc.id, nc.word)
+            }
+        }
         var m = c.meaning ? c.meaning : "（暂无释义）"
         meaningText.font.pixelSize = m.length > 60 ? 15
                                    : (m.length > 28 ? 17 : 21)
         meaningText.text = (c.pos ? c.pos + "  " : "") + m
         currentExample = c.example || ""
-        if (currentExample === "")
-            bridge.requestExample(c.id, c.word)
+        // 例句已由 fillCard 顶部的整体预热在后台串行预取(含后面 3 张卡),
+        // 翻开时大概率已就绪;未就绪则显示加载中并复用进行中的请求。
+        exampleStatus = ""
         revealed = false
         startSpeak()
     }
@@ -620,11 +665,26 @@ Page {
     function reveal() {
         if (cardIndex < 0 || revealed) return
         revealed = true
-        if (currentExample !== "") {
+        // 优先用预取到(或本来就有)的例句
+        var c = cards[cardIndex]
+        var ex = (c && c.example) ? c.example : currentExample
+        if (ex !== "") {
+            currentExample = ex
             speaking = true
-            bridge.speak(currentExample)
+            bridge.speak(ex)
             speakTimer.restart()
+        } else {
+            // 预取可能正在进行;若没在跑才发起,显示"生成例句中…"
+            exampleStatus = "loading"
+            bridge.requestExample(c.id, c.word)
         }
+    }
+
+    function retryExample() {
+        if (cardIndex < 0) return
+        exampleStatus = "loading"
+        bridge.cancelExample()
+        bridge.requestExample(cards[cardIndex].id, cards[cardIndex].word)
     }
 
     function answer(known) {

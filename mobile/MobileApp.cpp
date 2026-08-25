@@ -6,6 +6,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrl>
 
 #include "ai_client.h"
@@ -60,8 +61,9 @@ int main(int argc, char *argv[])
                               QStringLiteral("sample"), sample.level);
         }
     }
-    store.seedExamplesFromArticles();
-
+    // seedExamplesFromArticles 会对每个缺例句的词遍历所有文章做子串匹配,
+    // 是启动期最重的同步操作。放到首帧显示后再用 0 延时执行,让界面先出来。
+    QTimer::singleShot(0, [&store]() { store.seedExamplesFromArticles(); });
     AiClient ai;
     ai.setEndpoint(
         store.getSetting(QStringLiteral("ai_base_url"),

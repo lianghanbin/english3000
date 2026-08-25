@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ 系统启动屏(SplashScreen API)。
+         背景与 QML T.bg 同色,居中显示应用 Logo,
+         消除系统启动屏->QML 的颜色/内容跳变。 -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+        <item name="android:windowBackground">#f4f7f2</item>
+        <item name="android:colorBackground">#f4f7f2</item>
+        <item name="android:statusBarColor">#f4f7f2</item>
+        <item name="android:navigationBarColor">#ffffff</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">#f4f7f2</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowContentTransitions">false</item>
+    </style>
+</resources>

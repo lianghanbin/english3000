@@ -1,4 +1,5 @@
 #include "ai_client.h"
+#include <QDebug>
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -12,6 +13,104 @@
 namespace {
 
 constexpr int kTimeoutMs = 10 * 60 * 1000;
+
+// 从服务端错误响应里提取人类可读信息。各家格式不一:
+// 标准 OpenAI: {"error":{"message":"...","type":"insufficient_quota"}}
+// 通义/部分国产: {"code":"...","message":"..."} / {"msg":"..."}
+QString extractServerMessage(const QByteArray &body)
+{
+    QJsonParseError pe;
+    const QJsonDocument doc = QJsonDocument::fromJson(body, &pe);
+    if (pe.error != QJsonParseError::NoError) {
+        const QString s = QString::fromUtf8(body).simplified();
+        return s.left(120);
+    }
+    const QJsonObject obj = doc.object();
+    QString msg;
+    const QJsonValue err = obj.value(QStringLiteral("error"));
+    if (err.isObject()) {
+        msg = err.toObject().value(QStringLiteral("message")).toString();
+    } else if (err.isString()) {
+        msg = err.toString();
+    }
+    if (msg.isEmpty())
+        msg = obj.value(QStringLiteral("message")).toString();
+    if (msg.isEmpty())
+        msg = obj.value(QStringLiteral("msg")).toString();
+    if (msg.isEmpty())
+        msg = obj.value(QStringLiteral("errorMessage")).toString();
+    return msg.simplified().left(160);
+}
+
+// 把网络/HTTP 错误归类成对用户可操作的中文提示,
+// 重点覆盖欠费、额度不足、Key 无效、模型名错误等高频情况。
+QString classifyError(const QNetworkReply *reply, const QByteArray &body)
+{
+    const int http =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString server = extractServerMessage(body);
+    const QString lc = server.toLower();
+
+    auto hint = [&](const QString &base) {
+        return server.isEmpty() ? base
+                                : base + QStringLiteral("（") + server
+                                      + QStringLiteral("）");
+    };
+
+    if (http == 401 || http == 403) {
+        if (lc.contains(QStringLiteral("quota"))
+            || lc.contains(QStringLiteral("balance"))
+            || lc.contains(QStringLiteral("arrears"))
+            || lc.contains(QStringLiteral("insufficient"))
+            || lc.contains(QStringLiteral("余额"))
+            || lc.contains(QStringLiteral("欠费"))
+            || lc.contains(QStringLiteral("额度"))) {
+            return hint(QStringLiteral(
+                "云端账户余额/额度不足，请前往服务商控制台充值或开通额度"));
+        }
+        return hint(QStringLiteral(
+            "API Key 无效或无权限（%1），请到设置页检查 Key").arg(http));
+    }
+    if (http == 402 || lc.contains(QStringLiteral("insufficient_quota"))
+        || lc.contains(QStringLiteral("billing"))
+        || lc.contains(QStringLiteral("余额不足"))
+        || lc.contains(QStringLiteral("欠费"))) {
+        return hint(QStringLiteral(
+            "云端账户已欠费或额度用尽，请前往服务商控制台充值"));
+    }
+    if (http == 429) {
+        return hint(QStringLiteral(
+            "请求过于频繁或额度已用完（429），请稍后再试或更换服务商"));
+    }
+    if (http == 404) {
+        return hint(QStringLiteral(
+            "服务地址或模型名有误（404），请到设置页检查模型名是否正确"));
+    }
+    if (http == 400) {
+        return hint(QStringLiteral(
+            "请求被拒绝（400），通常是模型名不支持或参数有误"));
+    }
+    if (http >= 500) {
+        return hint(QStringLiteral(
+            "服务商服务器暂时不可用（%1），请稍后重试").arg(http));
+    }
+    if (http > 0) {
+        return hint(QStringLiteral("AI 请求失败（HTTP %1）").arg(http));
+    }
+    switch (reply->error()) {
+    case QNetworkReply::TimeoutError:
+    case QNetworkReply::OperationCanceledError:
+        return QStringLiteral("连接超时，请检查网络后重试");
+    case QNetworkReply::HostNotFoundError:
+    case QNetworkReply::ConnectionRefusedError:
+        return QStringLiteral("无法连接服务器，请检查网络或服务地址");
+    case QNetworkReply::SslHandshakeFailedError:
+        return QStringLiteral("网络安全连接失败，请检查网络或系统时间");
+    default:
+        return hint(QStringLiteral("AI 请求失败：%1")
+                        .arg(reply->errorString()));
+    }
+}
 
 } // namespace
 
@@ -117,13 +216,17 @@ QString AiClient::wordListPrompt(const QString &domain, int count)
                "commonly used in the field of: %2.\n"
                "Rules:\n"
                "- Output ONLY lines in this exact format:\n"
-               "  word | part of speech | Simplified Chinese meaning\n"
-               "- Example: algorithm | n. | 算法\n"
+               "  word | part of speech | Simplified Chinese meaning | "
+               "one short English example sentence\n"
+               "- Example: algorithm | n. | 算法 | The algorithm sorts "
+               "the data in seconds.\n"
                "- Use ONLY the | separator. Do NOT use colons, dashes, "
                "or parentheses. Bad: algorithm: 算法\n"
                "- One line per word, lowercase word, no numbering, "
                "no duplicate words.\n"
-               "- Include important nouns, verbs, and adjectives.")
+               "- Include important nouns, verbs, and adjectives.\n"
+               "- The example sentence must use the exact word, be short "
+               "and simple, and contain no | character.")
         .arg(count)
         .arg(domain.trimmed());
 }
@@ -300,13 +403,16 @@ void AiClient::onReplyFinished()
     m_requestTimeoutMs = 10 * 60 * 1000;
 
     if (reply->error() != QNetworkReply::NoError) {
-        const QString message =
-            m_timedOut
-                ? QStringLiteral("生成超时（超过 10 分钟），已停止。")
-                : (reply->error() == QNetworkReply::OperationCanceledError
-                       ? QStringLiteral("已取消。")
-                       : QStringLiteral("AI 请求失败：%1")
-                             .arg(reply->errorString()));
+        const QByteArray body = reply->readAll();
+        QString message;
+        if (m_timedOut) {
+            message = QStringLiteral("生成超时（超过 10 分钟），已停止。");
+        } else if (reply->error()
+                   == QNetworkReply::OperationCanceledError) {
+            message = QStringLiteral("已取消。");
+        } else {
+            message = classifyError(reply, body);
+        }
         reply->deleteLater();
         emit failed(message);
         return;

@@ -99,6 +99,7 @@ struct WordEntry {
     QString word;
     QString pos;
     QString meaning;
+    QString example;
 };
 
 // 兼容两种 AI 输出: 纯单词一行, 或 "word | pos | 释义" 一行
@@ -161,6 +162,8 @@ public:
     // 回填词表条目的词性/释义(AI 补全用)
     bool updateItemMeaning(qint64 listId, const QString &word,
                            const QString &pos, const QString &meaning);
+    // 写入/更新单词例句(words 表,跨词表复用)
+    bool setExampleSentence(const QString &word, const QString &example);
     QVector<Word> wordsInWordList(qint64 listId, int limit = 0,
                                   int offset = 0) const;
     QVector<WordListInfo> listsContainingWord(const QString &word) const;
@@ -177,6 +180,9 @@ public:
         const QVector<qint64> &articleIds, int limit = 100) const;
     int seedBuiltinWordList();
     int seedExamplesFromArticles();
+    // 从随包资源 core_examples.tsv 导入核心 3000 的预置例句,
+    // 只填充 example_sentence 为空的词;用设置项标记只导一次。返回导入条数。
+    int importBuiltinExamples();
     void setExampleSentence(qint64 wordId, const QString &sentence);
     void seedWordPhonetics();
     int knownInWordList(qint64 listId) const;
