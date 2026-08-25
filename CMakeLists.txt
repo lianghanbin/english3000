@@ -75,12 +75,18 @@ if(Qt6Quick_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/mobile/android)
     endif()
     if(ANDROID)
-        target_link_libraries(english3000_mobile PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libespeak-ng.a
-            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libucd.a
-            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libspeechPlayer.a)
-        target_include_directories(english3000_mobile PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/include)
+        # espeak-ng 预编译库目前只有 arm64-v8a;x86_64 模拟器不链接它
+        # (edge 失败时的本地兜底在该 ABI 上不可用,不影响主功能)。
+        if(ANDROID_ABI STREQUAL "arm64-v8a")
+            target_compile_definitions(english3000_mobile PRIVATE
+                ENGLISH3000_HAS_ESPEAK=1)
+            target_link_libraries(english3000_mobile PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libespeak-ng.a
+                ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libucd.a
+                ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/lib/arm64-v8a/libspeechPlayer.a)
+            target_include_directories(english3000_mobile PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/espeak-ng/include)
+        endif()
     endif()
     qt_add_resources(english3000_mobile "espeak_data"
         PREFIX "/espeak-ng-data"

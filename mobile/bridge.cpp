@@ -37,8 +37,10 @@
 #include <QLocale>
 #include <QDateTime>
 #if defined(Q_OS_ANDROID)
-#include <espeak-ng/speak_lib.h>
 #include <QJniObject>
+#if defined(ENGLISH3000_HAS_ESPEAK)
+#include <espeak-ng/speak_lib.h>
+#endif
 #endif
 #endif
 
@@ -137,6 +139,7 @@ QString ensureEspeakData()
 }
 
 // 用 espeak-ng 合成英文,返回完整 WAV(16bit mono)。
+#if defined(ENGLISH3000_HAS_ESPEAK)
 QByteArray synthEspeak(const QString &text)
 {
     static const QString dataPath = ensureEspeakData();
@@ -202,6 +205,9 @@ QByteArray synthEspeak(const QString &text)
     wav.append(pcm);
     return wav;
 }
+#else
+QByteArray synthEspeak(const QString &) { return {}; } // 无 espeak 库的 ABI
+#endif
 #endif
 
 } // namespace
@@ -1478,6 +1484,16 @@ void MobileBridge::startEdgeTimer()
     }
     m_edgeTimer->start(30000);
 }
+#else
+// 桌面端未启用移动端 TTS:提供桩实现,保证 QML/MOC 引用能链接
+QString MobileBridge::ttsVoice() const { return QStringLiteral("system"); }
+void MobileBridge::setTtsVoice(const QString &) {}
+QVariantList MobileBridge::ttsVoices() const { return {}; }
+QString MobileBridge::systemTtsEngine() const { return {}; }
+void MobileBridge::prefetchSpeak(const QString &) {}
+void MobileBridge::preloadCurrentListTts() {}
+void MobileBridge::cancelTtsPreload() {}
+QString MobileBridge::ttsPreloadEstimate() { return {}; }
 #endif
 
 
