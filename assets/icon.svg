@@ -1,5 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="8" y="8" width="112" height="112" rx="24" fill="#1565c0"/>
-  <text x="64" y="80" font-family="sans-serif" font-size="46" font-weight="700"
-        fill="#ffffff" text-anchor="middle">3K</text>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34a85f"/>
+      <stop offset="0.5" stop-color="#2a8a4c"/>
+      <stop offset="1" stop-color="#176334"/>
+    </linearGradient>
+    <!-- 顶部光泽:上白下透的渐变 -->
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- 文字用 clipPath 裁进圆角方块内 -->
+    <clipPath id="round">
+      <rect x="8" y="8" width="112" height="112" rx="24"/>
+    </clipPath>
+  </defs>
+
+  <!-- 主体渐变方块 -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#g)"/>
+
+  <!-- 顶部光泽(玻璃高光) -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="url(#gloss)"/>
+
+  <!-- 顶部 2px 亮边(对应 inset 0 2px rgba(255,255,255,.25)) -->
+  <rect x="10" y="9" width="108" height="3" rx="1.5"
+        fill="#ffffff" opacity="0.55"/>
+
+  <!-- E3K 文字 -->
+  <text x="64" y="86" font-family="sans-serif" font-size="58"
+        font-weight="800" fill="#ffffff" text-anchor="middle"
+        clip-path="url(#round)">E3K</text>
 </svg>

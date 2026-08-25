@@ -105,19 +105,29 @@ Page {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
+            clip: false
 
-            Rectangle {
-                id: cardShadow
-                x: cardBody.x + 4
-                y: cardBody.y + 8
-                width: cardBody.width
-                height: cardBody.height
-                radius: 28
-                color: "#24000000"
-                opacity: cardBody.opacity
-                rotation: cardBody.rotation
-                scale: cardBody.scale
+            // 柔和投影:多层半透明圆角描边叠加,模拟模糊阴影。
+            // 每层以卡片中心为锚点向外均匀扩展,粗边框才不会错位。
+            Repeater {
+                model: 6
+                delegate: Rectangle {
+                    readonly property real bw: 1 + index
+                    parent: cardBody.parent
+                    x: cardBody.x - bw
+                    y: cardBody.y + 6 + index * 0.6 - bw
+                    width: cardBody.width + bw * 2
+                    height: cardBody.height + bw * 2
+                    radius: 28
+                    color: "transparent"
+                    border.color: Qt.rgba(0, 0, 0, 0.05 - index * 0.007)
+                    border.width: bw
+                    opacity: cardBody.opacity * 0.85
+                    rotation: cardBody.rotation
+                    scale: cardBody.scale
+                    transformOrigin: Item.Center
+                    z: 0
+                }
             }
 
             Rectangle {
@@ -128,8 +138,9 @@ Page {
                 height: parent.height - 4
                 radius: 26
                 color: T.card
-                border.color: "#eaf0ea"
+                border.color: "#eef3ee"
                 border.width: 1
+                z: 1
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -153,18 +164,38 @@ Page {
                         font.bold: true
                         color: T.textDark
                     }
-                    Text {
-                        id: ipaText
+                    Row {
                         Layout.alignment: Qt.AlignHCenter
-                        font.pixelSize: 17
-                        color: T.textMuted
+                        spacing: 8
+                        visible: ipaText.text !== "" || posText.text !== ""
+                        // 词性小标签
+                        Rectangle {
+                            visible: posText.text !== ""
+                            width: posChips.implicitWidth + 14
+                            height: 22
+                            radius: 11
+                            color: T.blueSoft
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                id: posChips
+                                anchors.centerIn: parent
+                                text: posText.text
+                                font.pixelSize: 11
+                                font.bold: true
+                                color: T.blue
+                            }
+                        }
+                        // 音标
+                        Text {
+                            id: ipaText
+                            anchors.verticalCenter: parent.verticalCenter
+                            font.pixelSize: 15
+                            font.italic: true
+                            color: T.textMuted
+                        }
                     }
-                    Text {
-                        id: posText
-                        Layout.alignment: Qt.AlignHCenter
-                        font.pixelSize: 13
-                        color: T.textMuted
-                    }
+                    // 隐藏的 posText 仅作数据载体(保留原 id 与赋值逻辑)
+                    Text { id: posText; visible: false }
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter
                         width: revealed ? 96 : 0
@@ -185,7 +216,12 @@ Page {
                         font.bold: true
                         color: T.textBody
                         opacity: revealed ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 350 } }
+                        scale: revealed ? 1 : 0.94
+                        transformOrigin: Item.Center
+                        Behavior on opacity { NumberAnimation { duration: 320 } }
+                        Behavior on scale {
+                            NumberAnimation { duration: 360; easing.type: Easing.OutBack }
+                        }
                     }
                     Rectangle {
                         id: exampleBox
@@ -195,7 +231,12 @@ Page {
                         color: T.greenSoft
                         visible: revealed && currentExample !== ""
                         opacity: revealed ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 450 } }
+                        scale: revealed ? 1 : 0.96
+                        transformOrigin: Item.Center
+                        Behavior on opacity { NumberAnimation { duration: 380 } }
+                        Behavior on scale {
+                            NumberAnimation { duration: 400; easing.type: Easing.OutCubic }
+                        }
 
                         Row {
                             anchors.fill: parent
@@ -287,7 +328,8 @@ Page {
             MouseArea {
                 id: cardMouse
                 anchors.fill: parent
-                drag.target: cardBody
+                // 未点开(未揭示)时不允许拖动,只有点开后才能左右滑
+                drag.target: revealed ? cardBody : null
                 drag.axis: Drag.XAxis
                 drag.threshold: 6
                 drag.minimumX: -150
@@ -307,13 +349,12 @@ Page {
                     if (!drag.active)
                         return
                     var p = cardBody.x
-                    if (!revealed && Math.abs(p) > 18)
-                        reveal()
                     cardBody.rotation = p / 18
                     cardBody.scale = 1 - Math.min(Math.abs(p), 150) / 1500
                     cardBody.opacity = 1 - Math.min(Math.abs(p), 300) / 1200
                 }
                 onReleased: {
+                    // 必须先点开(揭示)卡片后才能左右滑动判定,这是设计逻辑
                     if (!revealed) {
                         backX.start()
                     } else if (cardBody.x <= -42) {
@@ -335,7 +376,7 @@ Page {
                 colorA: T.redBright
                 colorB: T.red
                 enabled: revealed
-                onClicked: answer(false)
+                onClicked: swipeAnswer(false)
             }
             ActionBtn {
                 text: "显示释义"
@@ -349,7 +390,7 @@ Page {
                 colorA: T.greenBright
                 colorB: T.green
                 enabled: revealed
-                onClicked: answer(true)
+                onClicked: swipeAnswer(true)
             }
         }
     }
@@ -702,6 +743,7 @@ Page {
 
     function swipeAnswer(known) {
         if (cardIndex < 0) return
+        if (flyX.running) return
         pendingKnown = known
         flyXAnim.to = known ? 420 : -420
         flyRot.to = known ? 10 : -10
@@ -752,6 +794,10 @@ Page {
             GradientStop { position: 1.0; color: root.colorB }
         }
         opacity: enabled ? 1 : 0.45
+        scale: ma.pressed ? 0.96 : 1
+        Behavior on scale {
+            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+        }
         Text {
             anchors.centerIn: parent
             text: root.text
@@ -760,6 +806,7 @@ Page {
             color: "#ffffff"
         }
         MouseArea {
+            id: ma
             anchors.fill: parent
             enabled: root.enabled
             onClicked: root.clicked()

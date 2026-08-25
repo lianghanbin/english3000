@@ -5,7 +5,7 @@ import "."
 
 Page {
     property var lists: []
-    property var rows: []
+    ListModel { id: rows }
     property int currentId: -1
     property string currentName: ""
     property bool aiBusy: false
@@ -87,18 +87,13 @@ Page {
                 SideBtn {
                     text: "AI 生成词表"
                     onClicked: {
-                        aiPopup.mode = "new"
                         domainField.text = ""
                         aiPopup.open()
                     }
                 }
                 SideBtn {
                     text: "AI 补充词表"
-                    onClicked: {
-                        aiPopup.mode = "supplement"
-                        domainField.text = ""
-                        aiPopup.open()
-                    }
+                    onClicked: supplementDirect()
                 }
             }
         }
@@ -129,7 +124,7 @@ Page {
                 Layout.fillWidth: true
                 height: 30
                 radius: 8
-                color: "#f2f7f2"
+                color: T.track
                 Row {
                     anchors.fill: parent
                     HeadCell { text: "单词"; w: 0.28 }
@@ -145,11 +140,20 @@ Page {
                 clip: true
                 model: rows
                 delegate: RowItem {}
+                cacheBuffer: 400
                 boundsBehavior: Flickable.StopAtBounds
                 onAtYEndChanged: {
                     if (atYEnd && hasMore)
                         loadMore()
                 }
+            }
+
+            // 流式追加后下一帧直接跟随到底(不做滚动动画,
+            // 否则词快速到来时动画反复 restart 会抖动)
+            Timer {
+                id: scrollTimer
+                interval: 16
+                onTriggered: rowsView.positionViewAtEnd()
             }
         }
     }
@@ -196,17 +200,42 @@ Page {
             refreshRows()
         }
         function onListChanged() {
-            // 词表增删才需要重建左侧列表
+            // 流式生成中列表由 onWordAppended 实时维护,不要 refresh 清空
+            if (aiBusy) {
+                lists = bridge.wordLists()
+                syncCurrent()
+                return
+            }
             refresh()
+        }
+        function onWordAppended(listId, word, pos, meaning) {
+            // 流式:每来一个词就 append 一行(ListModel 只新增,
+            // 不重建已有行,所以不会整屏抖动)
+            if (listId !== currentId) {
+                lists = bridge.wordLists()
+                syncCurrent()
+                rows.clear()
+                pageOffset = 0
+                hasMore = false
+            }
+            rows.append({
+                id: -1, word: word, pos: pos,
+                meaning: meaning, status: "new", isNew: true
+            })
+            // 等 delegate 创建后再滚到底,保证新词始终可见
+            scrollTimer.restart()
         }
         function onWordListReady(name, count) {
             aiBusy = false
-            refresh()
+            lists = bridge.wordLists()
+            syncCurrent()
             showToast("词表已生成:「" + name + "」共 " + count + " 词")
         }
         function onAiFailed(message) {
             aiBusy = false
-            showToast("AI 失败:" + message)
+            // 用户主动取消不弹错误
+            if (message && message.indexOf("已取消") < 0)
+                showToast("AI 失败:" + message)
         }
         function onTranslationReady(t) {
             wordAction.resultText = t
@@ -332,7 +361,7 @@ Page {
         lists = bridge.wordLists()
         syncCurrent()
         pageOffset = 0
-        rows = []
+        rows.clear()
         loadMore()
     }
 
@@ -343,7 +372,7 @@ Page {
         lists = bridge.wordLists()
         syncCurrent()
         pageOffset = 0
-        rows = []
+        rows.clear()
         loadMore()
     }
 
@@ -363,7 +392,16 @@ Page {
         if (currentId < 0)
             return
         var more = bridge.wordListPageRows(currentId, pageOffset, pageSize)
-        rows = rows.concat(more)
+        for (var i = 0; i < more.length; i++) {
+            rows.append({
+                id: more[i].id,
+                word: more[i].word,
+                pos: more[i].pos,
+                meaning: more[i].meaning,
+                status: more[i].status,
+                isNew: false
+            })
+        }
         pageOffset += more.length
         hasMore = more.length === pageSize
     }
@@ -376,15 +414,32 @@ Page {
         }
         aiBusy = true
         aiPopup.close()
-        if (aiPopup.mode === "supplement")
-            bridge.aiSupplementWordList(d, countSpin.value)
-        else
-            bridge.aiGenerateWordList(d, countSpin.value)
+        bridge.aiGenerateWordList(d, 200)
+    }
+
+    // 补充词表:直接用当前词表主题补充,不弹窗
+    function supplementDirect() {
+        if (currentId < 0) {
+            showToast("请先选择一个词表")
+            return
+        }
+        // 把已有词全部加载进来,这样补充的新词追加到末尾时
+        // 能进入可见区域、触发淡入动画并自动滚到底
+        while (hasMore)
+            loadMore()
+        aiBusy = true
+        // 等批量加载的行布局完成后立刻滑到底,让用户在新词位置等待
+        scrollTimer.restart()
+        bridge.aiSupplementWordList("", 100)
+    }
+
+    function stopAi() {
+        aiBusy = false
+        bridge.cancelAi()
     }
 
     Popup {
         id: aiPopup
-        property string mode: "new"
         anchors.centerIn: parent
         width: parent.width * 0.88
         modal: true
@@ -393,8 +448,7 @@ Page {
         contentItem: ColumnLayout {
             spacing: 12
             Text {
-                text: aiPopup.mode === "supplement"
-                      ? "AI 补充当前词表" : "AI 生成领域词表"
+                text: "AI 生成领域词表"
                 font.pixelSize: 16
                 font.bold: true
                 color: T.textDark
@@ -408,30 +462,13 @@ Page {
                 color: T.textDark
                 background: Rectangle {
                     radius: 10
-                    color: "#f7faf7"
+                    color: T.track
                     border.color: T.line
                 }
             }
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "词数"
-                    font.pixelSize: 12
-                    color: T.textMuted
-                }
-                SpinBox {
-                    id: countSpin
-                    from: 50
-                    to: 500
-                    stepSize: 50
-                    value: 200
-                    editable: true
-                }
-                Item { Layout.fillWidth: true }
-            }
             Text {
-                text: aiBusy ? "AI 生成中,请稍候…"
-                             : "提示:本地模型生成较慢,请耐心等待"
+                text: "AI 将生成约 200 个相关单词。开始后可随时点"
+                      + "「停止」中断。"
                 font.pixelSize: 11
                 color: T.textMuted
                 wrapMode: Text.Wrap
@@ -569,9 +606,34 @@ Page {
         id: row
         width: rowsView.width
         height: 42
-        color: index % 2 === 0 ? "#fbfdfb" : "#ffffff"
+        color: T.card
         border.color: T.line
         border.width: 0
+        // 底部细分隔线,不做斑马纹
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: T.line
+            opacity: 0.6
+        }
+        // 新词只做一次轻微淡入,不缩放、不闪色、不跳动
+        readonly property bool popping:
+            (typeof isNew !== "undefined") && isNew
+        opacity: popping ? 0 : 1
+        Component.onCompleted: {
+            if (popping)
+                fadeIn.start()
+        }
+        NumberAnimation {
+            id: fadeIn
+            target: row
+            property: "opacity"
+            from: 0; to: 1
+            duration: 280
+            easing.type: Easing.OutCubic
+        }
 
         Row {
             anchors.fill: parent
@@ -584,7 +646,7 @@ Page {
                     anchors.leftMargin: 8
                     spacing: 4
                     Text {
-                        text: modelData.word
+                        text: word
                         font.pixelSize: 13
                         font.bold: true
                         color: T.greenDark
@@ -601,8 +663,8 @@ Page {
                     anchors.leftMargin: 4
                     width: parent.width - 8
                     elide: Text.ElideRight
-                    text: modelData.meaning === ""
-                          ? "（暂无释义，点按查词典）" : modelData.meaning
+                    text: meaning === ""
+                          ? "（暂无释义，点按查词典）" : meaning
                     font.pixelSize: 12
                     color: T.textBody
                 }
@@ -615,14 +677,14 @@ Page {
                     width: chipText.implicitWidth + 16
                     height: 20
                     radius: 10
-                    color: chipBg(modelData.status)
+                    color: chipBg(status)
                     Text {
                         id: chipText
                         anchors.centerIn: parent
-                        text: chipLabel(modelData.status)
+                        text: chipLabel(status)
                         font.pixelSize: 10
                         font.bold: true
-                        color: chipFg(modelData.status)
+                        color: chipFg(status)
                     }
                 }
             }
@@ -631,18 +693,18 @@ Page {
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                bridge.speak(modelData.word)
-                rowPop.start()
+                bridge.speak(word)
+                clickPop.start()
             }
             onPressAndHold: {
-                wordAction.word = modelData.word
-                wordAction.itemId = modelData.id
+                wordAction.word = word
+                wordAction.itemId = id
                 wordAction.resultText = ""
                 wordAction.open()
             }
         }
         SequentialAnimation {
-            id: rowPop
+            id: clickPop
             NumberAnimation {
                 target: row
                 property: "scale"

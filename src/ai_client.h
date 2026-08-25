@@ -62,13 +62,16 @@ public:
 signals:
     void finished(const QString &articleText);
     void wordListFinished(const QString &rawText);
+    // 流式词表:AI 每产出一行完整词条就发一次(line 已 trim)
+    void wordListLine(const QString &line);
     void chatFinished(const QString &response);
     void translationFinished(const QString &translation);
     void failed(const QString &message);
 
 private:
-    void start(const QString &prompt);
+    void start(const QString &prompt, bool streaming = false);
     void onReplyFinished();
+    void onStreamReady();
 
     QNetworkAccessManager *m_manager = nullptr;
     QNetworkReply *m_reply = nullptr;
@@ -78,6 +81,9 @@ private:
     QString m_requestModel;
     int m_requestPredict = 0;
     int m_requestTimeoutMs = 10 * 60 * 1000;
+    bool m_streaming = false;
+    QByteArray m_streamBuffer;
+    QString m_streamText;
     QString m_baseUrl = QStringLiteral("http://127.0.0.1:11434");
     QString m_model = QStringLiteral("qwen2.5:1.5b");
     Provider m_provider = Provider::Ollama;

@@ -167,18 +167,23 @@ QString AiClient::levelLabel(int level)
 
 QString AiClient::topicPrompt(const QString &topic, int level, int wordCount)
 {
+    const QString lengthRule = wordCount > 0
+        ? QStringLiteral("Length: about %1 words.\n").arg(wordCount)
+        : QStringLiteral("Length: a complete, natural-length article for "
+                         "the topic and level (typically 250-450 words).\n");
     return QStringLiteral(
                "You are an English teacher writing graded reading material.\n"
                "Write a short English article about: %1\n"
                "Level: %2\n"
-               "Length: about %3 words.\n"
+               "%3"
                "Rules:\n"
                "- Use short, clear sentences.\n"
                "- Prefer the most common English words.\n"
+               "- Divide the text into 3 to 5 paragraphs, separated by "
+               "a blank line.\n"
                "- Output ONLY the article text. No title, no quotes, "
                "no explanations.")
-        .arg(topic.trimmed(), levelLabel(level))
-        .arg(wordCount);
+        .arg(topic.trimmed(), levelLabel(level), lengthRule);
 }
 
 QString AiClient::topicPrompt(const QString &topic, int level, int wordCount,
@@ -264,8 +269,9 @@ QString AiClient::translatePrompt(const QString &text, bool toChinese)
 void AiClient::generateArticle(const QString &topic, int level, int wordCount)
 {
     m_requestType = RequestType::Generate;
-    // 文章长度按词数放大输出上限,避免长文章被 1500 token 截断
-    m_requestPredict = qBound(3000, wordCount * 12 + 1000, 9000);
+    // 文章长度按词数放大输出上限;不指定词数时给一个自然长度上限
+    m_requestPredict = wordCount > 0 ? qBound(3000, wordCount * 12 + 1000, 9000)
+                                     : 6000;
     m_requestTimeoutMs = 20 * 60 * 1000;
     start(topicPrompt(topic, level, wordCount));
 }
@@ -274,7 +280,8 @@ void AiClient::generateArticle(const QString &topic, int level, int wordCount,
                                const QStringList &preferredWords)
 {
     m_requestType = RequestType::Generate;
-    m_requestPredict = qBound(3000, wordCount * 12 + 1000, 9000);
+    m_requestPredict = wordCount > 0 ? qBound(3000, wordCount * 12 + 1000, 9000)
+                                     : 6000;
     m_requestTimeoutMs = 20 * 60 * 1000;
     start(topicPrompt(topic, level, wordCount, preferredWords));
 }
@@ -299,7 +306,7 @@ void AiClient::generateWordList(const QString &domain, int count)
     m_requestType = RequestType::WordList;
     m_requestPredict = qBound(2000, count * 8 + 1000, 6000);
     m_requestTimeoutMs = 20 * 60 * 1000;
-    start(wordListPrompt(domain, count));
+    start(wordListPrompt(domain, count), /*streaming=*/true);
 }
 
 void AiClient::fillMeanings(const QStringList &words)
@@ -329,18 +336,21 @@ void AiClient::cancel()
     m_timeout->stop();
 }
 
-void AiClient::start(const QString &prompt)
+void AiClient::start(const QString &prompt, bool streaming)
 {
     if (m_reply) {
         m_reply->abort();
         m_reply = nullptr;
     }
     m_timedOut = false;
+    m_streaming = streaming;
+    m_streamBuffer.clear();
+    m_streamText.clear();
 
     QJsonObject body;
     body.insert(QStringLiteral("model"),
                 m_requestModel.isEmpty() ? m_model : m_requestModel);
-    body.insert(QStringLiteral("stream"), false);
+    body.insert(QStringLiteral("stream"), streaming);
     const int predict = m_requestPredict > 0 ? m_requestPredict : 1500;
 
     QNetworkRequest request;
@@ -384,9 +394,67 @@ void AiClient::start(const QString &prompt)
     request.setHeader(QNetworkRequest::ContentTypeHeader,
                       QStringLiteral("application/json"));
     m_reply = m_manager->post(request, QJsonDocument(body).toJson());
+    if (streaming) {
+        connect(m_reply, &QIODevice::readyRead, this,
+                &AiClient::onStreamReady);
+    }
     connect(m_reply, &QNetworkReply::finished, this,
             &AiClient::onReplyFinished);
     m_timeout->start(m_requestTimeoutMs);
+}
+
+void AiClient::onStreamReady()
+{
+    if (!m_reply)
+        return;
+    m_streamBuffer += m_reply->readAll();
+    // SSE: 事件以 "\n\n" 分隔;逐块解析
+    int cut;
+    while ((cut = m_streamBuffer.indexOf("\n\n")) >= 0) {
+        const QByteArray rawEvent = m_streamBuffer.left(cut);
+        m_streamBuffer.remove(0, cut + 2);
+        const QList<QByteArray> lines = rawEvent.split('\n');
+        for (const QByteArray &ln : lines) {
+            QByteArray line = ln;
+            if (!line.startsWith("data:"))
+                continue;
+            line = line.mid(5).trimmed();
+            if (line.isEmpty() || line == "[DONE]")
+                continue;
+            QJsonParseError err{};
+            const QJsonDocument ev =
+                QJsonDocument::fromJson(line, &err);
+            if (err.error != QJsonParseError::NoError)
+                continue;
+            QString delta;
+            if (m_provider == Provider::OpenAI) {
+                const QJsonArray choices =
+                    ev.object().value("choices").toArray();
+                if (!choices.isEmpty())
+                    delta = choices.at(0)
+                                .toObject()
+                                .value("delta")
+                                .toObject()
+                                .value("content")
+                                .toString();
+            } else {
+                // Ollama /api/generate 流式: response 字段
+                delta = ev.object().value("response").toString();
+            }
+            if (delta.isEmpty())
+                continue;
+            m_streamText += delta;
+            // 按行切分,每凑齐一行完整词条就发出
+            int nl;
+            while ((nl = m_streamText.indexOf('\n')) >= 0) {
+                const QString entry =
+                    m_streamText.left(nl).trimmed();
+                m_streamText.remove(0, nl + 1);
+                if (!entry.isEmpty())
+                    emit wordListLine(entry);
+            }
+        }
+    }
 }
 
 void AiClient::onReplyFinished()
@@ -401,9 +469,10 @@ void AiClient::onReplyFinished()
     m_requestModel.clear();
     m_requestPredict = 0;
     m_requestTimeoutMs = 10 * 60 * 1000;
+    const bool wasStreaming = m_streaming;
 
     if (reply->error() != QNetworkReply::NoError) {
-        const QByteArray body = reply->readAll();
+        reply->readAll();
         QString message;
         if (m_timedOut) {
             message = QStringLiteral("生成超时（超过 10 分钟），已停止。");
@@ -411,10 +480,28 @@ void AiClient::onReplyFinished()
                    == QNetworkReply::OperationCanceledError) {
             message = QStringLiteral("已取消。");
         } else {
-            message = classifyError(reply, body);
+            message = classifyError(reply, {});
         }
         reply->deleteLater();
+        m_streaming = false;
         emit failed(message);
+        return;
+    }
+
+    if (wasStreaming) {
+        // 流式:内容已在 onStreamReady 中累积,这里只收尾剩余行
+        onStreamReady();
+        const QString tail = m_streamText.trimmed();
+        m_streaming = false;
+        if (!tail.isEmpty())
+            emit wordListLine(tail);
+        if (type == RequestType::WordList) {
+            emit wordListFinished(QString());
+        } else {
+            emit finished(QString());
+        }
+        reply->readAll();
+        reply->deleteLater();
         return;
     }
 

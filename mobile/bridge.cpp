@@ -219,7 +219,8 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
 {
     connect(m_ai, &AiClient::translationFinished, this,
             [this](const QString &t) {
-                if (!m_lastTranslateSource.trimmed().isEmpty()) {
+                if (m_collectTranslationWords
+                    && !m_lastTranslateSource.trimmed().isEmpty()) {
                     const QVector<Word> unknown =
                         m_store->extractUnknownWords(
                             m_lastTranslateSource, 20);
@@ -227,6 +228,7 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
                         unknown, m_lastTranslateSource);
                     reloadCounts();
                 }
+                m_collectTranslationWords = false;
                 emit translationReady(t);
             });
     connect(m_ai, &AiClient::failed, this,
@@ -242,6 +244,7 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
                 // 例句生成失败只走 aiFailed,避免误报成翻译失败。
                 if (m_pendingTranslate) {
                     m_pendingTranslate = false;
+                    m_collectTranslationWords = false;
                     emit translationFailed(m);
                 }
                 m_pendingTranslate = false;
@@ -274,6 +277,8 @@ MobileBridge::MobileBridge(WordStore *store, AiClient *ai, QObject *parent)
             });
     connect(m_ai, &AiClient::wordListFinished, this,
             &MobileBridge::onWordListFinished);
+    connect(m_ai, &AiClient::wordListLine, this,
+            &MobileBridge::onWordListLine);
     connect(m_ai, &AiClient::finished, this,
             &MobileBridge::onArticleFinished);
     m_net = new QNetworkAccessManager(this);
@@ -327,6 +332,22 @@ void MobileBridge::notifyDictReady()
 {
     reloadCounts();
     emit dictReadyChanged();
+}
+
+int MobileBridge::themeMode() const
+{
+    return m_store->getSetting(QStringLiteral("theme_mode"),
+                               QStringLiteral("0")).toInt();
+}
+
+void MobileBridge::setThemeMode(int mode)
+{
+    if (mode < 0 || mode > 2)
+        mode = 0;
+    if (themeMode() == mode)
+        return;
+    m_store->setSetting(QStringLiteral("theme_mode"), QString::number(mode));
+    emit themeChanged();
 }
 
 void MobileBridge::openUrl(const QString &url)
@@ -561,11 +582,13 @@ void MobileBridge::answer(qint64 wordId, bool known)
     reloadCounts();
 }
 
-void MobileBridge::translate(const QString &text, const QString &model)
+void MobileBridge::translate(const QString &text, const QString &model,
+                             bool collectWords)
 {
     const QString trimmed = text.trimmed();
     if (trimmed.isEmpty())
         return;
+    m_collectTranslationWords = collectWords;
 #if defined(Q_OS_ANDROID)
     // 手机上的 127.0.0.1/localhost 是手机自己，不是电脑；
     // 直接给出可操作的提示，避免白白等超时。
@@ -755,17 +778,50 @@ QString MobileBridge::highlightText(const QString &text)
     return html;
 }
 
-QString MobileBridge::articleHtml(qint64 articleId)
+QStringList MobileBridge::articleParagraphs(qint64 articleId)
 {
     const std::optional<Article> article = m_store->getArticle(articleId);
     if (!article)
         return {};
     m_currentArticleId = articleId;
     m_currentArticleContent = article->content;
+
+    const QString normalized =
+        QString(article->content).replace(QStringLiteral("\r\n"),
+                                          QStringLiteral("\n"));
+    const QStringList chunks =
+        normalized.split(QRegularExpression(QStringLiteral("\n{2,}")),
+                         Qt::SkipEmptyParts);
+    QStringList paras;
+    paras.reserve(chunks.size());
+    for (const QString &chunk : chunks) {
+        const QString para =
+            QString(chunk).trimmed().replace(QStringLiteral("\n"),
+                                             QStringLiteral("<br>"));
+        if (!para.isEmpty()) {
+            // 去掉 RichText 里单词链接的下划线,保持纯文字观感
+            paras += highlightText(para).replace(
+                QStringLiteral("<a "),
+                QStringLiteral("<a style='text-decoration:none;' "));
+        }
+    }
+    return paras;
+}
+
+QString MobileBridge::articleHtml(qint64 articleId)
+{
+    const QStringList paras = articleParagraphs(articleId);
+    if (paras.isEmpty())
+        return {};
+    QString body;
+    for (const QString &p : paras)
+        body += QStringLiteral(
+                    "<p style='margin:0 0 15px 0;'>%1</p>").arg(p);
     return QStringLiteral(
-               "<style>a { text-decoration: none; }</style>"
-               "<div style='font-size:18px; line-height:1.7;'>")
-        + highlightText(article->content) + QStringLiteral("</div>");
+               "<style>a { text-decoration: none; color: inherit; }"
+               "p { text-align: justify; }</style>"
+               "<div style='font-size:18px; line-height:1.75;'>")
+        + body + QStringLiteral("</div>");
 }
 
 QString MobileBridge::articleContent(qint64 articleId)
@@ -876,6 +932,35 @@ void MobileBridge::speak(const QString &text)
 #endif
 #else
     Q_UNUSED(text);
+#endif
+}
+
+void MobileBridge::stopSpeak()
+{
+#ifdef ENGLISH3000_HAS_TTS
+#if defined(Q_OS_ANDROID)
+    QMetaObject::invokeMethod(this, [this] {
+        QJniObject activity = QJniObject::callStaticObjectMethod(
+            "org/qtproject/qt/android/QtNative", "activity",
+            "()Landroid/app/Activity;");
+        QJniObject context = activity.isValid() ? activity
+            : QJniObject::callStaticObjectMethod(
+                "android/app/ActivityThread", "currentApplication",
+                "()Landroid/app/Application;");
+        if (context.isValid()) {
+            QJniObject helper = QJniObject::callStaticObjectMethod(
+                "org/liang/english3000/TtsHelper", "get",
+                "(Landroid/content/Context;)Lorg/liang/english3000/TtsHelper;",
+                context.object<jobject>());
+            if (helper.isValid())
+                helper.callMethod<void>("stop");
+        }
+        if (m_edgeWs)
+            m_edgeWs->close();
+        if (m_player)
+            m_player->stop();
+    }, Qt::QueuedConnection);
+#endif
 #endif
 }
 
@@ -1497,95 +1582,95 @@ QString MobileBridge::ttsPreloadEstimate() { return {}; }
 #endif
 
 
+// 解析流式到达的一行,补全词性/释义,返回是否有效词条
+static bool resolveWordEntry(WordStore *store, WordEntry &e)
+{
+    if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+        if (const std::optional<Word> found = store->findWordByText(e.word)) {
+            if (e.pos.isEmpty()) e.pos = found->pos;
+            if (e.meaning.isEmpty()) e.meaning = found->meaning;
+        }
+        if (e.pos.isEmpty() || e.meaning.isEmpty()) {
+            if (const std::optional<Word> dict = store->lookupDict(e.word)) {
+                if (e.pos.isEmpty()) e.pos = dict->pos;
+                if (e.meaning.isEmpty()) e.meaning = dict->meaning;
+            }
+        }
+    }
+    return !e.word.isEmpty();
+}
+
+void MobileBridge::onWordListLine(const QString &line)
+{
+    const QVector<WordEntry> entries = parseWordEntries(line);
+    if (entries.isEmpty())
+        return;
+
+    // 首个有效词条到达时确定目标词表
+    if (m_streamListId < 0) {
+        if (m_pendingListId > 0) {
+            m_streamListId = m_pendingListId;
+            const QVector<Word> current =
+                m_store->wordsInWordList(m_streamListId);
+            for (const Word &w : current)
+                m_streamSeen.insert(w.word);
+            m_streamOrder = current.size();
+        } else {
+            const qint64 newId = m_store->createWordList(
+                m_pendingListName,
+                QStringLiteral("AI 生成领域词表"),
+                QStringLiteral("ai"));
+            if (newId < 0) {
+                m_ai->cancel();
+                emit aiFailed(
+                    QStringLiteral("创建失败:同名词表可能已存在"));
+                return;
+            }
+            m_streamListId = newId;
+            m_streamOrder = 0;
+        }
+        m_pendingListId = -1;
+        m_store->setCurrentWordList(m_streamListId);
+        emit listChanged();
+    }
+
+    for (const WordEntry &e : entries) {
+        if (m_streamSeen.contains(e.word))
+            continue;
+        WordEntry resolved = e;
+        resolveWordEntry(m_store, resolved);
+        if (m_store->addWordToList(m_streamListId, resolved.word,
+                                   resolved.pos, resolved.meaning,
+                                   m_streamOrder)) {
+            if (!resolved.example.isEmpty())
+                m_store->setExampleSentence(resolved.word,
+                                            resolved.example);
+            m_streamSeen.insert(resolved.word);
+            ++m_streamOrder;
+            emit wordAppended(m_streamListId, resolved.word,
+                              resolved.pos, resolved.meaning);
+        }
+    }
+}
+
 void MobileBridge::onWordListFinished(const QString &rawText)
 {
-    const QVector<WordEntry> entries = parseWordEntries(rawText);
+    Q_UNUSED(rawText)
     const QString name = m_pendingListName;
-    const qint64 listId = m_pendingListId;
+    const int count = m_streamOrder;
+    const qint64 listId = m_streamListId;
+    m_pendingListName.clear();
     m_pendingListId = -1;
-    if (entries.isEmpty()) {
+    m_streamListId = -1;
+    m_streamOrder = 0;
+    m_streamSeen.clear();
+    reloadCounts();
+    if (listId < 0 || count == 0) {
         emit aiFailed(QStringLiteral("AI 没有返回有效单词"));
         return;
     }
-    if (listId > 0) {
-        QSet<QString> existing;
-        const QVector<Word> current = m_store->wordsInWordList(listId);
-        for (const Word &w : current)
-            existing.insert(w.word);
-        int added = 0;
-        int order = current.size();
-        for (const WordEntry &e : entries) {
-            if (existing.contains(e.word))
-                continue;
-            QString pos;
-            QString meaning;
-            if (e.pos.isEmpty() || e.meaning.isEmpty()) {
-                const std::optional<Word> found =
-                    m_store->findWordByText(e.word);
-                if (found) {
-                    pos = found->pos;
-                    meaning = found->meaning;
-                } else {
-                    const std::optional<Word> dict =
-                        m_store->lookupDict(e.word);
-                    if (dict) {
-                        pos = dict->pos;
-                        meaning = dict->meaning;
-                    }
-                }
-            }
-            if (!e.pos.isEmpty())
-                pos = e.pos;
-            if (!e.meaning.isEmpty())
-                meaning = e.meaning;
-            if (m_store->addWordToList(listId, e.word, pos, meaning,
-                                       order)) {
-                if (!e.example.isEmpty())
-                    m_store->setExampleSentence(e.word, e.example);
-                existing.insert(e.word);
-                ++added;
-                ++order;
-            }
-        }
-        emit wordListReady(name, added);
-        return;
-    }
-    const qint64 newId = m_store->createWordList(
-        name, QStringLiteral("AI 生成领域词表"), QStringLiteral("ai"));
-    if (newId < 0) {
-        emit aiFailed(QStringLiteral("创建失败:同名词表可能已存在"));
-        return;
-    }
-    for (int i = 0; i < entries.size(); ++i) {
-        const WordEntry &e = entries.at(i);
-        QString pos;
-        QString meaning;
-        if (e.pos.isEmpty() || e.meaning.isEmpty()) {
-            const std::optional<Word> found =
-                m_store->findWordByText(e.word);
-            if (found) {
-                pos = found->pos;
-                meaning = found->meaning;
-            } else {
-                const std::optional<Word> dict =
-                    m_store->lookupDict(e.word);
-                if (dict) {
-                    pos = dict->pos;
-                    meaning = dict->meaning;
-                }
-            }
-        }
-        if (!e.pos.isEmpty())
-            pos = e.pos;
-        if (!e.meaning.isEmpty())
-            meaning = e.meaning;
-        m_store->addWordToList(newId, e.word, pos, meaning, i);
-        if (!e.example.isEmpty())
-            m_store->setExampleSentence(e.word, e.example);
-    }
-    emit wordListReady(name, entries.size());
+    emit wordListReady(name, count);
 }
-
 void MobileBridge::onArticleFinished(const QString &articleText)
 {
     QString title = m_pendingArticleTitle.trimmed();
@@ -1606,6 +1691,9 @@ void MobileBridge::aiGenerateWordList(const QString &domain, int count)
     }
     m_pendingListId = -1;
     m_pendingListName = d;
+    m_streamListId = -1;
+    m_streamOrder = 0;
+    m_streamSeen.clear();
     m_ai->generateWordList(d, qBound(50, count, 500));
 }
 
@@ -1620,7 +1708,20 @@ void MobileBridge::aiSupplementWordList(const QString &domain, int count)
     const QString d = domain.trimmed().isEmpty() ? name : domain.trimmed();
     m_pendingListId = listId;
     m_pendingListName = name;
+    m_streamListId = -1;
+    m_streamOrder = 0;
+    m_streamSeen.clear();
     m_ai->generateWordList(d, qBound(50, count, 500));
+}
+
+void MobileBridge::cancelAi()
+{
+    m_pendingListId = -1;
+    m_pendingListName.clear();
+    m_streamListId = -1;
+    m_streamOrder = 0;
+    m_streamSeen.clear();
+    m_ai->cancel();
 }
 
 void MobileBridge::aiGenerateArticle(const QString &topic, int wordCount,
@@ -1633,7 +1734,8 @@ void MobileBridge::aiGenerateArticle(const QString &topic, int wordCount,
     if (t.isEmpty())
         t = QStringLiteral("英语学习");
     m_pendingArticleTitle = t;
-    const int count = qBound(50, wordCount, 500);
+    // wordCount<=0:不强制字数,由模型按主题自然展开
+    const int count = wordCount > 0 ? qBound(50, wordCount, 500) : 0;
     const int lvl = qBound(1, level, 3);
     if (listId > 0) {
         QStringList preferred;

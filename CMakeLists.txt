@@ -53,6 +53,7 @@ if(Qt6Quick_FOUND)
             mobile/qml/GuideOverlay.qml
             mobile/qml/Theme.qml
             mobile/qml/qmldir
+            mobile/qml/Icons.qml
             assets/oxford3000.csv
             assets/core_examples.tsv
             assets/lemma.en.txt

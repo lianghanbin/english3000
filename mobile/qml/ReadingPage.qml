@@ -12,6 +12,15 @@ Page {
     property bool genBusy: false
     property bool showTranslate: false
     property string sourceHtml: ""
+    // 朗读状态:reading=true 时高亮 readingIndex 段并逐段推进
+    property bool reading: false
+    property int readingIndex: -1
+    property var paragraphs: []
+    // 逐段翻译:translations[i] = 该段译文
+    property var translations: []
+    property var translateQueue: []
+    property int translatingIdx: -1
+    property bool translationsVisible: true
 
     background: Rectangle { color: T.bg }
 
@@ -37,7 +46,7 @@ Page {
                 Text {
                     id: readBtn
                     anchors.centerIn: parent
-                    text: "朗读"
+                    text: reading ? "停止" : "朗读"
                     font.pixelSize: 12
                     font.bold: true
                     color: T.greenDark
@@ -55,7 +64,9 @@ Page {
                 Text {
                     id: translateBtn
                     anchors.centerIn: parent
-                    text: translating ? "翻译中…" : "翻译全文"
+                    text: translating ? "取消"
+                        : (hasTranslations() && translationsVisible ? "收起译文"
+                           : (hasTranslations() ? "显示译文" : "翻译全文"))
                     font.pixelSize: 12
                     font.bold: true
                     color: translating ? T.green : "#ffffff"
@@ -115,36 +126,191 @@ Page {
                 spacing: 8
 
                 Flickable {
+                    id: articleFlick
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
                     contentWidth: width
-                    contentHeight: articleText.height
-                    Text {
-                        id: articleText
+                    contentHeight: articleCol.height
+                    property int playToken: 0
+
+                    Column {
+                        id: articleCol
                         width: parent.width
-                        text: html
-                        textFormat: Text.RichText
-                        wrapMode: Text.Wrap
-                        TapHandler {
-                            acceptedButtons: Qt.LeftButton
-                            longPressThreshold: 600
-                            onTapped: function(eventPoint) {
-                                var link = articleText.linkAt(
-                                    eventPoint.position.x,
-                                    eventPoint.position.y)
-                                if (link !== "") {
-                                    var w = link.replace("word://", "")
-                                    bridge.speak(w)
+                        spacing: 15
+
+                        Repeater {
+                            id: paraRepeater
+                            model: paragraphs
+                            delegate: Item {
+                                required property int index
+                                required property string modelData
+                                width: articleCol.width
+                                implicitHeight: col.implicitHeight
+                                // 当前朗读段的绿色高亮框(包住原文+译文)
+                                Rectangle {
+                                    id: paraHl
+                                    anchors.fill: col
+                                    anchors.leftMargin: -10
+                                    anchors.rightMargin: -10
+                                    anchors.topMargin: -6
+                                    anchors.bottomMargin: -6
+                                    radius: 12
+                                    color: T.greenSoft
+                                    border.color: T.green
+                                    border.width: 1.5
+                                    opacity: 0
+                                    scale: 0.98
+                                    states: State {
+                                        name: "on"
+                                        when: reading && readingIndex === index
+                                        PropertyChanges { target: paraHl; opacity: 1; scale: 1 }
+                                    }
+                                    transitions: Transition {
+                                        NumberAnimation {
+                                            properties: "opacity,scale"
+                                            duration: 280
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
                                 }
-                            }
-                            onLongPressed: function(eventPoint) {
-                                var link = articleText.linkAt(
-                                    eventPoint.position.x,
-                                    eventPoint.position.y)
-                                if (link !== "") {
-                                    popupWord.word = link.replace("word://", "")
-                                    popupWord.open()
+                                Column {
+                                    id: col
+                                    width: parent.width
+                                    spacing: 0
+                                    Text {
+                                        id: paraText
+                                        width: parent.width
+                                        text: modelData
+                                        textFormat: Text.RichText
+                                        wrapMode: Text.Wrap
+                                        // 逐段播放:初始透明下移,依次淡入上浮
+                                        opacity: 0
+                                        y: 16
+                                        Component.onCompleted: playOnce()
+                                        function playOnce() {
+                                            paraText.y = 16
+                                            paraText.opacity = 0
+                                            paraDelay.interval = index * 160
+                                            paraDelay.start()
+                                        }
+                                        Connections {
+                                            target: articleFlick
+                                            function onPlayTokenChanged() {
+                                                playOnce()
+                                            }
+                                        }
+                                        Timer {
+                                            id: paraDelay
+                                            onTriggered: {
+                                                paraAnim.start()
+                                                paraAnim2.start()
+                                            }
+                                        }
+                                        NumberAnimation {
+                                            id: paraAnim
+                                            target: paraText
+                                            property: "opacity"
+                                            to: 1
+                                            duration: 420
+                                            easing.type: Easing.OutCubic
+                                        }
+                                        NumberAnimation {
+                                            id: paraAnim2
+                                            target: paraText
+                                            property: "y"
+                                            to: 0
+                                            duration: 420
+                                            easing.type: Easing.OutCubic
+                                        }
+                                        TapHandler {
+                                            acceptedButtons: Qt.LeftButton
+                                            longPressThreshold: 600
+                                            onTapped: function(eventPoint) {
+                                                var link = paraText.linkAt(
+                                                    eventPoint.position.x,
+                                                    eventPoint.position.y)
+                                                if (link !== "")
+                                                    bridge.speak(
+                                                        link.replace("word://", ""))
+                                            }
+                                            onLongPressed: function(eventPoint) {
+                                                var link = paraText.linkAt(
+                                                    eventPoint.position.x,
+                                                    eventPoint.position.y)
+                                                if (link !== "") {
+                                                    popupWord.word =
+                                                        link.replace("word://", "")
+                                                    popupWord.open()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // 该段译文:逐段翻译后显示在原文下方
+                                    Column {
+                                        width: parent.width
+                                        spacing: 0
+                                        visible: translationsVisible
+                                        Item {
+                                            width: parent.width
+                                            height: transTxt.text !== ""
+                                                    || translatingIdx === index
+                                                    ? 8 : 0
+                                        }
+                                        Rectangle {
+                                            id: transBox
+                                            width: parent.width
+                                            height: transTxt.implicitHeight + 18
+                                            radius: 8
+                                            color: T.track
+                                            visible: transTxt.text !== ""
+                                            Text {
+                                                id: transTxt
+                                                anchors.fill: parent
+                                                anchors.margins: 9
+                                                width: parent.width - 18
+                                                wrapMode: Text.Wrap
+                                                font.pixelSize: 14
+                                                color: T.textBody
+                                                text: (translations && index >= 0
+                                                        && index < translations.length)
+                                                      ? translations[index] : ""
+                                                opacity: 0
+                                                onTextChanged: if (text) {
+                                                    transTxt.opacity = 0
+                                                    transFade.start()
+                                                }
+                                                NumberAnimation on opacity {
+                                                    id: transFade
+                                                    from: 0; to: 1; duration: 300
+                                                }
+                                            }
+                                        }
+                                        Row {
+                                            spacing: 6
+                                            visible: translatingIdx === index
+                                            Item { width: 1; height: 8 }
+                                            Text {
+                                                text: "翻译中…"
+                                                font.pixelSize: 12
+                                                color: T.textMuted
+                                                anchors.verticalCenter:
+                                                    parent.verticalCenter
+                                            }
+                                            Rectangle {
+                                                width: 6; height: 6; radius: 3
+                                                color: T.green
+                                                anchors.verticalCenter:
+                                                    parent.verticalCenter
+                                                SequentialAnimation on opacity {
+                                                    running: translatingIdx === index
+                                                    loops: Animation.Infinite
+                                                    NumberAnimation { to: 0.2; duration: 500 }
+                                                    NumberAnimation { to: 1; duration: 500 }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -157,7 +323,7 @@ Page {
                     LegendDot { dotColor: T.green; label: "当前词表" }
                     LegendDot { dotColor: T.blue; label: "其他词表" }
                     LegendDot { dotColor: T.red; label: "未入词表" }
-                    LegendDot { dotColor: "#333333"; label: "已掌握" }
+                    LegendDot { dotColor: T.textMuted; label: "已掌握" }
                 }
 
                 Rectangle {
@@ -440,7 +606,7 @@ Page {
                 color: T.textDark
                 background: Rectangle {
                     radius: 10
-                    color: "#f7faf7"
+                    color: T.track
                     border.color: T.line
                 }
                 onAccepted: startImport()
@@ -598,27 +764,12 @@ Page {
                 color: T.textDark
                 background: Rectangle {
                     radius: 10
-                    color: "#f7faf7"
+                    color: T.track
                     border.color: T.line
                 }
             }
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
-                Text {
-                    text: "词数"
-                    font.pixelSize: 12
-                    color: T.textMuted
-                }
-                SpinBox {
-                    id: genCountSpin
-                    from: 50
-                    to: 500
-                    stepSize: 50
-                    value: 200
-                    editable: true
-                    Layout.fillWidth: true
-                }
                 Text {
                     text: "难度"
                     font.pixelSize: 12
@@ -695,12 +846,17 @@ Page {
     Connections {
         target: bridge
         function onTranslationReady(t) {
-            translateText.text = t
+            if (translating && translatingIdx >= 0) {
+                onParaTranslated(t)
+                return
+            }
             translating = false
         }
         function onTranslationFailed(m) {
-            translateText.text = "翻译失败:" + m
-            translating = false
+            if (translating && translatingIdx >= 0) {
+                onParaFailed(m)
+                return
+            }
         }
         function onArticleReady(id, title) {
             genBusy = false
@@ -792,51 +948,167 @@ Page {
     }
 
     function translateAll() {
-        var a = articles[articleCombo.currentIndex]
-        if (!a) return
-        var content = bridge.articleContent(a.id)
-        if (content.length > 4000) {
-            content = content.substring(0, 4000)
-            showToast("文章较长，只翻译前 4000 字符")
+        if (translating) {
+            // 正在逐段翻译时再点=停止(已译出的保留)
+            translating = false
+            translatingIdx = -1
+            translateQueue = []
+            return
         }
-        lastSource = content
-        sourceHtml = "<div style='font-size:13px; line-height:1.6;'>"
-                     + bridge.highlightText(content) + "</div>"
-        translating = true
-        showTranslate = true
-        translateText.text = "翻译中…"
-        bridge.translate(content, "")
-    }
-
-    function translateWord(w) {
-        lastSource = w
-        sourceHtml = "<div style='font-size:13px; line-height:1.6;'>"
-                     + bridge.highlightText(w) + "</div>"
-        translating = true
-        showTranslate = true
-        translateText.text = "翻译中…"
-        bridge.translate(w, "")
-    }
-
-    function readAloud() {
-        var a = articles[articleCombo.currentIndex]
-        if (!a) {
+        // 已有译文且正显示 -> 收起,恢复纯英文
+        if (hasTranslations() && translationsVisible) {
+            translationsVisible = false
+            return
+        }
+        // 译文被收起 -> 重新展开(不重新请求)
+        if (hasTranslations() && !translationsVisible) {
+            translationsVisible = true
+            return
+        }
+        if (!paragraphs || paragraphs.length === 0) {
             showToast("请先选择一篇文章")
             return
         }
-        bridge.speak(bridge.articleContent(a.id))
+        // 每段去标签取纯文本,建翻译队列
+        translations = new Array(paragraphs.length).fill("")
+        translationsVisible = true
+        var q = []
+        for (var i = 0; i < paragraphs.length; i++)
+            q.push(i)
+        translateQueue = q
+        translating = true
+        translateNextParagraph()
+    }
+
+    function hasTranslations() {
+        if (!translations) return false
+        for (var i = 0; i < translations.length; i++)
+            if (translations[i] && translations[i] !== "") return true
+        return false
+    }
+
+    function plainText(htmlPara) {
+        return htmlPara.replace(/<[^>]*>/g, "")
+                .replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+    }
+
+    function translateNextParagraph() {
+        if (!translating || translateQueue.length === 0) {
+            translating = false
+            translatingIdx = -1
+            return
+        }
+        var idx = translateQueue.shift()
+        translatingIdx = idx
+        bridge.translate(plainText(paragraphs[idx]), "")
+    }
+
+    function onParaTranslated(text) {
+        if (translatingIdx < 0) return
+        var arr = translations.slice()
+        arr[translatingIdx] = text
+        translations = arr
+        translatingIdx = -1
+        // 继续下一段(留 80ms 喘息,避免连发被限流)
+        paraGapTimer.start()
+    }
+
+    function onParaFailed(m) {
+        if (translatingIdx >= 0) {
+            var arr = translations.slice()
+            arr[translatingIdx] = "（翻译失败:" + m + "）"
+            translations = arr
+        }
+        translatingIdx = -1
+        translateQueue = []
+        translating = false
+    }
+
+    // 单词弹窗的查词:走底部翻译面板(非逐段模式)
+    function translateWord(w) {
+        translating = false
+        translatingIdx = -1
+        lastSource = w
+        sourceHtml = "<div style='font-size:13px; line-height:1.6;'>"
+                     + bridge.highlightText(w) + "</div>"
+        showTranslate = true
+        translateText.text = "翻译中…"
+        bridge.translate(w, "")
     }
 
     function startArticleAi() {
         var t = topicField.text.trim()
         genBusy = true
         genPopup.close()
-        bridge.aiGenerateArticle(t, genCountSpin.value,
-                                 genLevelCombo.currentIndex + 1)
+        bridge.aiGenerateArticle(t, 0, genLevelCombo.currentIndex + 1)
     }
 
     function loadArticle(id) {
-        html = bridge.articleHtml(id)
+        stopReadAloud()
+        translating = false
+        translatingIdx = -1
+        translateQueue = []
+        translations = []
+        translationsVisible = true
+        paragraphs = bridge.articleParagraphs(id)
+        // 切换文章:model 绑定会自动重建段落,这里回到顶部并触发逐段动画
+        articleFlick.playToken++
+        articleFlick.contentY = 0
+    }
+
+    function readAloud() {
+        if (reading) { stopReadAloud(); return }
+        if (!paragraphs || paragraphs.length === 0) {
+            showToast("请先选择一篇文章")
+            return
+        }
+        reading = true
+        readingIndex = 0
+        speakCurrentParagraph()
+    }
+
+    function stopReadAloud() {
+        if (!reading) return
+        reading = false
+        readingIndex = -1
+        readAdvanceTimer.stop()
+        bridge.stopSpeak()
+    }
+
+    function speakCurrentParagraph() {
+        if (!reading || readingIndex < 0
+                || readingIndex >= paragraphs.length) {
+            stopReadAloud()
+            return
+        }
+        // 滚到当前段,让绿色框可见
+        var item = paraRepeater.itemAt(readingIndex)
+        if (item) {
+            var target = item.mapToItem(articleFlick.contentItem, 0, 0).y
+            articleFlick.contentY = Math.max(0, target - 40)
+        }
+        // 去标签拿纯文本朗读
+        var plain = paragraphs[readingIndex]
+                      .replace(/<[^>]*>/g, "")
+                      .replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+                      .replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+                      .replace(/&#39;/g, "'")
+        bridge.speak(plain)
+        // 按字数估算本段朗读时长(系统TTS约每秒 14 字符)
+        var ms = Math.max(1500, plain.length * 75)
+        readAdvanceTimer.interval = ms
+        readAdvanceTimer.restart()
+    }
+
+    function advanceParagraph() {
+        readingIndex++
+        if (readingIndex >= paragraphs.length) {
+            stopReadAloud()
+            return
+        }
+        speakCurrentParagraph()
     }
 
     function load(selectId) {
@@ -855,6 +1127,21 @@ Page {
     }
 
     Component.onCompleted: load()
+
+    // 朗读推进:一段读完后切到下一段
+    Timer {
+        id: readAdvanceTimer
+        repeat: false
+        onTriggered: advanceParagraph()
+    }
+
+    // 逐段翻译间隔
+    Timer {
+        id: paraGapTimer
+        interval: 120
+        repeat: false
+        onTriggered: translateNextParagraph()
+    }
 
     component LegendDot: Row {
         id: root

@@ -27,7 +27,7 @@ ApplicationWindow {
         SwipeView {
             id: swipe
             width: parent.width
-            height: parent.height - 56
+            height: parent.height - 62
             interactive: true
             currentIndex: 0
 
@@ -116,41 +116,67 @@ ApplicationWindow {
         }
 
         Rectangle {
+            id: navBar
             width: parent.width
-            height: 56
+            height: 62
             color: T.card
             border.color: T.line
             z: 10
+
+            // 滑动胶囊指示器:在 6 个 tab 之间平滑移动
+            Rectangle {
+                id: pill
+                y: 8
+                width: Math.min(64, navBar.width / 6 - 12)
+                height: navBar.height - 16
+                radius: height / 2
+                color: T.greenSoft
+                x: navBar.width / 6 * swipe.currentIndex +
+                   (navBar.width / 6 - width) / 2
+                Behavior on x {
+                    SpringAnimation {
+                        spring: 4
+                        damping: 0.42
+                        epsilon: 0.01
+                    }
+                }
+            }
 
             Row {
                 anchors.fill: parent
                 NavItem {
                     label: "学习"
+                    icon: "study"
                     active: swipe.currentIndex === 0
                     onClicked: swipe.currentIndex = 0
                 }
                 NavItem {
                     label: "词表"
+                    icon: "lists"
                     active: swipe.currentIndex === 1
                     onClicked: swipe.currentIndex = 1
                 }
                 NavItem {
                     label: "阅读"
+                    icon: "reading"
                     active: swipe.currentIndex === 2
                     onClicked: swipe.currentIndex = 2
                 }
                 NavItem {
                     label: "翻译"
+                    icon: "translate"
                     active: swipe.currentIndex === 3
                     onClicked: swipe.currentIndex = 3
                 }
                 NavItem {
                     label: "数据"
+                    icon: "stats"
                     active: swipe.currentIndex === 4
                     onClicked: swipe.currentIndex = 4
                 }
                 NavItem {
                     label: "设置"
+                    icon: "settings"
                     active: swipe.currentIndex === 5
                     onClicked: swipe.currentIndex = 5
                 }
@@ -261,26 +287,38 @@ ApplicationWindow {
     component NavItem: Item {
         id: root
         property string label: ""
+        property string icon: ""
         property bool active: false
         signal clicked()
         width: parent.width / 6
         height: parent.height
 
         Column {
+            id: col
             anchors.centerIn: parent
             spacing: 3
-            Rectangle {
-                width: 6
-                height: 6
-                radius: 3
-                color: root.active ? T.green : "transparent"
+            scale: root.active ? 1.06 : 1.0
+            Behavior on scale {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+            Image {
+                id: iconImg
                 anchors.horizontalCenter: parent.horizontalCenter
+                width: 22
+                height: 22
+                sourceSize.width: 44
+                sourceSize.height: 44
+                smooth: true
+                source: Icons.dataUri(root.icon,
+                        root.active ? T.greenDark : T.navInactive)
             }
             Text {
+                anchors.horizontalCenter: parent.horizontalCenter
                 text: root.label
-                font.pixelSize: 18
+                font.pixelSize: 11
                 font.bold: root.active
-                color: root.active ? T.green : T.navInactive
+                color: root.active ? T.greenDark : T.navInactive
+                Behavior on color { ColorAnimation { duration: 180 } }
             }
         }
         MouseArea {

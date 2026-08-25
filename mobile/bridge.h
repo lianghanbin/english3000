@@ -29,6 +29,8 @@ class MobileBridge : public QObject {
     Q_PROPERTY(QString aiApiKey READ aiApiKey NOTIFY countsChanged)
     Q_PROPERTY(QString aiMode READ aiMode WRITE setAiMode NOTIFY countsChanged)
     Q_PROPERTY(bool dictReady READ dictReady NOTIFY dictReadyChanged)
+    // 外观:0=跟随系统,1=浅色,2=深色
+    Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeChanged)
 
 public:
     MobileBridge(WordStore *store, AiClient *ai, QObject *parent = nullptr);
@@ -38,6 +40,8 @@ public:
     int masteredCount() const;
     int streak() const;
     bool dictReady() const;
+    int themeMode() const;
+    void setThemeMode(int mode);
     QString currentListName() const;
     QString aiProvider() const;
     QString aiApiKey() const;
@@ -56,7 +60,10 @@ public:
     Q_INVOKABLE void setCurrentList(qint64 listId);
     Q_INVOKABLE void deleteWordList(qint64 listId);
     Q_INVOKABLE void answer(qint64 wordId, bool known);
-    Q_INVOKABLE void translate(const QString &text, const QString &model);
+    // 翻译;collectWords=true 时把原文里的生词收入「翻译生词」词表
+    // (仅翻译页传 true,阅读页逐段/查词翻译不收词)
+    Q_INVOKABLE void translate(const QString &text, const QString &model,
+                               bool collectWords = false);
     Q_INVOKABLE void requestExample(qint64 wordId, const QString &word);
     Q_INVOKABLE void cancelExample();
     // 后台预取 AI 例句(串行,不显示),预热后面的卡片
@@ -65,12 +72,16 @@ public:
     Q_INVOKABLE QVariantList articles();
     Q_INVOKABLE QString articleHtml(qint64 articleId);
     Q_INVOKABLE QString articleContent(qint64 articleId);
+    // 返回按段落高亮好的 HTML 列表(段间空行分隔),供逐段动画播放
+    Q_INVOKABLE QStringList articleParagraphs(qint64 articleId);
     Q_INVOKABLE QString highlightText(const QString &text);
     Q_INVOKABLE QString sentenceForArticle(qint64 articleId,
                                            const QString &word);
     Q_INVOKABLE void addReadingWord(const QString &word);
     Q_INVOKABLE void addToReadingList(const QString &word);
     Q_INVOKABLE void speak(const QString &text);
+    // 停止当前朗读(系统 TTS + 神经网络发音)
+    Q_INVOKABLE void stopSpeak();
     // 后台预取短文本发音(不播放),供卡片显示时提前缓存
     Q_INVOKABLE void prefetchSpeak(const QString &text);
     // 发音音色:"system"=纯系统本地 TTS(零延迟、离线);
@@ -88,6 +99,8 @@ public:
     Q_INVOKABLE QVariantList coverageHistory(int days);
     Q_INVOKABLE void aiGenerateWordList(const QString &domain, int count);
     Q_INVOKABLE void aiSupplementWordList(const QString &domain, int count);
+    // 取消正在进行的 AI 请求(生成词表/文章等)
+    Q_INVOKABLE void cancelAi();
     Q_INVOKABLE void aiGenerateArticle(const QString &topic,
                                        int wordCount = 300,
                                        int level = 1);
@@ -131,7 +144,11 @@ signals:
     void exampleReady(qint64 wordId, const QString &sentence);
     void exampleFailed(qint64 wordId, const QString &message);
     void wordListReady(const QString &name, int count);
+    // 流式词表:AI 每产出一个词就实时通知界面追加
+    void wordAppended(qint64 listId, const QString &word,
+                      const QString &pos, const QString &meaning);
     void dictReadyChanged();
+    void themeChanged();
     void articleReady(qint64 articleId, const QString &title);
     void articleImported(qint64 articleId, const QString &title);
     void chatReady(const QString &text);
@@ -148,6 +165,7 @@ signals:
 
 private:
     void onWordListFinished(const QString &rawText);
+    void onWordListLine(const QString &line);
     void onArticleFinished(const QString &articleText);
     QString chatBuildPrompt() const;
     void onImportFinished();
@@ -159,6 +177,7 @@ private:
     QNetworkReply *m_importReply = nullptr;
     qint64 m_pendingExampleId = -1;
     bool m_pendingTranslate = false;
+    bool m_collectTranslationWords = false;
     QSet<qint64> m_requestedExampleIds;
     QHash<qint64, QString> m_exampleCache;
     QQueue<QPair<qint64, QString>> m_examplePrefetch;
@@ -169,6 +188,9 @@ private:
     QString m_currentArticleContent;
     QString m_pendingListName;
     qint64 m_pendingListId = -1;
+    qint64 m_streamListId = -1;
+    int m_streamOrder = 0;
+    QSet<QString> m_streamSeen;
     QString m_pendingArticleTitle;
     QString m_chatTitle;
     QString m_chatContext;

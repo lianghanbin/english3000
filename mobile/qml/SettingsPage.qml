@@ -140,7 +140,7 @@ Page {
                                 height: 52
                                 radius: 12
                                 color: preset === modelData.value
-                                       ? T.greenSoft : "#f7faf7"
+                                       ? T.greenSoft : T.track
                                 border.width: preset === modelData.value ? 1.5 : 1
                                 border.color: preset === modelData.value
                                               ? T.green : T.line
@@ -259,7 +259,7 @@ Page {
                                     width: replaceTxt.implicitWidth + 16
                                     height: 30
                                     radius: 15
-                                    color: "#ffffff"
+                                    color: T.card
                                     border.width: 1
                                     border.color: T.greenBorder
                                     Text {
@@ -443,6 +443,64 @@ Page {
                 }
             }
 
+            // 外观
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                radius: 18
+                color: T.card
+                border.color: T.line
+                implicitHeight: appearanceCol.implicitHeight + 28
+
+                ColumnLayout {
+                    id: appearanceCol
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    Text {
+                        text: "外观"
+                        font.pixelSize: 14
+                        font.bold: true
+                        color: T.textDark
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Repeater {
+                            model: [
+                                { v: 0, label: "跟随系统" },
+                                { v: 1, label: "浅色" },
+                                { v: 2, label: "深色" }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                height: 40
+                                radius: 12
+                                color: bridge.themeMode === modelData.v
+                                       ? T.blueSoft : T.track
+                                border.color: bridge.themeMode === modelData.v
+                                              ? T.blue : T.line
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    font.pixelSize: 13
+                                    font.bold: bridge.themeMode === modelData.v
+                                    color: bridge.themeMode === modelData.v
+                                           ? T.blue : T.textBody
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: bridge.themeMode = modelData.v
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 发音音色
             Rectangle {
                 Layout.fillWidth: true
@@ -565,7 +623,7 @@ Page {
                               : "预计占用空间 " + preloadEstimate
                                 + " · 含单词与例句发音"
                         font.pixelSize: 11
-                        color: T.muted
+                        color: T.textMuted
                         horizontalAlignment: Text.AlignHCenter
                         topPadding: 2
                         bottomPadding: 4
@@ -947,7 +1005,7 @@ Page {
             Layout.fillWidth: true
             height: 40
             radius: 10
-            color: "#f7faf7"
+            color: T.track
             border.color: T.line
             TextField {
                 anchors.fill: parent
