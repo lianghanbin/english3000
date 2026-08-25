@@ -40,9 +40,9 @@ if(Qt6Quick_FOUND)
         target_compile_definitions(english3000_mobile PRIVATE
             ENGLISH3000_HAS_TTS=1)
     endif()
-    qt_add_resources(english3000_mobile "mobile_resources"
-        PREFIX "/"
-        FILES
+    # ECDICT 离线词典(63MB)不入库;存在时才打进资源。
+    # CI 通过步骤下载到 assets/dict/ecdict.csv;本地已有则直接打包。
+    set(MOBILE_RES_FILES
             mobile/qml/main.qml
             mobile/qml/StudyPage.qml
             mobile/qml/ReadingPage.qml
@@ -58,10 +58,17 @@ if(Qt6Quick_FOUND)
             assets/lemma.en.txt
             assets/donate/qr1.jpg
             assets/donate/qr2.jpg
-            assets/dict/ecdict.csv
             assets/samples/coffee.txt
             assets/samples/linux-files.txt
             assets/samples/morning-routine.txt)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/dict/ecdict.csv")
+        list(APPEND MOBILE_RES_FILES assets/dict/ecdict.csv)
+    else()
+        message(WARNING "assets/dict/ecdict.csv 缺失,离线词典将不可用(CI 应自动下载)")
+    endif()
+    qt_add_resources(english3000_mobile "mobile_resources"
+        PREFIX "/"
+        FILES ${MOBILE_RES_FILES})
     if(ANDROID)
         set_target_properties(english3000_mobile PROPERTIES
             QT_ANDROID_PACKAGE_SOURCE_DIR

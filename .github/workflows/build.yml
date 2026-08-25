@@ -21,6 +21,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxcb1-dev libgl1-mesa-dev ninja-build
+      - name: Download ECDICT
+        run: |
+          mkdir -p assets/dict
+          curl -fL --retry 3 -o assets/dict/ecdict.csv \
+            https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -46,6 +51,11 @@ jobs:
         run: |
           $bid = "build-${{ github.run_id }}-${{ github.sha }}"
           Write-Output "BUILD_ID=$bid" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      - name: Download ECDICT
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/dict | Out-Null
+          Invoke-WebRequest -Uri https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv -OutFile assets/dict/ecdict.csv
       - name: Configure
         env:
           ENGLISH3000_BUILD_ID: ${{ steps.buildid.outputs.BUILD_ID }}
@@ -109,6 +119,11 @@ jobs:
         run: |
           $bid = "build-${{ github.run_id }}-${{ github.sha }}"
           Write-Output "BUILD_ID=$bid" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+      - name: Download ECDICT
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets/dict | Out-Null
+          Invoke-WebRequest -Uri https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv -OutFile assets/dict/ecdict.csv
       - name: Build
         env:
           ENGLISH3000_BUILD_ID: ${{ steps.buildid.outputs.BUILD_ID }}
@@ -259,6 +274,11 @@ jobs:
             ./tools/install-qt-android.sh /opt/Qt
           fi
           echo "QT_ROOT_DIR=/opt/Qt/6.7.3/android_arm64_v8a" >> $GITHUB_ENV
+      - name: Download ECDICT
+        run: |
+          mkdir -p assets/dict
+          curl -fL --retry 3 -o assets/dict/ecdict.csv \
+            https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv
       - name: Configure
         run: |
           echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/27.2.12479018" >> $GITHUB_ENV
