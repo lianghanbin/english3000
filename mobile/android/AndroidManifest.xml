@@ -12,7 +12,7 @@
             android:exported="true"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density"
             android:launchMode="singleTop"
-            android:screenOrientation="unspecified">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
