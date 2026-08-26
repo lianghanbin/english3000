@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(english3000 VERSION 1.0.0 LANGUAGES CXX)
+project(english3000 VERSION 1.3.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,6 +30,9 @@ if(Qt6Quick_FOUND)
     )
     target_include_directories(english3000_mobile PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    # 应用版本(检查更新时与 GitHub 最新 Release 比较)
+    target_compile_definitions(english3000_mobile PRIVATE
+        APP_VERSION="${PROJECT_VERSION}")
     target_link_libraries(english3000_mobile PRIVATE
         core ai Qt6::Quick Qt6::QuickControls2 Qt6::Sql Qt6::Concurrent)
     # Android 打包必需:显式导入 SQLite 驱动插件(否则运行时 Driver not loaded)

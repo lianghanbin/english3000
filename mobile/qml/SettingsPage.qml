@@ -57,6 +57,19 @@ Page {
                 preloadTotal = total
             }
         }
+        function onUpdateCheckResult(available, latest, url) {
+            if (latest === "") {
+                showToast("检查失败,请检查网络后重试")
+                return
+            }
+            if (available) {
+                updatePopup.latestVersion = latest
+                updatePopup.releaseUrl = url
+                updatePopup.open()
+            } else {
+                showToast("已是最新版本 v" + latest)
+            }
+        }
     }
 
     background: Rectangle { color: T.bg }
@@ -653,6 +666,26 @@ Page {
                 }
             }
 
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                spacing: 10
+                ChipBtn {
+                    text: "⬆️ 检查更新"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        showToast("正在检查更新…")
+                        bridge.checkUpdate()
+                    }
+                }
+                Text {
+                    text: "当前 v" + bridge.appVersion()
+                    font.pixelSize: 11
+                    color: T.textMuted
+                }
+            }
+
             Rectangle {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
@@ -781,6 +814,54 @@ Page {
                             bridge.resetAllProgress()
                         confirmPopup.close()
                         showToast("完成")
+                    }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: updatePopup
+        property string latestVersion: ""
+        property string releaseUrl: ""
+        anchors.centerIn: parent
+        width: parent.width * 0.86
+        modal: true
+        focus: true
+        background: Rectangle { radius: 18; color: T.card }
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: "发现新版本 🎉"
+                font.pixelSize: 16
+                font.bold: true
+                color: T.textDark
+                Layout.alignment: Qt.AlignHCenter
+            }
+            Text {
+                text: "最新版本 v" + updatePopup.latestVersion
+                      + ",当前 v" + bridge.appVersion()
+                      + "。打开下载页获取新 APK,直接安装覆盖即可,数据保留。"
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                Layout.fillWidth: true
+                font.pixelSize: 12
+                color: T.textBody
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+                ChipBtn {
+                    text: "下次再说"
+                    Layout.fillWidth: true
+                    onClicked: updatePopup.close()
+                }
+                ChipBtn {
+                    text: "打开下载页"
+                    Layout.fillWidth: true
+                    onClicked: {
+                        bridge.openUrl(updatePopup.releaseUrl)
+                        updatePopup.close()
                     }
                 }
             }

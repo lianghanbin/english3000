@@ -17,6 +17,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrl>
+#include <QVector>
 #include <QGuiApplication>
 #include <QClipboard>
 
@@ -361,6 +362,79 @@ QString MobileBridge::clipboardText() const
     if (auto *cb = QGuiApplication::clipboard())
         return cb->text().trimmed();
     return {};
+}
+
+// "v1.3.1"/"1.3.1" -> [1,3,1],便于逐段比较
+static QVector<int> parseVersionTriple(const QString &version)
+{
+    QVector<int> out{0, 0, 0};
+    QString v = version;
+    if (v.startsWith(QLatin1Char('v')) || v.startsWith(QLatin1Char('V')))
+        v.remove(0, 1);
+    const QStringList parts = v.split(QLatin1Char('.'));
+    for (int i = 0; i < out.size() && i < parts.size(); ++i)
+        out[i] = parts.at(i).toInt();
+    return out;
+}
+
+QString MobileBridge::appVersion() const
+{
+    return QStringLiteral(APP_VERSION);
+}
+
+void MobileBridge::checkUpdate()
+{
+    if (m_updateReply)
+        return;
+    if (!m_updateManager)
+        m_updateManager = new QNetworkAccessManager(this);
+    QNetworkRequest request(QUrl(QStringLiteral(
+        "https://api.github.com/repos/lianghanbin/english3000/"
+        "releases/latest")));
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      QStringLiteral("English3000-Mobile-Updater"));
+    m_updateReply = m_updateManager->get(request);
+    connect(m_updateReply, &QNetworkReply::finished, this,
+            &MobileBridge::onUpdateReplyFinished);
+    // 15 秒超时,防止弱网下按钮永远没反应
+    QTimer::singleShot(15000, this, [this] {
+        if (m_updateReply)
+            m_updateReply->abort();
+    });
+}
+
+void MobileBridge::onUpdateReplyFinished()
+{
+    QNetworkReply *reply = m_updateReply;
+    m_updateReply = nullptr;
+    if (!reply)
+        return;
+    reply->deleteLater();
+    if (reply->error() != QNetworkReply::NoError) {
+        emit updateCheckResult(false, {}, {});
+        return;
+    }
+    const QJsonObject obj =
+        QJsonDocument::fromJson(reply->readAll()).object();
+    const QString tag = obj.value(QStringLiteral("tag_name")).toString();
+    const QString htmlUrl =
+        obj.value(QStringLiteral("html_url")).toString();
+    if (tag.isEmpty()) {
+        emit updateCheckResult(false, {}, {});
+        return;
+    }
+    const QVector<int> latest = parseVersionTriple(tag);
+    const QVector<int> current =
+        parseVersionTriple(QStringLiteral(APP_VERSION));
+    const bool newer = latest.at(0) != current.at(0)
+                           ? latest.at(0) > current.at(0)
+                           : (latest.at(1) != current.at(1)
+                                  ? latest.at(1) > current.at(1)
+                                  : latest.at(2) > current.at(2));
+    const QString cleanTag =
+        tag.startsWith(QLatin1Char('v')) ? tag.mid(1) : tag;
+    emit updateCheckResult(newer, cleanTag,
+                           newer ? htmlUrl : QString());
 }
 
 QString MobileBridge::currentListName() const

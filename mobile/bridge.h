@@ -119,6 +119,11 @@ public:
     Q_INVOKABLE void notifyDictReady();
     Q_INVOKABLE void openUrl(const QString &url);
     Q_INVOKABLE QString clipboardText() const;
+    // 检查新版本:查询 GitHub 最新版本化 Release 并与内置 APP_VERSION 比较,
+    // 结果经 updateCheckResult(available, latestVersion, releaseUrl) 上报
+    Q_INVOKABLE void checkUpdate();
+    // 当前应用版本号(来自 CMake PROJECT_VERSION)
+    Q_INVOKABLE QString appVersion() const;
 
     Q_INVOKABLE QString aiUrl() const;
     Q_INVOKABLE void setAiUrl(const QString &url);
@@ -162,6 +167,9 @@ signals:
     void ttsPreloadProgress(int done, int total);
     // 请求重新播放引导
     void guideRequested();
+    // 更新检查结果:latestVersion 为空表示检查失败;available 表示有新版
+    void updateCheckResult(bool available, const QString &latestVersion,
+                           const QString &releaseUrl);
 
 private:
     void onWordListFinished(const QString &rawText);
@@ -169,12 +177,16 @@ private:
     void onArticleFinished(const QString &articleText);
     QString chatBuildPrompt() const;
     void onImportFinished();
+    void onUpdateReplyFinished();
 
     WordStore *m_store = nullptr;
     AiClient *m_ai = nullptr;
     AiProbe *m_probe = nullptr;
     QNetworkAccessManager *m_net = nullptr;
     QNetworkReply *m_importReply = nullptr;
+    // 更新检查(懒创建,复用网络栈)
+    QNetworkAccessManager *m_updateManager = nullptr;
+    QNetworkReply *m_updateReply = nullptr;
     qint64 m_pendingExampleId = -1;
     bool m_pendingTranslate = false;
     bool m_collectTranslationWords = false;
